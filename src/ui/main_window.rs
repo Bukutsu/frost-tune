@@ -18,6 +18,7 @@ pub enum Message {
     WorkerPulled(OperationResult),
     WorkerPushed(OperationResult),
     WorkerStatus(WorkerStatus),
+    Tick(std::time::Instant),
     BandEnabledChanged(usize, bool),
     BandGainChanged(usize, f64),
     BandFreqChanged(usize, u16),
@@ -153,6 +154,11 @@ impl MainWindow {
                 else if !status.connected && self.connection_status == ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Disconnected; log::info!("Device disconnected"); }
                 Task::none()
             }
+            Message::Tick(_) => {
+                let worker = match &self.worker { Some(w) => w, None => return Task::none() };
+                let worker = Arc::clone(worker);
+                Task::perform(async move { let rx = worker.status(); rx.recv().unwrap_or(WorkerStatus { connected: false, physically_present: false }) }, Message::WorkerStatus)
+            }
             Message::BandEnabledChanged(index, enabled) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.enabled = enabled; } Task::none() }
             Message::BandGainChanged(index, gain) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.gain = gain; band.enabled = true; } Task::none() }
             Message::BandFreqChanged(index, freq) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.freq = freq; } Task::none() }
@@ -214,7 +220,12 @@ impl MainWindow {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::none()
+        use std::time::Duration;
+        use std::pin::Pin;
+        use std::future::Future;
+        use iced::time;
+        async fn tick() -> Message { Message::Tick(std::time::Instant::now()) }
+        time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2))
     }
 }
 
