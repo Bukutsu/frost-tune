@@ -8,13 +8,18 @@ license = "MIT"
 
 [dependencies]
 iced = "0.14"
-hidapi = "2.6"
 log = "0.4"
 env_logger = "0.11"
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["linux-static-libusb"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["windows-native"] }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libc = "0.2"

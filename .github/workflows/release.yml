@@ -39,10 +39,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "frost-tune"
+          cache-on-failure: true
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev libudev-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev libusb-1.0-0-dev pkg-config
 
       - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
@@ -61,4 +62,5 @@ jobs:
           files: |
             ${{ matrix.artifact_name }}.tar.gz
             ${{ matrix.artifact_name }}.zip
-          generate_release_notes: true
+          generate_release_notes: false
+          fail_on_unmatched_files: false
