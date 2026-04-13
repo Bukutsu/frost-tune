@@ -1,8 +1,6 @@
-use crate::dsp::parse_filter_packet;
-use crate::error::AppError;
-use crate::models::{PEQData, PRODUCT_ID, Filter};
-use crate::VENDOR_ID;
-use crate::protocol::{
+use crate::hardware::dsp::parse_filter_packet;
+use crate::models::{PEQData, PRODUCT_ID, Filter, VENDOR_ID};
+use crate::hardware::protocol::{
     CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_VERSION,
     READ, END, REPORT_ID,
     OFFSET_NONCE, OFFSET_INDEX, OFFSET_GAIN_VALUE
@@ -37,7 +35,7 @@ pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
     None
 }
 
-pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<(), AppError> {
+pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<(), String> {
     let mut buffer = vec![REPORT_ID];
     buffer.extend_from_slice(data);
 
@@ -48,7 +46,7 @@ pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<(), AppErr
             Err(e) => {
                 attempts += 1;
                 if attempts >= MAX_WRITE_RETRIES {
-                    return Err(AppError::WriteError(e.to_string()));
+                    return Err(e.to_string());
                 }
                 delay_ms(DEFAULT_RETRY_DELAY_MS);
             }
@@ -92,7 +90,7 @@ pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
     }
 }
 
-pub fn pull_peq_internal(device: &hidapi::HidDevice, strict: bool) -> Result<PEQData, AppError> {
+pub fn pull_peq_internal(device: &hidapi::HidDevice, strict: bool) -> Result<PEQData, String> {
     pull_peq_internal_with_timing(device, &ReadTiming::default(), strict)
 }
 
@@ -100,7 +98,7 @@ pub fn pull_peq_internal_with_timing(
     device: &hidapi::HidDevice,
     cfg: &ReadTiming,
     strict: bool,
-) -> Result<PEQData, AppError> {
+) -> Result<PEQData, String> {
     flush_hid_buffer(device);
     
     // Version request
@@ -124,7 +122,7 @@ pub fn pull_peq_internal_with_timing(
 
         let response = read_single_filter_with_nonce(device, cfg, i, filter_nonce);
         if strict && response.is_none() {
-            return Err(AppError::ParseError(format!("Failed to read filter {} (nonce: {})", i, filter_nonce)));
+            return Err(format!("Failed to read filter {} (nonce: {})", i, filter_nonce));
         }
         filter_responses[i as usize] = response;
     }
@@ -166,7 +164,7 @@ fn read_single_filter_with_nonce(device: &hidapi::HidDevice, cfg: &ReadTiming, e
     None
 }
 
-fn read_global_gain(device: &hidapi::HidDevice, cfg: &ReadTiming, _nonce: u8) -> Result<u8, AppError> {
+fn read_global_gain(device: &hidapi::HidDevice, cfg: &ReadTiming, _nonce: u8) -> Result<u8, String> {
     // Use fixed nonce 0x00 for global gain - firmware may not echo nonce for this command
     delay_ms(cfg.post_filter_read_ms);
     send_report(device, &[READ, CMD_GLOBAL_GAIN, 0x00, END][..])?;

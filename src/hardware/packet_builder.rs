@@ -1,12 +1,11 @@
 use hidapi::HidDevice;
-use crate::dsp::{compute_iir_filter, convert_to_byte_array};
-use crate::hid::{delay_ms, send_report};
-use crate::protocol::{
+use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
+use crate::hardware::hid::{delay_ms, send_report};
+use crate::hardware::protocol::{
     CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_TEMP_WRITE, CMD_FLASH_EQ, CMD_VERSION,
     WRITE, END, READ
 };
 use crate::models::Filter;
-use crate::error::AppError;
 
 pub const FILTER_SLOT: u8 = 101;
 pub const NUM_FILTERS: u8 = 10;
@@ -71,7 +70,7 @@ pub fn build_flash_eq_packet() -> Vec<u8> {
     vec![WRITE, CMD_FLASH_EQ, 0x01, FILTER_SLOT, END]
 }
 
-pub fn init_device_session(device: &HidDevice) -> Result<(), AppError> {
+pub fn init_device_session(device: &HidDevice) -> Result<(), String> {
     send_report(device, &[READ, CMD_VERSION, END][..])?;
     delay_ms(50);
     let mut drain = [0u8; 64];
@@ -86,7 +85,7 @@ pub fn write_filters_and_gain(
     filters: &[Filter],
     global_gain: i8,
     timing: &WriteTiming,
-) -> Result<(), AppError> {
+) -> Result<(), String> {
     for i in 0u8..NUM_FILTERS {
         let filter = &filters[i as usize];
         let packet = build_filter_packet(
@@ -105,7 +104,7 @@ pub fn write_filters_and_gain(
     Ok(())
 }
 
-pub fn commit_changes(device: &HidDevice, timing: &WriteTiming) -> Result<(), AppError> {
+pub fn commit_changes(device: &HidDevice, timing: &WriteTiming) -> Result<(), String> {
     let temp_packet = build_temp_write_packet();
     send_report(device, &temp_packet[..])?;
     delay_ms(timing.commit_ms);

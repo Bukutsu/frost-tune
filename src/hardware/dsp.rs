@@ -1,5 +1,5 @@
 use crate::models::{Filter, FilterType};
-use crate::protocol::{OFFSET_INDEX, OFFSET_FREQ_L, OFFSET_FREQ_H, OFFSET_Q_L, OFFSET_Q_H, OFFSET_GAIN_L, OFFSET_GAIN_H, OFFSET_FILTER_TYPE};
+use crate::hardware::protocol::{OFFSET_INDEX, OFFSET_FREQ_L, OFFSET_FREQ_H, OFFSET_Q_L, OFFSET_Q_H, OFFSET_GAIN_L, OFFSET_GAIN_H, OFFSET_FILTER_TYPE};
 use std::f64::consts::TAU;
 
 const DSP_SAMPLE_RATE: f64 = 96000.0;

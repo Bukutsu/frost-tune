@@ -1,4 +1,6 @@
+pub mod error;
 pub mod hardware;
+pub mod models;
 pub mod ui;
 
 use log::info;
