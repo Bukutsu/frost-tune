@@ -65,6 +65,11 @@ pub enum Message {
     ToggleDiagnosticsErrorsOnly(bool),
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
+    ProfilesLoaded(Vec<crate::storage::Profile>),
+    ProfileSelected(String),
+    ProfileNameInput(String),
+    SaveProfilePressed,
+    DeleteProfilePressed,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,6 +92,9 @@ pub struct EditorState {
     pub global_gain: i8,
     pub autoeq_message: Option<String>,
     pub diagnostics_errors_only: bool,
+    pub profiles: Vec<crate::storage::Profile>,
+    pub selected_profile_name: Option<String>,
+    pub new_profile_name: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -118,12 +126,18 @@ impl MainWindow {
                 global_gain: 0,
                 autoeq_message: None,
                 diagnostics_errors_only: false,
+                profiles: Vec::new(),
+                selected_profile_name: None,
+                new_profile_name: String::new(),
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
             diagnostics: DiagnosticsStore::default(),
         };
-        (window, Task::none())
+        let load_task = Task::perform(async move {
+            crate::storage::load_all_profiles().unwrap_or_default()
+        }, Message::ProfilesLoaded);
+        (window, load_task)
     }
 
     fn title(&self) -> String { "Frost-Tune".into() }
@@ -340,6 +354,70 @@ impl MainWindow {
                 self.editor_state.autoeq_message = Some(format!("Saved to {}", name));
                 Task::none()
             }
+            Message::ProfilesLoaded(profiles) => {
+                self.editor_state.profiles = profiles;
+                Task::none()
+            }
+            Message::ProfileSelected(name) => {
+                if let Some(profile) = self.editor_state.profiles.iter().find(|p| p.name == name) {
+                    self.editor_state.filters = profile.data.filters.clone();
+                    self.editor_state.global_gain = profile.data.global_gain;
+                    self.editor_state.selected_profile_name = Some(name);
+                    self.editor_state.new_profile_name = profile.name.clone();
+                    self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, format!("Loaded profile: {}", profile.name)));
+                }
+                Task::none()
+            }
+            Message::ProfileNameInput(name) => {
+                self.editor_state.new_profile_name = name;
+                Task::none()
+            }
+            Message::SaveProfilePressed => {
+                let name = self.editor_state.new_profile_name.trim().to_string();
+                if name.is_empty() {
+                    self.editor_state.autoeq_message = Some("Invalid profile name".into());
+                    return Task::none();
+                }
+                let data = PEQData {
+                    filters: self.editor_state.filters.clone(),
+                    global_gain: self.editor_state.global_gain,
+                };
+                match crate::storage::save_profile(&name, &data) {
+                    Ok(_) => {
+                        self.editor_state.autoeq_message = Some(format!("Saved profile: {}", name));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, format!("Saved profile: {}", name)));
+                        Task::perform(async move {
+                            crate::storage::load_all_profiles().unwrap_or_default()
+                        }, Message::ProfilesLoaded)
+                    }
+                    Err(e) => {
+                        self.editor_state.autoeq_message = Some(format!("Failed to save: {}", e));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::UI, format!("Save failed: {}", e)));
+                        Task::none()
+                    }
+                }
+            }
+            Message::DeleteProfilePressed => {
+                let name = match &self.editor_state.selected_profile_name {
+                    Some(n) => n.clone(),
+                    None => return Task::none(),
+                };
+                match crate::storage::delete_profile(&name) {
+                    Ok(_) => {
+                        self.editor_state.autoeq_message = Some(format!("Deleted profile: {}", name));
+                        self.editor_state.selected_profile_name = None;
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, format!("Deleted profile: {}", name)));
+                        Task::perform(async move {
+                            crate::storage::load_all_profiles().unwrap_or_default()
+                        }, Message::ProfilesLoaded)
+                    }
+                    Err(e) => {
+                        self.editor_state.autoeq_message = Some(format!("Failed to delete: {}", e));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::UI, format!("Delete failed: {}", e)));
+                        Task::none()
+                    }
+                }
+            }
         }
     }
 
@@ -424,6 +502,27 @@ impl MainWindow {
             text(format!("{} dB", self.editor_state.global_gain)),
         ].spacing(10);
 
+        let preset_names: Vec<String> = self.editor_state.profiles.iter().map(|p| p.name.clone()).collect();
+        let preset_section = column![
+            text("Presets").size(16),
+            row![
+                pick_list(
+                    preset_names,
+                    self.editor_state.selected_profile_name.clone(),
+                    Message::ProfileSelected,
+                ).placeholder("Select Preset"),
+                text_input("Name...", &self.editor_state.new_profile_name)
+                    .on_input(Message::ProfileNameInput)
+                    .width(Length::Fixed(150.0)),
+                button("Save Preset").on_press(Message::SaveProfilePressed),
+                if self.editor_state.selected_profile_name.is_some() {
+                    button("Delete Preset").on_press(Message::DeleteProfilePressed)
+                } else {
+                    button("Delete Preset")
+                },
+            ].spacing(10),
+        ].spacing(10);
+
         let eq_graph = container(
             canvas(EqGraph::new(&self.editor_state.filters, self.editor_state.global_gain))
                 .width(Length::Fill)
@@ -478,6 +577,7 @@ impl MainWindow {
             text("Frost-Tune").size(24),
             status_text,
             btn_row,
+            preset_section,
             global_gain_row,
             eq_graph,
             scrollable(bands).height(Length::FillPortion(2)),

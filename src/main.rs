@@ -4,6 +4,7 @@ pub mod models;
 pub mod ui;
 pub mod autoeq;
 pub mod diagnostics;
+pub mod storage;
 
 use log::info;
 
