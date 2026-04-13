@@ -33,25 +33,27 @@ Goal: bring Frost-Tune to feature parity with `../tp35pro-eq` while preserving p
 
 ## Phase 1 - Core Parity
 
-- [ ] Implement connection lifecycle parity (connect, auto-connect, disconnect, hotplug).
+- [x] Implement connection lifecycle parity (connect, auto-connect, disconnect, hotplug).
   - Files: `src/hardware/worker.rs`, `src/ui/main_window.rs`, `src/models.rs`
 
-- [ ] Implement full PEQ editor workflow (pull -> edit -> push -> verify).
+- [x] Implement full PEQ editor workflow (pull -> edit -> push -> verify).
   - Files: `src/ui/main_window.rs`, `src/models.rs`, `src/hardware/worker.rs`
   - Done when: UI exposes 10 bands + preamp and reflects post-verify device state.
 
-- [ ] Add profile persistence CRUD and active-profile tracking.
+- [x] Add profile persistence CRUD and active-profile tracking.
   - Files: `src/ui/main_window.rs`, `src/models.rs`, `src/*` (new storage module)
+  - Note: Not in v1 scope per user decision
 
 - [ ] Add AutoEQ import/export and normalization.
   - Files: `src/models.rs`, `src/*` (new parser/serializer module), `src/ui/main_window.rs`
 
-- [ ] Add bypass and safe-flat behavior.
+- [x] Add bypass and safe-flat behavior.
   - Files: `src/models.rs`, `src/ui/main_window.rs`, `src/hardware/worker.rs`
+  - Note: User requested removal
 
 ## Phase 2 - Robustness and Polish
 
-- [ ] Replace stringly errors with a structured error taxonomy and user-facing mapping.
+- [x] Replace stringly errors with a structured error taxonomy and user-facing mapping.
   - Files: `src/error.rs`, `src/hardware/worker.rs`, `src/ui/main_window.rs`
 
 - [ ] Add diagnostics pipeline and log export/copy workflow.
@@ -60,7 +62,7 @@ Goal: bring Frost-Tune to feature parity with `../tp35pro-eq` while preserving p
 - [ ] Port reliability tools (`stress_push_pull`, timing benchmark) as Rust bins.
   - Files: `src/bin/*`, `src/hardware/hid.rs`, `src/hardware/worker.rs`
 
-- [ ] Add tests for safety-critical and parser logic.
+- [x] Add tests for safety-critical and parser logic.
   - Files: `src/hardware/worker.rs`, `src/hardware/packet_builder.rs`, `src/hardware/dsp.rs`, `tests/*`
 
 ## Open Decisions (ANSWERED)
