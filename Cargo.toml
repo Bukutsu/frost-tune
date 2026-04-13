@@ -1,0 +1,25 @@
+[package]
+name = "frost-tune"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bukutsu"]
+description = "Native cross-platform parametric EQ editor for USB DACs. Built with Rust and Iced."
+license = "MIT"
+
+[dependencies]
+iced = "0.14"
+hidapi = "0.15"
+log = "0.4"
+env_logger = "0.11"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+libc = "0.2"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
