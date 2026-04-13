@@ -7,6 +7,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Release (${{ matrix.target }})
@@ -39,7 +42,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev libudev-dev
+        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev libudev-dev pkg-config
 
       - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
@@ -59,5 +62,3 @@ jobs:
             ${{ matrix.artifact_name }}.tar.gz
             ${{ matrix.artifact_name }}.zip
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
