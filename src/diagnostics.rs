@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 
 const MAX_EVENTS: usize = 500;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub enum LogLevel {
     Info,
     Warn,

@@ -44,23 +44,16 @@ Goal: bring Frost-Tune to feature parity with `../tp35pro-eq` while preserving p
   - Files: `src/ui/main_window.rs`, `src/models.rs`, `src/*` (new storage module)
   - Note: Not in v1 scope per user decision
 
-- [ ] Add AutoEQ import/export and normalization.
-  - Files: `src/models.rs`, `src/*` (new parser/serializer module), `src/ui/main_window.rs`
+- [x] Add AutoEQ import/export and normalization.
+  - Files: `src/models.rs`, `src/autoeq.rs`, `src/ui/main_window.rs`
+  - Improvements: Suffix-aware frequency parsing, line-level error reporting.
 
-- [x] Add bypass and safe-flat behavior.
-  - Files: `src/models.rs`, `src/ui/main_window.rs`, `src/hardware/worker.rs`
-  - Note: User requested removal
+- [x] Add diagnostics pipeline and log export/copy workflow.
+  - Files: `src/main.rs`, `src/ui/main_window.rs`, `src/diagnostics.rs`
+  - Improvements: Errors-only filter, export to timestamped file.
 
-## Phase 2 - Robustness and Polish
-
-- [x] Replace stringly errors with a structured error taxonomy and user-facing mapping.
-  - Files: `src/error.rs`, `src/hardware/worker.rs`, `src/ui/main_window.rs`
-
-- [ ] Add diagnostics pipeline and log export/copy workflow.
-  - Files: `src/main.rs`, `src/ui/main_window.rs`, `src/*` (new diagnostics module)
-
-- [ ] Port reliability tools (`stress_push_pull`, timing benchmark) as Rust bins.
-  - Files: `src/bin/*`, `src/hardware/hid.rs`, `src/hardware/worker.rs`
+- [x] Port reliability tools (`stress_push_pull`, timing benchmark) as Rust bins.
+  - Note: Skipped per user decision.
 
 - [x] Add tests for safety-critical and parser logic.
   - Files: `src/hardware/worker.rs`, `src/hardware/packet_builder.rs`, `src/hardware/dsp.rs`, `tests/*`

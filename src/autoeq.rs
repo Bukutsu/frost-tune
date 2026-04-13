@@ -8,9 +8,10 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
     let mut preamp: i8 = 0;
     let mut parsed_count: usize = 0;
 
-    for line in lines {
+    for (line_idx, line) in lines.iter().enumerate() {
+        let line_num = line_idx + 1;
         let line = line.trim();
-        if line.is_empty() {
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
 
@@ -18,18 +19,24 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
             if let Some(m) = extract_number(line) {
                 let val = m.min(12.0).max(-12.0);
                 preamp = val.round() as i8;
+            } else {
+                return Err(format!("Line {}: Failed to parse preamp value", line_num));
             }
             continue;
         }
 
-        if let Some((idx, enabled, filter_type, freq, gain, q)) = parse_filter_line(line) {
-            if idx < 10 {
-                filters[idx].enabled = enabled;
-                filters[idx].filter_type = filter_type;
-                filters[idx].freq = (freq.min(20000.0).max(20.0)) as u16;
-                filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
-                filters[idx].q = q.min(20.0).max(0.1);
-                parsed_count += 1;
+        if line.to_lowercase().contains("filter") {
+            if let Some((idx, enabled, filter_type, freq, gain, q)) = parse_filter_line(line) {
+                if idx < 10 {
+                    filters[idx].enabled = enabled;
+                    filters[idx].filter_type = filter_type;
+                    filters[idx].freq = (freq.min(20000.0).max(20.0)) as u16;
+                    filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
+                    filters[idx].q = q.min(20.0).max(0.1);
+                    parsed_count += 1;
+                }
+            } else {
+                return Err(format!("Line {}: Failed to parse filter. Expected: Filter <N>: <ON/OFF> <Type> Fc <Hz> Gain <dB> Q <Q>", line_num));
             }
         }
     }

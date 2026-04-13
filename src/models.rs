@@ -75,6 +75,16 @@ impl From<FilterType> for u8 {
     }
 }
 
+impl std::fmt::Display for FilterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterType::LowShelf => write!(f, "Low Shelf"),
+            FilterType::Peak => write!(f, "Peak"),
+            FilterType::HighShelf => write!(f, "High Shelf"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Filter {
     pub index: u8,
