@@ -106,10 +106,10 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
     let omega = (freq * TAU) / DSP_SAMPLE_RATE;
     let sin_w = omega.sin();
     let cos_w = omega.cos();
-    let alpha = sin_w / (2.0 * q);
 
     match filter.filter_type {
         FilterType::Peak => {
+            let alpha = sin_w / (2.0 * q);
             let b0 = 1.0 + alpha * a;
             let b1 = -2.0 * cos_w;
             let b2 = 1.0 - alpha * a;
@@ -119,6 +119,8 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
             (b0, b1, b2, a0, a1, a2)
         }
         FilterType::LowShelf => {
+            // Standard RBJ Shelf with Q
+            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
             let a_minus_1 = a - 1.0;
             let a_plus_1 = a + 1.0;
             let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
@@ -131,6 +133,8 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
             (b0, b1, b2, a0, a1, a2)
         }
         FilterType::HighShelf => {
+            // Standard RBJ Shelf with Q
+            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
             let a_minus_1 = a - 1.0;
             let a_plus_1 = a + 1.0;
             let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;

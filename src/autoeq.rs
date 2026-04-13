@@ -108,7 +108,14 @@ fn extract_gain_value(s: &str) -> Option<f64> {
 
 fn extract_q_value(s: &str) -> Option<f64> {
     let lower = s.to_lowercase();
-    if let Some(pos) = lower.find('q') {
+    // Look for " q " or " q:" to avoid matching "lsq" or "hsq"
+    if let Some(pos) = lower.find(" q ")
+        .or_else(|| lower.find(" q:"))
+        .or_else(|| lower.find(" q=")) 
+    {
+        extract_number(&s[pos..])
+    } else if let Some(pos) = lower.rfind('q') {
+        // Fallback to last 'q' in the line, which is usually the Q parameter
         extract_number(&s[pos..])
     } else {
         None

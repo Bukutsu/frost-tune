@@ -46,7 +46,7 @@ Goal: bring Frost-Tune to feature parity with `../tp35pro-eq` while preserving p
 
 - [x] Add AutoEQ import/export and normalization.
   - Files: `src/models.rs`, `src/autoeq.rs`, `src/ui/main_window.rs`
-  - Improvements: Suffix-aware frequency parsing, line-level error reporting.
+  - Improvements: Suffix-aware frequency parsing, line-level error reporting, native file pickers.
 
 - [x] Add diagnostics pipeline and log export/copy workflow.
   - Files: `src/main.rs`, `src/ui/main_window.rs`, `src/diagnostics.rs`

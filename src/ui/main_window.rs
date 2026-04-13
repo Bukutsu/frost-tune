@@ -70,6 +70,10 @@ pub enum Message {
     ProfileNameInput(String),
     SaveProfilePressed,
     DeleteProfilePressed,
+    ImportFromFilePressed,
+    ExportToFilePressed,
+    FileImported(Result<String, String>),
+    FileExported(Result<String, String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -418,6 +422,78 @@ impl MainWindow {
                     }
                 }
             }
+            Message::ImportFromFilePressed => {
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Import from file started"));
+                Task::perform(async move {
+                    let file = rfd::AsyncFileDialog::new()
+                        .add_filter("Text", &["txt"])
+                        .pick_file()
+                        .await;
+                    
+                    if let Some(file) = file {
+                        let bytes = file.read().await;
+                        String::from_utf8(bytes).map_err(|e| format!("Failed to read file as UTF-8: {}", e))
+                    } else {
+                        Err("Cancelled".to_string())
+                    }
+                }, Message::FileImported)
+            }
+            Message::ExportToFilePressed => {
+                let peq = PEQData { filters: self.editor_state.filters.clone(), global_gain: self.editor_state.global_gain };
+                let output = autoeq::peq_to_autoeq(&peq);
+                Task::perform(async move {
+                    let file = rfd::AsyncFileDialog::new()
+                        .add_filter("Text", &["txt"])
+                        .set_file_name("profile.txt")
+                        .save_file()
+                        .await;
+                    
+                    if let Some(file) = file {
+                        file.write(output.as_bytes()).await.map(|_| file.file_name()).map_err(|e| format!("Failed to write file: {}", e))
+                    } else {
+                        Err("Cancelled".to_string())
+                    }
+                }, Message::FileExported)
+            }
+            Message::FileImported(result) => {
+                match result {
+                    Ok(text) => {
+                        match autoeq::parse_autoeq_text(&text) {
+                            Ok(peq) => {
+                                let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
+                                self.editor_state.filters = peq.filters;
+                                self.editor_state.global_gain = peq.global_gain;
+                                self.editor_state.autoeq_message = Some(format!("Imported {} filters from file", enabled_count));
+                                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::AutoEQ, format!("Import successful from file: {} filters", enabled_count)));
+                            }
+                            Err(e) => {
+                                self.editor_state.autoeq_message = Some(format!("Error: {}", e));
+                                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::AutoEQ, format!("Import failed: {}", e)));
+                            }
+                        }
+                    }
+                    Err(e) if e != "Cancelled" => {
+                        self.editor_state.autoeq_message = Some(format!("File error: {}", e));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::UI, format!("File error: {}", e)));
+                    }
+                    _ => {}
+                }
+                Task::none()
+            }
+            Message::FileExported(result) => {
+                match result {
+                    Ok(name) => {
+                        self.editor_state.autoeq_message = Some(format!("Exported to {}", name));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, format!("Exported to {}", name)));
+                    }
+                    Err(e) if e != "Cancelled" => {
+                        self.editor_state.autoeq_message = Some(format!("Export error: {}", e));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::UI, format!("Export error: {}", e)));
+                    }
+                    _ => {}
+                }
+                Task::none()
+            }
         }
     }
 
@@ -535,7 +611,11 @@ impl MainWindow {
             text("AutoEQ").size(16),
             row![
                 button("Import from Clipboard").on_press(Message::ImportFromClipboard),
+                button("Import from File").on_press(Message::ImportFromFilePressed),
+            ].spacing(10),
+            row![
                 button("Export to Clipboard").on_press(Message::ExportAutoEQPressed),
+                button("Export to File").on_press(Message::ExportToFilePressed),
             ].spacing(10),
             if let Some(ref msg) = self.editor_state.autoeq_message { text(msg).size(14) } else { text("").size(14) },
         ].spacing(10);
