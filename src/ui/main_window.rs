@@ -2,11 +2,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use iced::{
     Element, Task, Subscription, Theme,
-    widget::{button, column, text, row, container, scrollable, Slider},
+    widget::{button, column, text, row, container, scrollable, slider, checkbox},
     Length,
 };
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
-use crate::models::{ConnectionResult, OperationResult, PEQData, Filter};
+use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND_GAIN, MIN_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -168,7 +168,7 @@ impl MainWindow {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let status_text = match &self.connection_status {
             ConnectionStatus::Disconnected => text("Disconnected"),
             ConnectionStatus::Connecting => text("Connecting..."),
@@ -183,22 +183,38 @@ impl MainWindow {
             if self.connection_status == ConnectionStatus::Connected && !self.operation_lock.is_pulling && !self.operation_lock.is_pushing { button("Push").on_press(Message::PushPressed) } else { button("Push") },
         ].spacing(10);
         
-        let info = text(format!("Filters: {} | Preamp: {} dB", self.editor_state.filters.len(), self.editor_state.global_gain));
-        
         let band_list: Vec<Element<Message>> = self.editor_state.filters.iter().enumerate()
             .map(|(i, band)| {
-                text(format!("{}: {}Hz {:.1}dB Q{:.1} {}", i, band.freq, band.gain, band.q, if band.enabled { "[ON]" } else { "[OFF]" })).into()
+                let enabled_check = checkbox(band.enabled)
+                    .label(format!("Band {}", i))
+                    .on_toggle(move |v| Message::BandEnabledChanged(i, v));
+                let gain_slider = slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| Message::BandGainChanged(i, v));
+                let gain_label = text(format!("{:.1} dB", band.gain));
+                let freq_label = text(format!("Freq: {} Hz", band.freq));
+                let q_label = text(format!("Q: {:.1}", band.q));
+                
+                column![
+                    enabled_check,
+                    row![text(format!("Gain:")), gain_slider.width(Length::FillPortion(3)), gain_label.width(Length::FillPortion(1))].spacing(5),
+                    row![freq_label, q_label].spacing(10),
+                ].spacing(5).into()
             })
             .collect();
         
-        let bands = column(band_list).spacing(5);
+        let bands = column(band_list).spacing(10);
+        
+        let global_gain_row = row![
+            text("Preamp:"),
+            slider(MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64, self.editor_state.global_gain as f64, |v| Message::GlobalGainChanged(v as i8)),
+            text(format!("{} dB", self.editor_state.global_gain)),
+        ].spacing(10);
         
         let content = column![
             text("Frost-Tune").size(24),
             status_text,
             btn_row,
-            info,
-            scrollable(bands).height(Length::Fixed(300.0)),
+            global_gain_row,
+            scrollable(bands).height(Length::Fill),
         ].spacing(10).padding(20);
         
         container(content).width(Length::Fill).height(Length::Fill).into()
