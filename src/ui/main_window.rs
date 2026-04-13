@@ -222,7 +222,6 @@ impl MainWindow {
     fn subscription(&self) -> Subscription<Message> {
         use std::time::Duration;
         use std::pin::Pin;
-        use std::future::Future;
         use iced::time;
         async fn tick() -> Message { Message::Tick(std::time::Instant::now()) }
         time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2))
