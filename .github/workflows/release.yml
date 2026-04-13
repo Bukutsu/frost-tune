@@ -22,7 +22,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             binary: frost-tune
             artifact: frost-tune-x86_64-unknown-linux-gnu.tar.gz
-            deps: libhidapi-dev libusb-1.0-0-dev pkg-config
+            deps: libusb-1.0-0-dev pkg-config
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: frost-tune.exe
