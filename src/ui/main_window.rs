@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use iced::{
     Element, Task, Subscription, Theme, clipboard, Color,
-    widget::{button, column, text, row, container, scrollable, slider, checkbox, pick_list, text_input},
+    widget::{button, column, text, row, container, scrollable, slider, checkbox, pick_list, text_input, canvas},
     Length,
 };
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND_GAIN, MIN_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::autoeq;
 use crate::diagnostics::{DiagnosticsStore, DiagnosticEvent, LogLevel, Source};
+use crate::ui::graph::EqGraph;
 
 fn parse_freq_string(s: &str) -> Option<u16> {
     let s = s.trim().to_lowercase();
@@ -423,6 +424,14 @@ impl MainWindow {
             text(format!("{} dB", self.editor_state.global_gain)),
         ].spacing(10);
 
+        let eq_graph = container(
+            canvas(EqGraph::new(&self.editor_state.filters, self.editor_state.global_gain))
+                .width(Length::Fill)
+                .height(Length::Fixed(200.0))
+        )
+        .padding(10)
+        .style(container::bordered_box);
+
         let autoeq_section = column![
             text("AutoEQ").size(16),
             row![
@@ -470,6 +479,7 @@ impl MainWindow {
             status_text,
             btn_row,
             global_gain_row,
+            eq_graph,
             scrollable(bands).height(Length::FillPortion(2)),
             autoeq_section,
             diag_section,
