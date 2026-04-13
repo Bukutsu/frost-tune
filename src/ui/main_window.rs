@@ -25,8 +25,9 @@ pub enum Message {
     BandFreqChanged(usize, u16),
     BandQChanged(usize, f64),
     GlobalGainChanged(i8),
-    ImportAutoEQ(String),
-    ExportAutoEQ,
+    AutoEQInputChanged(String),
+    ImportAutoEQPressed,
+    ExportAutoEQPressed,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -169,23 +170,22 @@ impl MainWindow {
             Message::BandFreqChanged(index, freq) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.freq = freq; } Task::none() }
             Message::BandQChanged(index, q) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.q = q; } Task::none() }
             Message::GlobalGainChanged(gain) => { self.editor_state.global_gain = gain; Task::none() }
-            Message::ImportAutoEQ(text) => {
-                match autoeq::parse_autoeq_text(&text) {
+            Message::AutoEQInputChanged(text) => { self.editor_state.autoeq_input = text; Task::none() }
+            Message::ImportAutoEQPressed => {
+                match autoeq::parse_autoeq_text(&self.editor_state.autoeq_input) {
                     Ok(peq) => {
                         self.editor_state.filters = peq.filters;
                         self.editor_state.global_gain = peq.global_gain;
-                        self.editor_state.autoeq_input.clear();
                     }
                     Err(e) => {
-                        self.connection_status = ConnectionStatus::Error(format!("Import failed: {}", e));
+                        log::warn!("AutoEQ import failed: {}", e);
                     }
                 }
                 Task::none()
             }
-            Message::ExportAutoEQ => {
+            Message::ExportAutoEQPressed => {
                 let peq = PEQData { filters: self.editor_state.filters.clone(), global_gain: self.editor_state.global_gain };
-                let output = autoeq::peq_to_autoeq(&peq);
-                self.editor_state.autoeq_input = output;
+                self.editor_state.autoeq_input = autoeq::peq_to_autoeq(&peq);
                 Task::none()
             }
         }
@@ -235,10 +235,10 @@ impl MainWindow {
         let autoeq_section = column![
             text("AutoEQ Import/Export").size(16),
             text_input("Paste AutoEQ text here...", &self.editor_state.autoeq_input)
-                .on_input(|s| Message::ImportAutoEQ(s.clone())),
+                .on_input(Message::AutoEQInputChanged),
             row![
-                button("Import").on_press(Message::ImportAutoEQ(self.editor_state.autoeq_input.clone())),
-                button("Export").on_press(Message::ExportAutoEQ),
+                button("Import").on_press(Message::ImportAutoEQPressed),
+                button("Export").on_press(Message::ExportAutoEQPressed),
             ].spacing(10),
         ].spacing(10);
         

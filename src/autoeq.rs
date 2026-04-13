@@ -1,5 +1,4 @@
 use crate::models::{Filter, FilterType, PEQData, MAX_BAND_GAIN, MIN_BAND_GAIN};
-use std::str::Lines;
 
 pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
     let lines: Vec<&str> = text.lines().collect();
@@ -178,5 +177,14 @@ mod tests {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 20.0 dB Q 1.0";
         let result = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].gain, MAX_BAND_GAIN);
+    }
+
+    #[test]
+    fn test_parse_real_file_format() {
+        let text = "Preamp: -6.3 dB\nFilter 1: ON LSC Fc 36 Hz Gain -2.22 dB Q 0.857\nFilter 2: ON PK Fc 166 Hz Gain -0.79 dB Q 1.669";
+        let result = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.global_gain, -6);
+        assert_eq!(result.filters[0].freq, 36);
+        assert!((result.filters[0].gain - (-2.22)).abs() < 0.1);
     }
 }
