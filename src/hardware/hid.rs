@@ -1,5 +1,5 @@
 use crate::hardware::dsp::parse_filter_packet;
-use crate::models::{PEQData, PRODUCT_ID, Filter, VENDOR_ID};
+use crate::models::{PEQData, PRODUCT_ID, Filter, VENDOR_ID, Device};
 use crate::hardware::protocol::{
     CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_VERSION,
     READ, END, REPORT_ID,
@@ -28,11 +28,22 @@ pub fn delay_ms(ms: u64) {
 
 pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
     for device in api.device_list() {
-        if device.vendor_id() == VENDOR_ID && device.product_id() == PRODUCT_ID {
+        let device_type = Device::from_vid_pid(device.vendor_id(), device.product_id());
+        if device_type != Device::Unknown {
             return Some(device.clone());
         }
     }
     None
+}
+
+pub fn detect_device(api: &hidapi::HidApi) -> Device {
+    for device in api.device_list() {
+        let device_type = Device::from_vid_pid(device.vendor_id(), device.product_id());
+        if device_type != Device::Unknown {
+            return device_type;
+        }
+    }
+    Device::Unknown
 }
 
 pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<(), String> {

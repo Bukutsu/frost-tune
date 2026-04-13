@@ -39,6 +39,14 @@ Never call `hidapi.read()` or `hidapi.write()` directly from a UI widget. All HI
 - Keep UI state simple (no complex actor models).
 - Document unsafe blocks.
 
+### 5. Documentation Requirement for UI Changes
+Before implementing any UI changes (Iced widgets, Application trait, Subscriptions, styling, or theming), agents MUST:
+1. Search relevant Iced documentation (docs.rs, mintlify, GitHub examples)
+2. Reference existing Iced examples in the codebase or official repo
+3. Verify API compatibility with the project's Iced version (currently `0.14`)
+
+**Rationale**: Iced API evolves frequently. Using outdated patterns from older tutorials will cause build failures or runtime bugs.
+
 ## 🛠️ Setup & Development
 
 1. **Install Rust**: https://rustup.rs/

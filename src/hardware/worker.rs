@@ -118,13 +118,17 @@ fn worker_connect(device: &mut Option<hidapi::HidDevice>, api: &hidapi::HidApi) 
 }
 
 fn pull_peq_data(d: &hidapi::HidDevice, strict: bool) -> Result<PEQData, String> {
-    for _ in 0..3 {
+    let mut last_err = "Timeout".to_string();
+    for attempt in 0..3 {
         match pull_peq_internal(d, strict) {
             Ok(data) => return Ok(data),
-            Err(e) => { delay_ms(200); return Err(e); }
+            Err(e) => { last_err = e; }
+        }
+        if attempt < 2 {
+            delay_ms(200);
         }
     }
-    Err("Timeout".into())
+    Err(last_err)
 }
 
 fn worker_pull_peq(device: &Option<hidapi::HidDevice>) -> OperationResult {
@@ -136,15 +140,37 @@ fn worker_pull_peq(device: &Option<hidapi::HidDevice>) -> OperationResult {
 }
 
 pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<(), String> {
-    if actual.global_gain != gain { return Err("Gain mismatch".into()); }
+    if actual.global_gain != gain {
+        return Err(format!("Global gain mismatch: expected {}, got {}", gain, actual.global_gain));
+    }
     for (a, f) in actual.filters.iter().zip(filters.iter()) {
-        if f.enabled && (a.gain - f.gain).abs() > 0.15 { return Err(format!("Band {} mismatch", f.index)); }
+        if f.enabled != a.enabled {
+            return Err(format!("Band {} enabled state mismatch", f.index));
+        }
+        if f.enabled && (a.gain - f.gain).abs() > 0.15 {
+            return Err(format!("Band {} gain mismatch: expected {:.2}, got {:.2}", f.index, f.gain, a.gain));
+        }
+        if f.enabled && (a.freq as i32 - f.freq as i32).abs() > 0 {
+            return Err(format!("Band {} freq mismatch: expected {}, got {}", f.index, f.freq, a.freq));
+        }
+        if f.enabled && (a.q - f.q).abs() > 0.05 {
+            return Err(format!("Band {} Q mismatch: expected {:.2}, got {:.2}", f.index, f.q, a.q));
+        }
+        if f.enabled && f.filter_type != a.filter_type {
+            return Err(format!("Band {} filter type mismatch", f.index));
+        }
     }
     Ok(())
 }
 
 fn worker_push_peq(device: &Option<hidapi::HidDevice>, payload: PushPayload) -> OperationResult {
     let d = match device { Some(d) => d, None => return OperationResult { success: false, data: None, error: Some("Not connected".into()) } };
+
+    let mut payload = payload;
+    payload.clamp();
+    if let Err(e) = payload.is_valid() {
+        return OperationResult { success: false, data: None, error: Some(e) };
+    }
     
     let snapshot = match pull_peq_data(d, true) { Ok(s) => s, Err(e) => return OperationResult { success: false, data: None, error: Some(e) } };
     
@@ -160,7 +186,8 @@ fn worker_push_peq(device: &Option<hidapi::HidDevice>, payload: PushPayload) -> 
     }
 
     for attempt in 0..3 {
-        delay_ms(300);
+        let backoff_ms = 300 + (attempt * 200);
+        delay_ms(backoff_ms);
         match pull_peq_data(d, true) {
             Ok(read_back) => {
                 if compare_peq(&read_back, &payload.filters, payload.global_gain.unwrap_or(0)).is_ok() {
