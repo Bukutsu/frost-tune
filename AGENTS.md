@@ -39,13 +39,14 @@ Never call `hidapi.read()` or `hidapi.write()` directly from a UI widget. All HI
 - Keep UI state simple (no complex actor models).
 - Document unsafe blocks.
 
-### 5. Documentation Requirement for UI Changes
+### 5. Documentation & Design Requirements for UI Changes
 Before implementing any UI changes (Iced widgets, Application trait, Subscriptions, styling, or theming), agents MUST:
-1. Search relevant Iced documentation (docs.rs, mintlify, GitHub examples)
-2. Reference existing Iced examples in the codebase or official repo
-3. Verify API compatibility with the project's Iced version (currently `0.14`)
+1. **Rigorously follow Material Design 3 (Material You)** specifications for layout, spacing (8px grid), and elevation.
+2. **Consult Official Docs**: Always reference [m3.material.io](https://m3.material.io) for component behavior and [docs.rs/iced](https://docs.rs/iced) for API compatibility.
+3. **Verify API Compatibility**: Ensure all widget methods exist in the current Iced version (0.14). Avoid deprecated builder patterns.
+4. **Theme Consistency**: Strictly adhere to the project's **Tokyo Night** color palette tokens mapped to Material 3 roles.
 
-**Rationale**: Iced API evolves frequently. Using outdated patterns from older tutorials will cause build failures or runtime bugs.
+**Rationale**: Consistent adherence to Material You ensures a professional desktop experience, while checking Iced 0.14 docs prevents build failures caused by the fast-moving Iced API.
 
 ### 6. Work Completion Protocol
 After completing any task, agents MUST:

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use iced::{
-    Element, Task, Subscription, Theme, clipboard, Color,
-    widget::{button, column, text, row, container, scrollable, slider, checkbox, pick_list, text_input, canvas},
+    Element, Task, Subscription, clipboard, Color,
+    widget::{button, column, text, row, container, scrollable, slider, checkbox, pick_list, text_input, canvas, responsive, toggler},
     Length,
 };
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
@@ -9,6 +9,17 @@ use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND
 use crate::autoeq;
 use crate::diagnostics::{DiagnosticsStore, DiagnosticEvent, LogLevel, Source};
 use crate::ui::graph::EqGraph;
+use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_TEXT, TOKYO_NIGHT_WARNING};
+
+const SPACE_XS: f32 = 8.0;
+const SPACE_SM: f32 = 12.0;
+const SPACE_MD: f32 = 16.0;
+const SPACE_LG: f32 = 24.0;
+
+const TYPE_DISPLAY: f32 = 28.0;
+const TYPE_TITLE: f32 = 16.0;
+const TYPE_BODY: f32 = 14.0;
+const TYPE_LABEL: f32 = 12.0;
 
 fn parse_freq_string(s: &str) -> Option<u16> {
     let s = s.trim().to_lowercase();
@@ -145,6 +156,10 @@ impl MainWindow {
     }
 
     fn title(&self) -> String { "Frost-Tune".into() }
+
+    fn app_theme(_state: &Self) -> iced::Theme {
+        theme::theme()
+    }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
@@ -426,7 +441,7 @@ impl MainWindow {
                 self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Import from file started"));
                 Task::perform(async move {
                     let file = rfd::AsyncFileDialog::new()
-                        .add_filter("Text", &["txt"])
+                        .add_filter("Text", &["txt"][..])
                         .pick_file()
                         .await;
                     
@@ -443,7 +458,7 @@ impl MainWindow {
                 let output = autoeq::peq_to_autoeq(&peq);
                 Task::perform(async move {
                     let file = rfd::AsyncFileDialog::new()
-                        .add_filter("Text", &["txt"])
+                        .add_filter("Text", &["txt"][..])
                         .set_file_name("profile.txt")
                         .save_file()
                         .await;
@@ -498,175 +513,263 @@ impl MainWindow {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let status_text = match &self.connection_status {
-            ConnectionStatus::Disconnected => text("Disconnected"),
-            ConnectionStatus::Connecting => text("Connecting..."),
-            ConnectionStatus::Connected => text("Connected"),
-            ConnectionStatus::Error(e) => text(format!("Error: {}", e)),
-        };
-        
-        let btn_row = row![
-            if self.connection_status == ConnectionStatus::Disconnected || matches!(&self.connection_status, ConnectionStatus::Error(_)) { button("Connect").on_press(Message::ConnectPressed) } else { button("Connect") },
-            if self.connection_status == ConnectionStatus::Connected { button("Disconnect").on_press(Message::DisconnectPressed) } else { button("Disconnect") },
-            if self.connection_status == ConnectionStatus::Connected && !self.operation_lock.is_pulling && !self.operation_lock.is_pushing { button("Pull").on_press(Message::PullPressed) } else { button("Pull") },
-            if self.connection_status == ConnectionStatus::Connected && !self.operation_lock.is_pulling && !self.operation_lock.is_pushing { button("Push").on_press(Message::PushPressed) } else { button("Push") },
-        ].spacing(10);
-        
-        let band_list: Vec<Element<Message>> = self.editor_state.filters.iter().enumerate()
-            .map(|(i, band)| {
-                let enabled_check = checkbox(band.enabled)
-                    .label(format!("Band {}", i))
-                    .on_toggle(move |v| Message::BandEnabledChanged(i, v));
-
-                // Gain slider
-                let gain_slider = slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| Message::BandGainChanged(i, v));
-                let gain_is_max = band.gain >= MAX_BAND_GAIN || band.gain <= MIN_BAND_GAIN;
-                let gain_label = text(format!("{:.1} dB", band.gain))
-                    .width(Length::FillPortion(1))
-                    .color(if gain_is_max { Color::from_rgb(1.0, 0.4, 0.4) } else { Color::WHITE });
-
-                // Frequency controls: logarithmic slider + numeric text input
-                // Slider works in log10 space from log10(20) to log10(20000)
-                let min_log = 20f64.log10();
-                let max_log = 20000f64.log10();
-                let current_log = (band.freq as f64).log10();
-                let freq_slider = slider(min_log..=max_log, current_log, move |v| Message::BandFreqSliderChanged(i, v));
-                let freq_is_max = band.freq >= 20000 || band.freq <= 20;
-                let freq_input = text_input("Freq (Hz)", &format!("{}", band.freq))
-                    .on_input(move |s| Message::BandFreqInput(i, s))
-                    .width(Length::Fixed(90.0));
-                let freq_display = text(format!("{} Hz", band.freq))
-                    .size(12)
-                    .color(if freq_is_max { Color::from_rgb(1.0, 0.4, 0.4) } else { Color::WHITE });
-
-                // Q slider and label + text input
-                let q_slider = slider(0.1..=20.0, band.q, move |v| Message::BandQChanged(i, v));
-                let q_is_max = band.q >= 20.0 || band.q <= 0.1;
-                let q_label = text(format!("Q: {:.2}", band.q))
-                    .width(Length::FillPortion(1))
-                    .color(if q_is_max { Color::from_rgb(1.0, 0.4, 0.4) } else { Color::WHITE });
-                let q_input = text_input("Q", &format!("{:.2}", band.q))
-                    .on_input(move |s| Message::BandQInput(i, s))
-                    .width(Length::Fixed(70.0));
-                
-                // Filter type pick list
-                let type_pick = pick_list(
-                    &[crate::models::FilterType::LowShelf, crate::models::FilterType::Peak, crate::models::FilterType::HighShelf][..],
-                    Some(band.filter_type),
-                    move |t| Message::BandTypeChanged(i, t),
-                );
-
-                let gain_input = text_input("Gain dB", &format!("{:.1}", band.gain))
-                    .on_input(move |s| Message::BandGainInput(i, s))
-                    .width(Length::Fixed(70.0));
-
-                column![
-                    enabled_check,
-                    row![text("Gain:"), gain_slider.width(Length::FillPortion(3)), gain_label, gain_input].spacing(5),
-                    row![text("Freq:"), freq_slider.width(Length::FillPortion(3)), freq_display, freq_input].spacing(5),
-                    row![text("Type:"), type_pick].spacing(5),
-                    row![text("Q:"), q_slider.width(Length::FillPortion(3)), q_label, q_input].spacing(5),
-                ].spacing(5).into()
-            })
-            .collect();
-        
-        let bands = column(band_list).spacing(10);
-        
-        let global_gain_row = row![
-            text("Preamp:"),
-            slider(MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64, self.editor_state.global_gain as f64, |v| Message::GlobalGainChanged(v as i8)),
-            text(format!("{} dB", self.editor_state.global_gain)),
-        ].spacing(10);
-
-        let preset_names: Vec<String> = self.editor_state.profiles.iter().map(|p| p.name.clone()).collect();
-        let preset_section = column![
-            text("Presets").size(16),
-            row![
-                pick_list(
-                    preset_names,
-                    self.editor_state.selected_profile_name.clone(),
-                    Message::ProfileSelected,
-                ).placeholder("Select Preset"),
-                text_input("Name...", &self.editor_state.new_profile_name)
-                    .on_input(Message::ProfileNameInput)
-                    .width(Length::Fixed(150.0)),
-                button("Save Preset").on_press(Message::SaveProfilePressed),
-                if self.editor_state.selected_profile_name.is_some() {
-                    button("Delete Preset").on_press(Message::DeleteProfilePressed)
+        let content = column![
+            self.view_header(),
+            self.view_presets_and_preamp(),
+            self.view_graph(),
+            self.view_bands(),
+            responsive(move |size| {
+                if size.width < 1000.0 {
+                    column![
+                        self.view_autoeq(),
+                        self.view_diagnostics(),
+                    ]
+                    .spacing(SPACE_MD)
+                    .into()
                 } else {
-                    button("Delete Preset")
-                },
-            ].spacing(10),
-        ].spacing(10);
+                    row![
+                        self.view_autoeq(),
+                        self.view_diagnostics(),
+                    ]
+                    .spacing(SPACE_MD)
+                    .into()
+                }
+            }),
+        ]
+        .spacing(SPACE_MD)
+        .padding(SPACE_LG);
+        
+        container(scrollable(content))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .into()
+    }
 
-        let eq_graph = container(
+    fn view_header(&self) -> Element<'_, Message> {
+        let status_text = match &self.connection_status {
+            ConnectionStatus::Disconnected => text("Disconnected").color(TOKYO_NIGHT_MUTED),
+            ConnectionStatus::Connecting => text("Connecting...").color(Color::from_rgb(1.0, 0.9, 0.0)),
+            ConnectionStatus::Connected => text("Connected").color(TOKYO_NIGHT_SUCCESS),
+            ConnectionStatus::Error(e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
+        };
+
+        let btn_row = row![
+            if self.connection_status == ConnectionStatus::Disconnected || matches!(&self.connection_status, ConnectionStatus::Error(_)) { 
+                button("Connect").on_press(Message::ConnectPressed) 
+            } else { 
+                button("Connect") 
+            },
+            if self.connection_status == ConnectionStatus::Connected { 
+                button("Disconnect").on_press(Message::DisconnectPressed).style(iced::widget::button::danger)
+            } else { 
+                button("Disconnect") 
+            },
+            if self.connection_status == ConnectionStatus::Connected && !self.operation_lock.is_pulling && !self.operation_lock.is_pushing { 
+                button("Pull").on_press(Message::PullPressed) 
+            } else { 
+                button("Pull") 
+            },
+            if self.connection_status == ConnectionStatus::Connected && !self.operation_lock.is_pulling && !self.operation_lock.is_pushing { 
+                button("Push").on_press(Message::PushPressed) 
+            } else { 
+                button("Push") 
+            },
+        ].spacing(SPACE_XS);
+
+        row![
+            column![
+                text("Frost-Tune").size(TYPE_DISPLAY).color(TOKYO_NIGHT_PRIMARY),
+                status_text.size(TYPE_BODY),
+            ].spacing(4),
+            container(text("")).width(Length::Fill),
+            btn_row,
+        ]
+        .align_y(iced::Alignment::Center)
+        .into()
+    }
+
+    fn view_presets_and_preamp(&self) -> Element<'_, Message> {
+        let preset_names: Vec<String> = self.editor_state.profiles.iter().map(|p| p.name.clone()).collect();
+        
+        let preset_row = row![
+            text("Presets:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
+            pick_list(
+                preset_names,
+                self.editor_state.selected_profile_name.clone(),
+                Message::ProfileSelected,
+            ).placeholder("Select Preset").width(Length::Fixed(200.0)),
+            text_input("New Name...", &self.editor_state.new_profile_name)
+                .on_input(Message::ProfileNameInput)
+                .width(Length::Fixed(150.0)),
+            button("Save").on_press(Message::SaveProfilePressed),
+            if self.editor_state.selected_profile_name.is_some() {
+                button("Delete").on_press(Message::DeleteProfilePressed).style(iced::widget::button::danger)
+            } else {
+                button("Delete")
+            },
+        ].spacing(SPACE_SM).align_y(iced::Alignment::Center);
+
+        let preamp_row = row![
+            text("Preamp:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
+            slider(MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64, self.editor_state.global_gain as f64, |v| Message::GlobalGainChanged(v as i8))
+                .width(Length::Fill),
+            text(format!("{} dB", self.editor_state.global_gain)).size(TYPE_BODY).width(Length::Fixed(50.0)).color(TOKYO_NIGHT_PRIMARY),
+        ].spacing(SPACE_SM).align_y(iced::Alignment::Center);
+
+        container(
+            column![
+                preset_row,
+                preamp_row,
+            ].spacing(SPACE_MD)
+        )
+        .padding(SPACE_MD)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
+    }
+
+    fn view_graph(&self) -> Element<'_, Message> {
+        container(
             canvas(EqGraph::new(&self.editor_state.filters, self.editor_state.global_gain))
                 .width(Length::Fill)
-                .height(Length::Fixed(200.0))
+                .height(Length::Fixed(220.0))
         )
-        .padding(10)
-        .style(container::bordered_box);
+        .padding(SPACE_SM)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
+    }
 
-        let autoeq_section = column![
-            text("AutoEQ").size(16),
-            row![
-                button("Import from Clipboard").on_press(Message::ImportFromClipboard),
-                button("Import from File").on_press(Message::ImportFromFilePressed),
-            ].spacing(10),
-            row![
-                button("Export to Clipboard").on_press(Message::ExportAutoEQPressed),
-                button("Export to File").on_press(Message::ExportToFilePressed),
-            ].spacing(10),
-            if let Some(ref msg) = self.editor_state.autoeq_message { text(msg).size(14) } else { text("").size(14) },
-        ].spacing(10);
+    fn view_bands(&self) -> Element<'_, Message> {
+        let band_list: Vec<Element<Message>> = self.editor_state.filters.iter().enumerate()
+            .map(|(i, band)| {
+                row![
+                    toggler(band.enabled)
+                        .label("")
+                        .on_toggle(move |v| Message::BandEnabledChanged(i, v))
+                        .size(16),
+                    text(format!("{}", i + 1)).size(TYPE_BODY).width(Length::Fixed(20.0)),
+                    
+                    pick_list(
+                        &[crate::models::FilterType::LowShelf, crate::models::FilterType::Peak, crate::models::FilterType::HighShelf][..],
+                        Some(band.filter_type),
+                        move |t| Message::BandTypeChanged(i, t),
+                    ).width(Length::Fixed(110.0)).text_size(12),
 
+                    row![
+                        text("Freq").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED).width(Length::Fixed(32.0)),
+                        slider(20.0f64.log10()..=20000.0f64.log10(), (band.freq as f64).log10(), move |v| Message::BandFreqSliderChanged(i, v)).width(Length::Fill),
+                        text_input("", &format!("{}", band.freq))
+                            .on_input(move |s| Message::BandFreqInput(i, s))
+                            .width(Length::Fixed(60.0))
+                            .size(TYPE_LABEL),
+                    ].spacing(SPACE_XS).align_y(iced::Alignment::Center).width(Length::FillPortion(3)),
+
+                    row![
+                        text("Gain").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED).width(Length::Fixed(36.0)),
+                        slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| Message::BandGainChanged(i, v)).width(Length::Fill),
+                        text_input("", &format!("{:.1}", band.gain))
+                            .on_input(move |s| Message::BandGainInput(i, s))
+                            .width(Length::Fixed(50.0))
+                            .size(TYPE_LABEL),
+                    ].spacing(SPACE_XS).align_y(iced::Alignment::Center).width(Length::FillPortion(3)),
+
+                    row![
+                        text("Q").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED).width(Length::Fixed(18.0)),
+                        slider(0.1..=20.0, band.q, move |v| Message::BandQChanged(i, v)).width(Length::Fill),
+                        text_input("", &format!("{:.2}", band.q))
+                            .on_input(move |s| Message::BandQInput(i, s))
+                            .width(Length::Fixed(50.0))
+                            .size(TYPE_LABEL),
+                    ].spacing(SPACE_XS).align_y(iced::Alignment::Center).width(Length::FillPortion(2)),
+                ]
+                .spacing(SPACE_SM)
+                .align_y(iced::Alignment::Center)
+                .into()
+            })
+            .collect();
+
+        container(
+            scrollable(
+                column(band_list).spacing(SPACE_XS)
+            )
+        )
+        .padding(SPACE_SM)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+
+    fn view_autoeq(&self) -> Element<'_, Message> {
+        let msg_text = if let Some(ref msg) = self.editor_state.autoeq_message {
+            text(msg).size(TYPE_LABEL).color(TOKYO_NIGHT_TEXT)
+        } else {
+            text("").size(TYPE_LABEL)
+        };
+
+        container(
+            column![
+                text("AutoEQ").size(TYPE_TITLE).color(TOKYO_NIGHT_PRIMARY),
+                text("Import/export standard parametric EQ text files (AutoEQ format).")
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_MUTED),
+                row![
+                    button("Import Clipboard").on_press(Message::ImportFromClipboard),
+                    button("Import File").on_press(Message::ImportFromFilePressed),
+                ].spacing(SPACE_XS),
+                row![
+                    button("Export Clipboard").on_press(Message::ExportAutoEQPressed),
+                    button("Export File").on_press(Message::ExportToFilePressed),
+                ].spacing(SPACE_XS),
+                msg_text,
+            ].spacing(SPACE_SM)
+        )
+        .padding(SPACE_MD)
+        .style(theme::card_style)
+        .width(Length::FillPortion(1))
+        .into()
+    }
+
+    fn view_diagnostics(&self) -> Element<'_, Message> {
         let diag_events: Vec<Element<Message>> = self.diagnostics.events()
             .filter(|e| !self.editor_state.diagnostics_errors_only || e.level == LogLevel::Error)
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
-            .take(15)
+            .take(20)
             .map(|e| {
-                let level_str = match e.level {
-                    LogLevel::Info => "[INFO]",
-                    LogLevel::Warn => "[WARN]",
-                    LogLevel::Error => "[ERROR]",
-                };
                 let c = match e.level {
-                    LogLevel::Info => Color::WHITE,
-                    LogLevel::Warn => Color::from_rgb(1.0, 0.5, 0.0),
-                    LogLevel::Error => Color::from_rgb(1.0, 0.0, 0.0),
+                    LogLevel::Info => TOKYO_NIGHT_MUTED,
+                    LogLevel::Warn => TOKYO_NIGHT_WARNING,
+                    LogLevel::Error => TOKYO_NIGHT_ERROR,
                 };
-                text(format!("{} {} {}", level_str, e.source, e.message)).size(12).color(c).into()
+                text(format!("[{}] {} {}", e.level, e.source, e.message)).size(TYPE_LABEL - 1.0).color(c).into()
             })
             .collect();
-        
-        let diag_section = column![
-            text("Diagnostics").size(16),
-            row![
-                checkbox(self.editor_state.diagnostics_errors_only).label("Errors Only").on_toggle(Message::ToggleDiagnosticsErrorsOnly),
-                button("Copy").on_press(Message::CopyDiagnostics),
-                button("Export to File").on_press(Message::ExportDiagnosticsToFile),
-                button("Clear").on_press(Message::ClearDiagnostics),
-            ].spacing(10),
-            scrollable(column(diag_events).spacing(4)).height(Length::Fixed(150.0)),
-            text(format!("{} events total", self.diagnostics.count())).size(12),
-        ].spacing(10);
-        
-        let content = column![
-            text("Frost-Tune").size(24),
-            status_text,
-            btn_row,
-            preset_section,
-            global_gain_row,
-            eq_graph,
-            scrollable(bands).height(Length::FillPortion(2)),
-            autoeq_section,
-            diag_section,
-        ].spacing(10).padding(20);
-        
-        container(content).width(Length::Fill).height(Length::Fill).into()
+
+        container(
+            column![
+                row![
+                    text("Diagnostics").size(TYPE_TITLE).color(TOKYO_NIGHT_PRIMARY),
+                    container(text("")).width(Length::Fill),
+                    checkbox(self.editor_state.diagnostics_errors_only).label("Errors Only").on_toggle(Message::ToggleDiagnosticsErrorsOnly).size(14),
+                ].align_y(iced::Alignment::Center),
+                scrollable(column(diag_events).spacing(2)).height(Length::Fixed(140.0)),
+                row![
+                    button("Copy").on_press(Message::CopyDiagnostics),
+                    button("Export").on_press(Message::ExportDiagnosticsToFile),
+                    button("Clear").on_press(Message::ClearDiagnostics).style(iced::widget::button::danger),
+                ].spacing(SPACE_XS),
+            ].spacing(SPACE_SM)
+        )
+        .padding(SPACE_MD)
+        .style(theme::card_style)
+        .width(Length::FillPortion(1))
+        .into()
     }
+
 
     fn subscription(&self) -> Subscription<Message> {
         use std::time::Duration;
@@ -678,5 +781,9 @@ impl MainWindow {
 }
 
 pub fn run() -> iced::Result {
-    iced::application(MainWindow::new, MainWindow::update, MainWindow::view).title(MainWindow::title).subscription(MainWindow::subscription).theme(Theme::Dark).run()
+    iced::application(MainWindow::new, MainWindow::update, MainWindow::view)
+        .title(MainWindow::title)
+        .subscription(MainWindow::subscription)
+        .theme(MainWindow::app_theme)
+        .run()
 }

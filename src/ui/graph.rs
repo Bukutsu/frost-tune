@@ -1,7 +1,9 @@
 use iced::widget::canvas::{Program, Geometry, Path, Stroke, Frame, Text};
 use iced::{Color, Rectangle, Renderer, Theme, Point};
 use crate::models::Filter;
-use crate::hardware::dsp::calculate_total_response;
+use crate::hardware::dsp::{calculate_total_response, get_magnitude_response};
+
+use crate::ui::theme::TOKYO_NIGHT_PRIMARY;
 
 pub struct EqGraph {
     filters: Vec<Filter>,
@@ -90,6 +92,30 @@ impl<Message> Program<Message> for EqGraph {
 
         let responses = calculate_total_response(&self.filters, self.global_gain, &test_freqs);
 
+        // Draw faint individual enabled bands first
+        for filter in self.filters.iter().filter(|f| f.enabled) {
+            let band_path = Path::new(|builder| {
+                for (i, &f) in test_freqs.iter().enumerate() {
+                    let db = get_magnitude_response(filter, f);
+                    let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
+                    let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
+                    let p = Point::new(x, y);
+                    if i == 0 {
+                        builder.move_to(p);
+                    } else {
+                        builder.line_to(p);
+                    }
+                }
+            });
+
+            frame.stroke(
+                &band_path,
+                Stroke::default()
+                    .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
+                    .with_width(1.0),
+            );
+        }
+
         let path = Path::new(|builder| {
             for (i, &db) in responses.iter().enumerate() {
                 let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
@@ -103,7 +129,7 @@ impl<Message> Program<Message> for EqGraph {
             }
         });
 
-        frame.stroke(&path, Stroke::default().with_color(Color::from_rgb(0.0, 0.8, 1.0)).with_width(2.0));
+        frame.stroke(&path, Stroke::default().with_color(TOKYO_NIGHT_PRIMARY).with_width(2.0));
 
         vec![frame.into_geometry()]
     }
