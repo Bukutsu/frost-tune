@@ -190,3 +190,68 @@ impl PushPayload {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_band_gain_clamp_at_max() {
+        let mut filter = Filter::enabled(0, true);
+        filter.gain = 15.0;
+        filter.clamp();
+        assert_eq!(filter.gain, MAX_BAND_GAIN);
+    }
+
+    #[test]
+    fn test_band_gain_clamp_at_min() {
+        let mut filter = Filter::enabled(0, true);
+        filter.gain = -15.0;
+        filter.clamp();
+        assert_eq!(filter.gain, MIN_BAND_GAIN);
+    }
+
+    #[test]
+    fn test_band_gain_unchanged_when_in_bounds() {
+        let mut filter = Filter::enabled(0, true);
+        filter.gain = 5.0;
+        filter.clamp();
+        assert_eq!(filter.gain, 5.0);
+    }
+
+    #[test]
+    fn test_global_gain_clamp_max() {
+        let mut payload = PushPayload { filters: vec![], global_gain: Some(15) };
+        payload.clamp();
+        assert_eq!(payload.global_gain, Some(MAX_GLOBAL_GAIN));
+    }
+
+    #[test]
+    fn test_global_gain_clamp_min() {
+        let mut payload = PushPayload { filters: vec![], global_gain: Some(-15) };
+        payload.clamp();
+        assert_eq!(payload.global_gain, Some(MIN_GLOBAL_GAIN));
+    }
+
+    #[test]
+    fn test_push_payload_valid_with_10_bands() {
+        let filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        let payload = PushPayload { filters: filters.clone(), global_gain: Some(5) };
+        assert!(payload.is_valid().is_ok());
+    }
+
+    #[test]
+    fn test_push_payload_invalid_with_wrong_band_count() {
+        let filters = vec![Filter::enabled(0, false)];
+        let payload = PushPayload { filters, global_gain: Some(0) };
+        assert!(payload.is_valid().is_err());
+    }
+
+    #[test]
+    fn test_default_filter_has_correct_index() {
+        for i in 0..10 {
+            let filter = Filter::enabled(i, true);
+            assert_eq!(filter.index, i as u8);
+        }
+    }
+}

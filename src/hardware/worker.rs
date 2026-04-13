@@ -6,9 +6,16 @@ use crate::hardware::hid::{find_device_info, pull_peq_internal, delay_ms};
 use crate::models::{ConnectionResult, DeviceInfo, OperationResult, PushPayload, PEQData, Filter};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain, WriteTiming, init_device_session};
 
+#[derive(Debug, Clone)]
+pub struct WorkerStatus {
+    pub connected: bool,
+    pub physically_present: bool,
+}
+
 pub enum UsbCommand {
     Connect(mpsc::Sender<ConnectionResult>),
     Disconnect(mpsc::Sender<OperationResult>),
+    Status(mpsc::Sender<WorkerStatus>),
     PullPEQ(mpsc::Sender<OperationResult>),
     PushPEQ(PushPayload, mpsc::Sender<OperationResult>),
 }
@@ -24,36 +31,87 @@ impl UsbWorker {
         thread::spawn(move || {
             let mut device: Option<hidapi::HidDevice> = None;
             let mut api = match hidapi::HidApi::new() {
-                Ok(a) => a,
+                Ok(a) => {
+                    log::info!("HID API initialized successfully");
+                    a
+                }
                 Err(e) => {
-                    log::error!("Failed to init HID API: {}", e);
+                    log::error!("CRITICAL: Failed to init HID API: {}", e);
                     return;
                 }
             };
 
+            let mut last_physical_check = std::time::Instant::now();
+            let check_interval = std::time::Duration::from_millis(1000);
+
             loop {
-                match rx.recv() {
-                    Ok(UsbCommand::Connect(resp)) => {
-                        let result = worker_connect(&mut device, &api);
-                        let _ = resp.send(result);
+                // Check hotplug every 1 second (matching old project pattern)
+                let now = std::time::Instant::now();
+                if now.duration_since(last_physical_check) >= check_interval {
+                    last_physical_check = now;
+                    
+                    if let Err(e) = api.refresh_devices() {
+                        log::warn!("Failed to refresh USB device list: {}", e);
                     }
-                    Ok(UsbCommand::Disconnect(resp)) => {
+
+                    let is_physically_connected = find_device_info(&api).is_some();
+                    let is_logically_connected = device.is_some();
+
+                    log::debug!("Hotplug check: logical={}, physical={}", is_logically_connected, is_physically_connected);
+
+                    // If logically connected but physically lost -> disconnect
+                    if is_logically_connected && !is_physically_connected {
+                        log::warn!("DAC physically disconnected!");
                         device = None;
-                        let _ = resp.send(OperationResult { success: true, data: None, error: None });
+                    } 
+                    // If logically disconnected but physically present -> auto-reconnect
+                    else if !is_logically_connected && is_physically_connected {
+                        log::info!("DAC detected, auto-connecting...");
+                        let res = worker_connect(&mut device, &api);
+                        if res.success {
+                            log::info!("Auto-reconnect successful");
+                        } else {
+                            log::warn!("Auto-reconnect failed: {:?}", res.error);
+                        }
                     }
-                    Ok(UsbCommand::PullPEQ(resp)) => {
-                        let result = worker_pull_peq(&device);
-                        let _ = resp.send(result);
-                    }
-                    Ok(UsbCommand::PushPEQ(payload, resp)) => {
-                        let result = worker_push_peq(&device, payload);
-                        let _ = resp.send(result);
-                    }
-                    Err(_) => break,
                 }
 
-                let _ = api.refresh_devices();
-                thread::sleep(Duration::from_millis(500));
+                // Process commands (non-blocking like old project)
+                match rx.recv_timeout(Duration::from_millis(100)) {
+                    Ok(cmd) => {
+                        match cmd {
+                            UsbCommand::Connect(resp) => {
+                                let result = worker_connect(&mut device, &api);
+                                let _ = resp.send(result);
+                            }
+                            UsbCommand::Disconnect(resp) => {
+                                device = None;
+                                let _ = resp.send(OperationResult { success: true, data: None, error: None });
+                            }
+                            UsbCommand::Status(resp) => {
+                                let _ = api.refresh_devices();
+                                let physically_present = find_device_info(&api).is_some();
+                                let status = WorkerStatus {
+                                    connected: device.is_some(),
+                                    physically_present,
+                                };
+                                let _ = resp.send(status);
+                            }
+                            UsbCommand::PullPEQ(resp) => {
+                                let result = worker_pull_peq(&device);
+                                let _ = resp.send(result);
+                            }
+                            UsbCommand::PushPEQ(payload, resp) => {
+                                let result = worker_push_peq(&device, payload);
+                                let _ = resp.send(result);
+                            }
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // No command, continue to next hotplug check
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
             }
         });
 
@@ -69,6 +127,12 @@ impl UsbWorker {
     pub fn disconnect(&self) -> mpsc::Receiver<OperationResult> {
         let (tx, rx) = mpsc::channel();
         let _ = self.tx.send(UsbCommand::Disconnect(tx));
+        rx
+    }
+
+    pub fn status(&self) -> mpsc::Receiver<WorkerStatus> {
+        let (tx, rx) = mpsc::channel();
+        let _ = self.tx.send(UsbCommand::Status(tx));
         rx
     }
 
@@ -91,17 +155,26 @@ impl Default for UsbWorker {
 
 fn worker_connect(device: &mut Option<hidapi::HidDevice>, api: &hidapi::HidApi) -> ConnectionResult {
     if device.is_some() {
+        log::info!("Already connected");
         return ConnectionResult { success: true, device: None, error: None };
     }
 
+    log::info!("Scanning for device {:04x}:{:04x}", crate::models::VENDOR_ID, crate::models::PRODUCT_ID);
+
     let device_info = match find_device_info(api) {
         Some(d) => d,
-        None => return ConnectionResult { success: false, device: None, error: Some("Device not found".into()) },
+        None => {
+            log::warn!("Device not found - not connected or different VID/PID");
+            return ConnectionResult { success: false, device: None, error: Some("Device not found. Is it plugged in?".into()) };
+        }
     };
+
+    log::info!("Device found, attempting to open: {:?}", device_info.path());
 
     match device_info.open_device(api) {
         Ok(d) => {
             *device = Some(d);
+            log::info!("Successfully connected to device");
             ConnectionResult {
                 success: true,
                 device: Some(DeviceInfo {
@@ -113,7 +186,22 @@ fn worker_connect(device: &mut Option<hidapi::HidDevice>, api: &hidapi::HidApi) 
                 error: None,
             }
         }
-        Err(e) => ConnectionResult { success: false, device: None, error: Some(e.to_string()) },
+        Err(e) => {
+            let err_str = e.to_string();
+            log::error!("Failed to open device: {}", err_str);
+
+            let friendly_error = if err_str.contains("Access denied") || err_str.contains("Permission denied") {
+                "Access denied. Check USB permissions (udev rule needed on Linux)".into()
+            } else if err_str.contains("busy") || err_str.contains("in use") {
+                "Device is busy. Another app may be connected.".into()
+            } else if err_str.contains("No such file") || err_str.contains("No such device") {
+                "Device disconnected during open. Try reconnecting.".into()
+            } else {
+                format!("Open failed: {}", err_str)
+            };
+
+            ConnectionResult { success: false, device: None, error: Some(friendly_error) }
+        }
     }
 }
 
@@ -133,9 +221,43 @@ fn pull_peq_data(d: &hidapi::HidDevice, strict: bool) -> Result<PEQData, String>
 
 fn worker_pull_peq(device: &Option<hidapi::HidDevice>) -> OperationResult {
     let d = match device { Some(d) => d, None => return OperationResult { success: false, data: None, error: Some("Not connected".into()) } };
-    match pull_peq_data(d, false) {
-        Ok(peq_data) => OperationResult { success: true, data: Some(serde_json::to_value(peq_data).unwrap()), error: None },
-        Err(e) => OperationResult { success: false, data: None, error: Some(e) },
+    log::info!("Pulling PEQ data from device...");
+    
+    // First attempt
+    let first_result = pull_peq_data(d, false);
+    
+    // Check for suspicious (default/empty) response
+    let needs_retry = match &first_result {
+        Ok(peq) => {
+            let all_disabled = peq.filters.iter().all(|f| !f.enabled);
+            let has_default_gain = peq.global_gain == 0;
+            let has_no_filters = peq.filters.is_empty();
+            // Suspicious if: all disabled + zero gain + no filters (likely default read)
+            all_disabled && has_default_gain && has_no_filters
+        }
+        Err(_) => true, // Retry on any error
+    };
+    
+    // Retry once if suspicious
+    let final_result = if needs_retry {
+        log::warn!("Pull returned suspicious result, retrying...");
+        delay_ms(100);
+        pull_peq_data(d, false)
+    } else {
+        first_result
+    };
+    
+    match final_result {
+        Ok(peq_data) => {
+            let filter_count = peq_data.filters.len();
+            let gain = peq_data.global_gain;
+            log::info!("Pull successful: {} filters, global_gain: {}", filter_count, gain);
+            OperationResult { success: true, data: Some(serde_json::to_value(peq_data).unwrap()), error: None }
+        }
+        Err(e) => {
+            log::error!("Pull failed: {}", e);
+            OperationResult { success: false, data: None, error: Some(e) }
+        }
     }
 }
 

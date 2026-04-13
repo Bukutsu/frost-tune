@@ -57,8 +57,9 @@ Before implementing any UI changes (Iced widgets, Application trait, Subscriptio
 
 ## 📚 Reference Projects
 
-- Original: `../tp35pro-eq` (Tauri + React + Rust)
-- Hardware layer can be ported from `../tp35pro-eq/src-tauri/src/`
+- Working reference: `../tp35pro-eq` (Tauri + React + Rust)
+- Hardware layer ported/aligned from `../tp35pro-eq/src-tauri/src/`
+- For connection/hotplug patterns, see `../tp35pro-eq/src-tauri/src/usb_worker.rs`
 
 ## 🌍 Cross-Platform Notes
 

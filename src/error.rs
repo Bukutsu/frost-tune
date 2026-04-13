@@ -35,9 +35,55 @@ impl From<AppError> for String {
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    NotConnected,
+    PermissionDenied,
+    DeviceBusy,
+    ReadTimeout,
+    WriteError,
+    VerifyFailed,
+    DeviceLost,
+    Unknown,
+}
+
+impl ErrorKind {
+    pub fn user_message(&self) -> &'static str {
+        match self {
+            ErrorKind::NotConnected => "Device not found. Is it plugged in?",
+            ErrorKind::PermissionDenied => "Access denied. Check USB permissions.",
+            ErrorKind::DeviceBusy => "Device is busy. Another app may be connected.",
+            ErrorKind::ReadTimeout => "USB read timeout. Try again.",
+            ErrorKind::WriteError => "USB write failed.",
+            ErrorKind::VerifyFailed => "Verification failed. Changes not applied.",
+            ErrorKind::DeviceLost => "Device disconnected during operation.",
+            ErrorKind::Unknown => "Unknown error.",
+        }
+    }
+    
+    pub fn from_string(s: &str) -> Self {
+        if s.contains("Not connected") || s.contains("not found") || s.contains("No such") {
+            ErrorKind::NotConnected
+        } else if s.contains("Permission denied") || s.contains("Access denied") {
+            ErrorKind::PermissionDenied
+        } else if s.contains("busy") || s.contains("in use") {
+            ErrorKind::DeviceBusy
+        } else if s.contains("timeout") || s.contains("Timeout") {
+            ErrorKind::ReadTimeout
+        } else if s.contains("verification") || s.contains("mismatch") || s.contains("Verify") {
+            ErrorKind::VerifyFailed
+        } else if s.contains("failed") || s.contains("error") {
+            ErrorKind::Unknown
+        } else {
+            ErrorKind::Unknown
+        }
+    }
+}
+
 pub const DeviceNotFound: &str = "Device not found. Is it plugged in?";
 pub const PermissionDenied: &str = "Access denied. Check USB permissions.";
 pub const DeviceBusy: &str = "Device is busy.";
 pub const ReadTimeout: &str = "USB read timeout.";
 pub const WriteError: &str = "USB write failed.";
 pub const ParseError: &str = "Failed to parse filter data.";
+pub const VerifyFailed: &str = "Verification failed. Changes not applied.";

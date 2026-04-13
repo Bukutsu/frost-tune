@@ -1,5 +1,5 @@
 use crate::hardware::dsp::parse_filter_packet;
-use crate::models::{PEQData, PRODUCT_ID, Filter, VENDOR_ID, Device};
+use crate::models::{PEQData, Filter, Device};
 use crate::hardware::protocol::{
     CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_VERSION,
     READ, END, REPORT_ID,
@@ -202,13 +202,30 @@ fn read_global_gain(device: &hidapi::HidDevice, cfg: &ReadTiming, _nonce: u8) ->
 fn assemble_filters(responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
     let mut filters = Vec::new();
     for (i, resp) in responses.into_iter().enumerate() {
-        if let Some(r) = resp {
-            if let Some(f) = parse_filter_packet(&r) {
-                filters.push(f);
-                continue;
+        match resp {
+            Some(r) => {
+                if let Some(f) = parse_filter_packet(&r) {
+                    log::debug!("Filter {} parsed: freq={}, gain={:.2}, q={:.2}, enabled={}", 
+                        f.index, f.freq, f.gain, f.q, f.enabled);
+                    filters.push(f);
+                } else {
+                    log::warn!("Filter {} parse failed, using default", i);
+                    filters.push(Filter::enabled(i as u8, false));
+                }
+            }
+            None => {
+                log::warn!("Filter {} read returned None, using default", i);
+                filters.push(Filter::enabled(i as u8, false));
             }
         }
-        filters.push(Filter::enabled(i as u8, false));
     }
+    
+    // Pad to 10 if needed
+    while filters.len() < 10 {
+        let idx = filters.len() as u8;
+        log::warn!("Padding missing filter {} with default", idx);
+        filters.push(Filter::enabled(idx, false));
+    }
+    
     filters
 }
