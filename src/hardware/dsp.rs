@@ -19,7 +19,13 @@ pub fn quantizer(d_arr: &[f64], d_arr2: &[f64]) -> Vec<i32> {
         .iter()
         .map(|d| (d * QUANTIZER_SCALE).round() as i32)
         .collect();
-    vec![i_arr2[0], i_arr2[1], i_arr2[2], -i_arr[1], -i_arr[2]]
+    vec![
+        i_arr2[0],
+        i_arr2[1],
+        i_arr2[2],
+        i_arr[1].wrapping_neg(),
+        i_arr[2].wrapping_neg(),
+    ]
 }
 
 pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> Vec<u8> {
