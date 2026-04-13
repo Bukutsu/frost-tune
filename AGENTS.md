@@ -47,6 +47,13 @@ Before implementing any UI changes (Iced widgets, Application trait, Subscriptio
 
 **Rationale**: Iced API evolves frequently. Using outdated patterns from older tutorials will cause build failures or runtime bugs.
 
+### 6. Work Completion Protocol
+After completing any task, agents MUST:
+1. Specify what was implemented/changed
+2. Specify what the user needs to test to verify the change works
+3. Run `cargo build` to verify the code compiles
+4. Run `cargo test` to verify existing tests still pass (if applicable)
+
 ## 🛠️ Setup & Development
 
 1. **Install Rust**: https://rustup.rs/

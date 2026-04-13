@@ -43,6 +43,7 @@ pub enum ErrorKind {
     ReadTimeout,
     WriteError,
     VerifyFailed,
+    RollbackFailed,
     DeviceLost,
     Unknown,
 }
@@ -56,6 +57,7 @@ impl ErrorKind {
             ErrorKind::ReadTimeout => "USB read timeout. Try again.",
             ErrorKind::WriteError => "USB write failed.",
             ErrorKind::VerifyFailed => "Verification failed. Changes not applied.",
+            ErrorKind::RollbackFailed => "Failed to restore previous settings. Device may be in an inconsistent state.",
             ErrorKind::DeviceLost => "Device disconnected during operation.",
             ErrorKind::Unknown => "Unknown error.",
         }
@@ -72,6 +74,8 @@ impl ErrorKind {
             ErrorKind::ReadTimeout
         } else if s.contains("verification") || s.contains("mismatch") || s.contains("Verify") {
             ErrorKind::VerifyFailed
+        } else if s.contains("rollback") || s.contains("restore") {
+            ErrorKind::RollbackFailed
         } else if s.contains("failed") || s.contains("error") {
             ErrorKind::Unknown
         } else {

@@ -303,8 +303,11 @@ fn worker_push_peq(device: &Option<hidapi::HidDevice>, payload: PushPayload) -> 
         commit_changes(d, &timing)?;
         Ok(())
     })() {
-        let _ = rollback_state(d, &snapshot);
-        return OperationResult { success: false, data: None, error: Some(e) };
+        let rollback_err = rollback_state(d, &snapshot);
+        if rollback_err.is_err() {
+            return OperationResult { success: false, data: None, error: Some("Write failed: rollback also failed".into()) };
+        }
+        return OperationResult { success: false, data: None, error: Some(format!("Write failed: {}", e)) };
     }
 
     for attempt in 0..3 {
@@ -316,11 +319,14 @@ fn worker_push_peq(device: &Option<hidapi::HidDevice>, payload: PushPayload) -> 
                     return OperationResult { success: true, data: Some(serde_json::to_value(read_back).unwrap()), error: None };
                 }
             }
-            Err(e) => return OperationResult { success: false, data: None, error: Some(e) },
+            Err(e) => return OperationResult { success: false, data: None, error: Some(format!("Verify read error: {}", e)) },
         }
     }
-    let _ = rollback_state(d, &snapshot);
-    OperationResult { success: false, data: None, error: Some("Verification failed".into()) }
+    let rollback_err = rollback_state(d, &snapshot);
+    if rollback_err.is_err() {
+        return OperationResult { success: false, data: None, error: Some("Verify failed: rollback also failed".into()) };
+    }
+    OperationResult { success: false, data: None, error: Some("Verification failed: settings did not match".into()) }
 }
 
 fn rollback_state(d: &hidapi::HidDevice, state: &PEQData) -> Result<(), String> {
