@@ -3,6 +3,7 @@ pub mod hardware;
 pub mod models;
 pub mod ui;
 pub mod autoeq;
+pub mod diagnostics;
 
 use log::info;
 

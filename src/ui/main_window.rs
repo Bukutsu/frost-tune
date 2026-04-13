@@ -7,6 +7,7 @@ use iced::{
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND_GAIN, MIN_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::autoeq;
+use crate::diagnostics::{DiagnosticsStore, DiagnosticEvent, LogLevel, Source};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -30,6 +31,8 @@ pub enum Message {
     ImportClipboardFailed(String),
     ExportAutoEQPressed,
     ExportComplete,
+    CopyDiagnostics,
+    ClearDiagnostics,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +69,7 @@ pub struct MainWindow {
     editor_state: EditorState,
     operation_lock: OperationLock,
     worker: Option<Arc<UsbWorker>>,
+    diagnostics: DiagnosticsStore,
 }
 
 impl MainWindow {
@@ -83,6 +87,7 @@ impl MainWindow {
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
+            diagnostics: DiagnosticsStore::default(),
         };
         (window, Task::none())
     }
@@ -95,6 +100,7 @@ impl MainWindow {
                 if self.worker.is_none() { return Task::none(); }
                 self.connection_status = ConnectionStatus::Connecting;
                 self.operation_lock.is_connecting = true;
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Connect pressed"));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
                 Task::perform(async move {
                     let rx = worker.connect();
@@ -103,6 +109,7 @@ impl MainWindow {
             }
             Message::DisconnectPressed => {
                 if self.worker.is_none() { return Task::none(); }
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Disconnect pressed"));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
                 Task::perform(async move {
                     let rx = worker.disconnect();
@@ -112,6 +119,7 @@ impl MainWindow {
             Message::PullPressed => {
                 if self.worker.is_none() || self.operation_lock.is_pulling || self.operation_lock.is_pushing { return Task::none(); }
                 self.operation_lock.is_pulling = true;
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Pull pressed"));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
                 Task::perform(async move {
                     let rx = worker.pull_peq();
@@ -121,6 +129,7 @@ impl MainWindow {
             Message::PushPressed => {
                 if self.worker.is_none() || self.operation_lock.is_pulling || self.operation_lock.is_pushing { return Task::none(); }
                 self.operation_lock.is_pushing = true;
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::UI, "Push pressed"));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
                 let filters = self.editor_state.filters.clone();
                 let global_gain = self.editor_state.global_gain;
@@ -133,33 +142,56 @@ impl MainWindow {
             }
             Message::WorkerConnected(result) => {
                 self.operation_lock.is_connecting = false;
-                if result.success { self.connection_status = ConnectionStatus::Connected; }
-                else { self.connection_status = ConnectionStatus::Error(result.error.unwrap_or_else(|| "Unknown".into())); }
+                if result.success { 
+                    self.connection_status = ConnectionStatus::Connected;
+                    self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Connected successfully"));
+                } else {
+                    let err = result.error.unwrap_or_else(|| "Unknown".into());
+                    self.connection_status = ConnectionStatus::Error(err.clone());
+                    self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::Worker, format!("Connect failed: {}", err)));
+                }
                 Task::none()
             }
-            Message::WorkerDisconnected(_) => { self.connection_status = ConnectionStatus::Disconnected; Task::none() }
+            Message::WorkerDisconnected(_) => { 
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Disconnected"));
+                self.connection_status = ConnectionStatus::Disconnected; 
+                Task::none() 
+            }
             Message::WorkerPulled(result) => {
                 self.operation_lock.is_pulling = false;
                 if result.success {
                     if let Some(data) = result.data {
                         if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
                             self.editor_state.filters = peq.filters; self.editor_state.global_gain = peq.global_gain;
+                            self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Pull successful"));
                         }
                     }
                 } else if let Some(err) = result.error {
                     if err.contains("Not connected") || err.contains("not found") { self.connection_status = ConnectionStatus::Disconnected; }
-                    else { self.connection_status = ConnectionStatus::Error(err); }
+                    else { self.connection_status = ConnectionStatus::Error(err.clone()); }
+                    self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::Worker, format!("Pull failed: {}", err)));
                 }
                 Task::none()
             }
             Message::WorkerPushed(result) => {
                 self.operation_lock.is_pushing = false;
-                if !result.success { if let Some(err) = result.error { if err.contains("Not connected") || err.contains("not found") { self.connection_status = ConnectionStatus::Disconnected; } else { self.connection_status = ConnectionStatus::Error(err); } } }
+                if result.success {
+                    if let Some(data) = result.data {
+                        if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
+                            self.editor_state.filters = peq.filters; self.editor_state.global_gain = peq.global_gain;
+                            self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Push successful"));
+                        }
+                    }
+                } else if let Some(err) = result.error {
+                    if err.contains("Not connected") || err.contains("not found") { self.connection_status = ConnectionStatus::Disconnected; }
+                    else { self.connection_status = ConnectionStatus::Error(err.clone()); }
+                    self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::Worker, format!("Push failed: {}", err)));
+                }
                 Task::none()
             }
             Message::WorkerStatus(status) => {
-                if status.connected && self.connection_status != ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Connected; log::info!("Device connected"); }
-                else if !status.connected && self.connection_status == ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Disconnected; log::info!("Device disconnected"); }
+                if status.connected && self.connection_status != ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Connected; log::info!("Device connected"); self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Device connected (poll)")); }
+                else if !status.connected && self.connection_status == ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Disconnected; log::info!("Device disconnected"); self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::Worker, "Device disconnected (poll)")); }
                 Task::none()
             }
             Message::Tick(_) => {
@@ -181,6 +213,7 @@ impl MainWindow {
             }
             Message::ExportComplete => { Task::none() }
             Message::ImportFromClipboard => {
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::AutoEQ, "Import from clipboard started"));
                 clipboard::read().map(|result| {
                     match result {
                         Some(text) => Message::ImportClipboardReceived(text),
@@ -195,15 +228,30 @@ impl MainWindow {
                         self.editor_state.filters = peq.filters;
                         self.editor_state.global_gain = peq.global_gain;
                         self.editor_state.autoeq_message = Some(format!("Imported {} filters from clipboard", enabled_count));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Info, Source::AutoEQ, format!("Import successful: {} filters", enabled_count)));
                     }
                     Err(e) => {
                         self.editor_state.autoeq_message = Some(format!("Error: {}", e));
+                        self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::AutoEQ, format!("Import failed: {}", e)));
                     }
                 }
                 Task::none()
             }
             Message::ImportClipboardFailed(msg) => {
-                self.editor_state.autoeq_message = Some(msg);
+                self.editor_state.autoeq_message = Some(msg.clone());
+                self.diagnostics.push(DiagnosticEvent::new(LogLevel::Error, Source::AutoEQ, msg));
+                Task::none()
+            }
+            Message::CopyDiagnostics => {
+                let conn_str = format!("{:?}", self.connection_status);
+                let output = crate::diagnostics::format_diagnostics(&self.diagnostics, "0.1.0", &conn_str);
+                let _ = clipboard::write::<()>(output);
+                self.editor_state.autoeq_message = Some("Diagnostics copied to clipboard".into());
+                Task::none()
+            }
+            Message::ClearDiagnostics => {
+                self.diagnostics.clear();
+                self.editor_state.autoeq_message = Some("Diagnostics cleared".into());
                 Task::none()
             }
         }
@@ -258,6 +306,31 @@ impl MainWindow {
             ].spacing(10),
             if let Some(ref msg) = self.editor_state.autoeq_message { text(msg).size(14) } else { text("").size(14) },
         ].spacing(10);
+
+        let diag_events: Vec<Element<Message>> = self.diagnostics.events()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .take(10)
+            .map(|e| {
+                let level_str = match e.level {
+                    LogLevel::Info => "[INFO]",
+                    LogLevel::Warn => "[WARN]",
+                    LogLevel::Error => "[ERROR]",
+                };
+                text(format!("{} {} {}", level_str, e.source, e.message)).size(12).into()
+            })
+            .collect();
+        
+        let diag_section = column![
+            text("Diagnostics").size(16),
+            scrollable(column(diag_events).spacing(4)).height(Length::Fixed(120.0)),
+            row![
+                button("Copy").on_press(Message::CopyDiagnostics),
+                button("Clear").on_press(Message::ClearDiagnostics),
+            ].spacing(10),
+            text(format!("{} events", self.diagnostics.count())).size(12),
+        ].spacing(10);
         
         let content = column![
             text("Frost-Tune").size(24),
@@ -266,6 +339,7 @@ impl MainWindow {
             global_gain_row,
             scrollable(bands).height(Length::FillPortion(2)),
             autoeq_section,
+            diag_section,
         ].spacing(10).padding(20);
         
         container(content).width(Length::Fill).height(Length::Fill).into()
