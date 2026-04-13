@@ -33,7 +33,7 @@ jobs:
           cache-on-failure: true
 
       - name: Format check
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: Type check
         run: cargo check --all-targets

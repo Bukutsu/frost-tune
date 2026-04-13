@@ -1,5 +1,8 @@
+use crate::hardware::protocol::{
+    OFFSET_FILTER_TYPE, OFFSET_FREQ_H, OFFSET_FREQ_L, OFFSET_GAIN_H, OFFSET_GAIN_L, OFFSET_INDEX,
+    OFFSET_Q_H, OFFSET_Q_L,
+};
 use crate::models::{Filter, FilterType};
-use crate::hardware::protocol::{OFFSET_INDEX, OFFSET_FREQ_L, OFFSET_FREQ_H, OFFSET_Q_L, OFFSET_Q_H, OFFSET_GAIN_L, OFFSET_GAIN_H, OFFSET_FILTER_TYPE};
 use std::f64::consts::TAU;
 
 const DSP_SAMPLE_RATE: f64 = 96000.0;
@@ -75,7 +78,8 @@ pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
     let filter_index = packet[OFFSET_INDEX];
     let freq = (packet[OFFSET_FREQ_L] as u16) | ((packet[OFFSET_FREQ_H] as u16) << BYTE_BIT_SHIFT);
     let q_raw = (packet[OFFSET_Q_L] as u16) | ((packet[OFFSET_Q_H] as u16) << BYTE_BIT_SHIFT);
-    let gain_raw = (packet[OFFSET_GAIN_L] as u16) | ((packet[OFFSET_GAIN_H] as u16) << BYTE_BIT_SHIFT);
+    let gain_raw =
+        (packet[OFFSET_GAIN_L] as u16) | ((packet[OFFSET_GAIN_H] as u16) << BYTE_BIT_SHIFT);
 
     let gain_from_device = if gain_raw > GAIN_I16_THRESHOLD as u16 {
         (gain_raw as i32 - U16_WRAP_AROUND) as i16
@@ -200,7 +204,7 @@ mod tests {
         };
         let mag = get_magnitude_response(&filter, 1000.0);
         assert!((mag - 6.0).abs() < 0.1);
-        
+
         let mag_far = get_magnitude_response(&filter, 100.0);
         assert!(mag_far.abs() < 0.5);
     }
@@ -217,7 +221,7 @@ mod tests {
         };
         let mag_low = get_magnitude_response(&filter, 20.0);
         assert!((mag_low - 6.0).abs() < 0.5);
-        
+
         let mag_high = get_magnitude_response(&filter, 10000.0);
         assert!(mag_high.abs() < 0.1);
     }
@@ -245,7 +249,7 @@ mod tests {
         let freqs = vec![1000.0];
         let total = calculate_total_response(&filters, 0, &freqs);
         assert!((total[0] - 4.0).abs() < 0.1);
-        
+
         let total_with_preamp = calculate_total_response(&filters, -3, &freqs);
         assert!((total_with_preamp[0] - 1.0).abs() < 0.1);
     }

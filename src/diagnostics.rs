@@ -50,7 +50,9 @@ pub struct DiagnosticEvent {
 
 impl DiagnosticEvent {
     pub fn new(level: LogLevel, source: Source, message: impl Into<String>) -> Self {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        let timestamp = chrono::Local::now()
+            .format("%Y-%m-%d %H:%M:%S%.3f")
+            .to_string();
         DiagnosticEvent {
             timestamp,
             level,
@@ -61,7 +63,9 @@ impl DiagnosticEvent {
     }
 
     pub fn with_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        let context = self.context.get_or_insert_with(std::collections::HashMap::new);
+        let context = self
+            .context
+            .get_or_insert_with(std::collections::HashMap::new);
         context.insert(key.into(), value.into());
         self
     }
@@ -85,7 +89,9 @@ impl DiagnosticsStore {
     }
 
     pub fn errors(&self) -> impl Iterator<Item = &DiagnosticEvent> {
-        self.events.iter().filter(|e| matches!(e.level, LogLevel::Error))
+        self.events
+            .iter()
+            .filter(|e| matches!(e.level, LogLevel::Error))
     }
 
     pub fn clear(&mut self) {
@@ -97,30 +103,40 @@ impl DiagnosticsStore {
     }
 }
 
-pub fn format_diagnostics(store: &DiagnosticsStore, app_version: &str, connection_status: &str) -> String {
+pub fn format_diagnostics(
+    store: &DiagnosticsStore,
+    app_version: &str,
+    connection_status: &str,
+) -> String {
     let mut output = Vec::new();
-    
+
     output.push("=== Frost-Tune Diagnostics ===".to_string());
     output.push(format!("Version: {}", app_version));
-    output.push(format!("Timestamp: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    output.push(format!(
+        "Timestamp: {}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    ));
     output.push(format!("Connection Status: {}", connection_status));
     output.push("".to_string());
     output.push("=== Events ===".to_string());
-    
+
     for event in store.events() {
         let level_str = format!("[{}]", event.level);
         let source_str = format!("[{}]", event.source);
-        output.push(format!("{} {} {} {}", event.timestamp, level_str, source_str, event.message));
-        
+        output.push(format!(
+            "{} {} {} {}",
+            event.timestamp, level_str, source_str, event.message
+        ));
+
         if let Some(ref ctx) = event.context {
             for (k, v) in ctx.iter() {
                 output.push(format!("  {}: {}", k, v));
             }
         }
     }
-    
+
     output.push("".to_string());
     output.push(format!("=== Total Events: {} ===", store.count()));
-    
+
     output.join("\n")
 }

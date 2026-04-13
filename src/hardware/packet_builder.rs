@@ -1,11 +1,10 @@
-use hidapi::HidDevice;
 use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
 use crate::hardware::hid::{delay_ms, send_report};
 use crate::hardware::protocol::{
-    CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_TEMP_WRITE, CMD_FLASH_EQ, CMD_VERSION,
-    WRITE, END, READ
+    CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, READ, WRITE,
 };
 use crate::models::Filter;
+use hidapi::HidDevice;
 
 pub const FILTER_SLOT: u8 = 101;
 pub const NUM_FILTERS: u8 = 10;
@@ -75,7 +74,9 @@ pub fn init_device_session(device: &HidDevice) -> Result<(), String> {
     delay_ms(50);
     let mut drain = [0u8; 64];
     while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
     }
     Ok(())
 }
@@ -89,7 +90,12 @@ pub fn write_filters_and_gain(
     for i in 0u8..NUM_FILTERS {
         let filter = &filters[i as usize];
         let packet = build_filter_packet(
-            i, filter.enabled, filter.freq as f64, filter.gain, filter.q, filter.filter_type.into()
+            i,
+            filter.enabled,
+            filter.freq as f64,
+            filter.gain,
+            filter.q,
+            filter.filter_type.into(),
         );
         send_report(device, &packet[..])?;
         delay_ms(timing.per_filter_ms);

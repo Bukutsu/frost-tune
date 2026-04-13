@@ -2,9 +2,7 @@ use crate::models::{Filter, FilterType, PEQData, MAX_BAND_GAIN, MIN_BAND_GAIN};
 
 pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
     let lines: Vec<&str> = text.lines().collect();
-    let mut filters: Vec<Filter> = (0..10)
-        .map(|i| Filter::enabled(i as u8, false))
-        .collect();
+    let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
     let mut preamp: i8 = 0;
     let mut parsed_count: usize = 0;
 
@@ -45,7 +43,10 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
         return Err("No valid filters found in AutoEQ text".into());
     }
 
-    Ok(PEQData { filters, global_gain: preamp })
+    Ok(PEQData {
+        filters,
+        global_gain: preamp,
+    })
 }
 
 fn extract_number(s: &str) -> Option<f64> {
@@ -62,7 +63,11 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
     let rest = &line[regex_match..];
 
     let idx_str: &str = rest.get(7..)?;
-    let idx: usize = idx_str.trim_start().get(..idx_str.trim_start().find(|c: char| !c.is_ascii_digit())?)?.parse().ok()?;
+    let idx: usize = idx_str
+        .trim_start()
+        .get(..idx_str.trim_start().find(|c: char| !c.is_ascii_digit())?)?
+        .parse()
+        .ok()?;
     let idx = idx.saturating_sub(1);
 
     let on_off = if rest.to_uppercase().contains("ON") {
@@ -73,7 +78,8 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
         return None;
     };
 
-    let filter_type = if rest.to_uppercase().contains("LSQ") || rest.to_uppercase().contains("LSC") {
+    let filter_type = if rest.to_uppercase().contains("LSQ") || rest.to_uppercase().contains("LSC")
+    {
         FilterType::LowShelf
     } else if rest.to_uppercase().contains("HSQ") || rest.to_uppercase().contains("HSC") {
         FilterType::HighShelf
@@ -109,9 +115,10 @@ fn extract_gain_value(s: &str) -> Option<f64> {
 fn extract_q_value(s: &str) -> Option<f64> {
     let lower = s.to_lowercase();
     // Look for " q " or " q:" to avoid matching "lsq" or "hsq"
-    if let Some(pos) = lower.find(" q ")
+    if let Some(pos) = lower
+        .find(" q ")
         .or_else(|| lower.find(" q:"))
-        .or_else(|| lower.find(" q=")) 
+        .or_else(|| lower.find(" q="))
     {
         extract_number(&s[pos..])
     } else if let Some(pos) = lower.rfind('q') {

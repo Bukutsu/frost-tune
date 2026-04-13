@@ -57,12 +57,14 @@ impl ErrorKind {
             ErrorKind::ReadTimeout => "USB read timeout. Try again.",
             ErrorKind::WriteError => "USB write failed.",
             ErrorKind::VerifyFailed => "Verification failed. Changes not applied.",
-            ErrorKind::RollbackFailed => "Failed to restore previous settings. Device may be in an inconsistent state.",
+            ErrorKind::RollbackFailed => {
+                "Failed to restore previous settings. Device may be in an inconsistent state."
+            }
             ErrorKind::DeviceLost => "Device disconnected during operation.",
             ErrorKind::Unknown => "Unknown error.",
         }
     }
-    
+
     pub fn from_string(s: &str) -> Self {
         if s.contains("Not connected") || s.contains("not found") || s.contains("No such") {
             ErrorKind::NotConnected

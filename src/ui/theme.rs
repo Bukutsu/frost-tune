@@ -1,6 +1,6 @@
 use iced::theme::Palette;
 use iced::widget::container;
-use iced::{Background, Border, Color, Theme, color};
+use iced::{color, Background, Border, Color, Theme};
 
 // Official Tokyo Night palette (origin: folke/tokyonight.nvim)
 pub const TOKYO_NIGHT_BG: Color = color!(0x1a1b26);

@@ -1,10 +1,10 @@
+pub mod autoeq;
+pub mod diagnostics;
 pub mod error;
 pub mod hardware;
 pub mod models;
-pub mod ui;
-pub mod autoeq;
-pub mod diagnostics;
 pub mod storage;
+pub mod ui;
 
 use log::info;
 

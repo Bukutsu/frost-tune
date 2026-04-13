@@ -179,7 +179,11 @@ impl PushPayload {
 
     pub fn is_valid(&self) -> Result<(), String> {
         if self.filters.len() != NUM_BANDS {
-            return Err(format!("Expected {} filters, got {}", NUM_BANDS, self.filters.len()));
+            return Err(format!(
+                "Expected {} filters, got {}",
+                NUM_BANDS,
+                self.filters.len()
+            ));
         }
         for f in &self.filters {
             if f.freq < 20 || f.freq > 20000 {
@@ -231,14 +235,20 @@ mod tests {
 
     #[test]
     fn test_global_gain_clamp_max() {
-        let mut payload = PushPayload { filters: vec![], global_gain: Some(15) };
+        let mut payload = PushPayload {
+            filters: vec![],
+            global_gain: Some(15),
+        };
         payload.clamp();
         assert_eq!(payload.global_gain, Some(MAX_GLOBAL_GAIN));
     }
 
     #[test]
     fn test_global_gain_clamp_min() {
-        let mut payload = PushPayload { filters: vec![], global_gain: Some(-15) };
+        let mut payload = PushPayload {
+            filters: vec![],
+            global_gain: Some(-15),
+        };
         payload.clamp();
         assert_eq!(payload.global_gain, Some(MIN_GLOBAL_GAIN));
     }
@@ -246,14 +256,20 @@ mod tests {
     #[test]
     fn test_push_payload_valid_with_10_bands() {
         let filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
-        let payload = PushPayload { filters: filters.clone(), global_gain: Some(5) };
+        let payload = PushPayload {
+            filters: filters.clone(),
+            global_gain: Some(5),
+        };
         assert!(payload.is_valid().is_ok());
     }
 
     #[test]
     fn test_push_payload_invalid_with_wrong_band_count() {
         let filters = vec![Filter::enabled(0, false)];
-        let payload = PushPayload { filters, global_gain: Some(0) };
+        let payload = PushPayload {
+            filters,
+            global_gain: Some(0),
+        };
         assert!(payload.is_valid().is_err());
     }
 

@@ -1,10 +1,9 @@
 use crate::hardware::dsp::parse_filter_packet;
-use crate::models::{PEQData, Filter, Device};
 use crate::hardware::protocol::{
-    CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_VERSION,
-    READ, END, REPORT_ID,
-    OFFSET_NONCE, OFFSET_INDEX, OFFSET_GAIN_VALUE
+    CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_VERSION, END, OFFSET_GAIN_VALUE, OFFSET_INDEX,
+    OFFSET_NONCE, READ, REPORT_ID,
 };
+use crate::models::{Device, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
@@ -95,9 +94,13 @@ pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
     let mut buf = [0u8; 64];
     let mut total_drained = 0;
     while let Ok(count) = device.read_timeout(&mut buf[..], 5) {
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
         total_drained += 1;
-        if total_drained > 64 { break; } 
+        if total_drained > 64 {
+            break;
+        }
     }
 }
 
@@ -111,29 +114,39 @@ pub fn pull_peq_internal_with_timing(
     strict: bool,
 ) -> Result<PEQData, String> {
     flush_hid_buffer(device);
-    
+
     // Version request
     send_report(device, &[READ, CMD_VERSION, END][..])?;
     delay_ms(cfg.post_version_ms);
-    
+
     // Drain version response
     let mut drain = [0u8; 64];
     while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
     }
 
     let mut filter_responses: Vec<Option<Vec<u8>>> = vec![None; 10];
 
     for i in 0u8..10 {
-        if i > 0 { delay_ms(cfg.inter_filter_ms); } 
-        
+        if i > 0 {
+            delay_ms(cfg.inter_filter_ms);
+        }
+
         let filter_nonce = get_next_nonce();
-        send_report(device, &[READ, CMD_PEQ_VALUES, filter_nonce, 0x00, i, END][..])?;
+        send_report(
+            device,
+            &[READ, CMD_PEQ_VALUES, filter_nonce, 0x00, i, END][..],
+        )?;
         delay_ms(cfg.filter_request_ms);
 
         let response = read_single_filter_with_nonce(device, cfg, i, filter_nonce);
         if strict && response.is_none() {
-            return Err(format!("Failed to read filter {} (nonce: {})", i, filter_nonce));
+            return Err(format!(
+                "Failed to read filter {} (nonce: {})",
+                i, filter_nonce
+            ));
         }
         filter_responses[i as usize] = response;
     }
@@ -148,19 +161,25 @@ pub fn pull_peq_internal_with_timing(
     })
 }
 
-fn read_single_filter_with_nonce(device: &hidapi::HidDevice, cfg: &ReadTiming, expected_index: u8, nonce: u8) -> Option<Vec<u8>> {
+fn read_single_filter_with_nonce(
+    device: &hidapi::HidDevice,
+    cfg: &ReadTiming,
+    expected_index: u8,
+    nonce: u8,
+) -> Option<Vec<u8>> {
     let mut attempts = 0;
     while attempts < MAX_FILTER_READ_ATTEMPTS {
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
             Ok(count) if count > 0 => {
                 let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
-                if count >= 30 + offset && buf[offset] == READ && buf[offset + 1] == CMD_PEQ_VALUES {
+                if count >= 30 + offset && buf[offset] == READ && buf[offset + 1] == CMD_PEQ_VALUES
+                {
                     let r_nonce = buf[offset + OFFSET_NONCE];
                     let r_idx = buf[offset + OFFSET_INDEX];
-                    
+
                     if r_nonce == nonce && r_idx == expected_index {
-                        return Some(buf[offset..offset+34].to_vec());
+                        return Some(buf[offset..offset + 34].to_vec());
                     } else {
                         // Stale packet, keep reading
                         continue;
@@ -175,7 +194,11 @@ fn read_single_filter_with_nonce(device: &hidapi::HidDevice, cfg: &ReadTiming, e
     None
 }
 
-fn read_global_gain(device: &hidapi::HidDevice, cfg: &ReadTiming, _nonce: u8) -> Result<u8, String> {
+fn read_global_gain(
+    device: &hidapi::HidDevice,
+    cfg: &ReadTiming,
+    _nonce: u8,
+) -> Result<u8, String> {
     // Use fixed nonce 0x00 for global gain - firmware may not echo nonce for this command
     delay_ms(cfg.post_filter_read_ms);
     send_report(device, &[READ, CMD_GLOBAL_GAIN, 0x00, END][..])?;
@@ -188,7 +211,8 @@ fn read_global_gain(device: &hidapi::HidDevice, cfg: &ReadTiming, _nonce: u8) ->
             Ok(count) if count > 0 => {
                 let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
                 // Accept response without strict nonce check - firmware behavior varies
-                if count >= 6 + offset && buf[offset] == READ && buf[offset + 1] == CMD_GLOBAL_GAIN {
+                if count >= 6 + offset && buf[offset] == READ && buf[offset + 1] == CMD_GLOBAL_GAIN
+                {
                     return Ok(buf[offset + OFFSET_GAIN_VALUE]);
                 }
             }
@@ -205,8 +229,14 @@ fn assemble_filters(responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
         match resp {
             Some(r) => {
                 if let Some(f) = parse_filter_packet(&r) {
-                    log::debug!("Filter {} parsed: freq={}, gain={:.2}, q={:.2}, enabled={}", 
-                        f.index, f.freq, f.gain, f.q, f.enabled);
+                    log::debug!(
+                        "Filter {} parsed: freq={}, gain={:.2}, q={:.2}, enabled={}",
+                        f.index,
+                        f.freq,
+                        f.gain,
+                        f.q,
+                        f.enabled
+                    );
                     filters.push(f);
                 } else {
                     log::warn!("Filter {} parse failed, using default", i);
@@ -219,13 +249,13 @@ fn assemble_filters(responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
             }
         }
     }
-    
+
     // Pad to 10 if needed
     while filters.len() < 10 {
         let idx = filters.len() as u8;
         log::warn!("Padding missing filter {} with default", idx);
         filters.push(Filter::enabled(idx, false));
     }
-    
+
     filters
 }

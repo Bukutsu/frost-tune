@@ -1,5 +1,5 @@
-pub mod main_window;
 pub mod graph;
+pub mod main_window;
 pub mod theme;
 
 pub use main_window::*;

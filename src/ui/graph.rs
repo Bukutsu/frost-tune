@@ -1,7 +1,7 @@
-use iced::widget::canvas::{Program, Geometry, Path, Stroke, Frame, Text};
-use iced::{Color, Rectangle, Renderer, Theme, Point};
-use crate::models::Filter;
 use crate::hardware::dsp::{calculate_total_response, get_magnitude_response};
+use crate::models::Filter;
+use iced::widget::canvas::{Frame, Geometry, Path, Program, Stroke, Text};
+use iced::{Color, Point, Rectangle, Renderer, Theme};
 
 use crate::ui::theme::TOKYO_NIGHT_PRIMARY;
 
@@ -38,15 +38,23 @@ impl<Message> Program<Message> for EqGraph {
         let text_color = palette.text;
 
         // Vertical lines (Frequency)
-        let freqs: [f64; 10] = [20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0];
+        let freqs: [f64; 10] = [
+            20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0,
+        ];
         let min_f_log = 20.0f64.log10();
         let max_f_log = 20000.0f64.log10();
         let f_range_log = max_f_log - min_f_log;
 
         for &f in &freqs {
             let x = (f.log10() - min_f_log) / f_range_log * bounds.width as f64;
-            let path = Path::line(Point::new(x as f32, 0.0), Point::new(x as f32, bounds.height));
-            frame.stroke(&path, Stroke::default().with_color(grid_color).with_width(1.0));
+            let path = Path::line(
+                Point::new(x as f32, 0.0),
+                Point::new(x as f32, bounds.height),
+            );
+            frame.stroke(
+                &path,
+                Stroke::default().with_color(grid_color).with_width(1.0),
+            );
 
             let label = if f >= 1000.0 {
                 format!("{}k", f / 1000.0)
@@ -70,8 +78,14 @@ impl<Message> Program<Message> for EqGraph {
 
         for &db in &dbs {
             let y = (1.0 - (db - min_db) / db_range) * bounds.height as f64;
-            let path = Path::line(Point::new(0.0, y as f32), Point::new(bounds.width, y as f32));
-            frame.stroke(&path, Stroke::default().with_color(grid_color).with_width(1.0));
+            let path = Path::line(
+                Point::new(0.0, y as f32),
+                Point::new(bounds.width, y as f32),
+            );
+            frame.stroke(
+                &path,
+                Stroke::default().with_color(grid_color).with_width(1.0),
+            );
 
             frame.fill_text(Text {
                 content: format!("{}{}dB", if db > 0.0 { "+" } else { "" }, db),
@@ -129,7 +143,12 @@ impl<Message> Program<Message> for EqGraph {
             }
         });
 
-        frame.stroke(&path, Stroke::default().with_color(TOKYO_NIGHT_PRIMARY).with_width(2.0));
+        frame.stroke(
+            &path,
+            Stroke::default()
+                .with_color(TOKYO_NIGHT_PRIMARY)
+                .with_width(2.0),
+        );
 
         vec![frame.into_geometry()]
     }
