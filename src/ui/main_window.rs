@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Instant;
 use iced::{
     Element, Task, Subscription, Theme,
     widget::{button, column, text, row, container, scrollable, slider, checkbox},
@@ -19,7 +18,6 @@ pub enum Message {
     WorkerPulled(OperationResult),
     WorkerPushed(OperationResult),
     WorkerStatus(WorkerStatus),
-    Tick(Instant),
     BandEnabledChanged(usize, bool),
     BandGainChanged(usize, f64),
     BandFreqChanged(usize, u16),
@@ -155,11 +153,6 @@ impl MainWindow {
                 else if !status.connected && self.connection_status == ConnectionStatus::Connected { self.connection_status = ConnectionStatus::Disconnected; log::info!("Device disconnected"); }
                 Task::none()
             }
-            Message::Tick(_) => {
-                let worker = match &self.worker { Some(w) => w, None => return Task::none() };
-                let worker = Arc::clone(worker);
-                Task::perform(async move { let rx = worker.status(); rx.recv().unwrap_or(WorkerStatus { connected: false, physically_present: false }) }, Message::WorkerStatus)
-            }
             Message::BandEnabledChanged(index, enabled) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.enabled = enabled; } Task::none() }
             Message::BandGainChanged(index, gain) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.gain = gain; band.enabled = true; } Task::none() }
             Message::BandFreqChanged(index, freq) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.freq = freq; } Task::none() }
@@ -220,7 +213,9 @@ impl MainWindow {
         container(content).width(Length::Fill).height(Length::Fill).into()
     }
 
-    fn subscription(&self) -> Subscription<Message> { Subscription::none() }
+    fn subscription(&self) -> Subscription<Message> {
+        Subscription::none()
+    }
 }
 
 pub fn run() -> iced::Result {
