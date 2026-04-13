@@ -1,6 +1,6 @@
 [package]
 name = "frost-tune"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Bukutsu"]
 description = "Native cross-platform parametric EQ editor for USB DACs. Built with Rust and Iced."
