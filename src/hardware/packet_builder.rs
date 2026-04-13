@@ -114,3 +114,45 @@ pub fn commit_changes(device: &HidDevice, timing: &WriteTiming) -> Result<(), St
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_filter_packet_length() {
+        let packet = build_filter_packet(0, true, 1000.0, 5.0, 1.0, 2);
+        assert!(packet.len() > 30);
+    }
+
+    #[test]
+    fn test_build_filter_packet_disabled() {
+        let packet = build_filter_packet(0, false, 1000.0, 5.0, 1.0, 2);
+        assert!(packet.len() > 30);
+    }
+
+    #[test]
+    fn test_build_global_gain_packet() {
+        let packet = build_global_gain_packet(5);
+        assert_eq!(packet.len(), 6);
+    }
+
+    #[test]
+    fn test_build_temp_write_packet() {
+        let packet = build_temp_write_packet();
+        assert!(packet.len() > 0);
+    }
+
+    #[test]
+    fn test_build_flash_eq_packet() {
+        let packet = build_flash_eq_packet();
+        assert!(packet.len() > 0);
+    }
+
+    #[test]
+    fn test_write_timing_default() {
+        let timing = WriteTiming::default();
+        assert!(timing.per_filter_ms > 0);
+        assert!(timing.batch_ms > 0);
+    }
+}

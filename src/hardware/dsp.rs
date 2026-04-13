@@ -97,3 +97,46 @@ pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
         filter_type,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_iir_filter_produces_20_bytes() {
+        let result = compute_iir_filter(1000.0, 5.0, 1.0);
+        assert_eq!(result.len(), 20);
+    }
+
+    #[test]
+    fn test_compute_iir_filter_with_zero_gain() {
+        let result = compute_iir_filter(1000.0, 0.0, 1.0);
+        assert_eq!(result.len(), 20);
+    }
+
+    #[test]
+    fn test_compute_iir_filter_with_max_gain() {
+        let result = compute_iir_filter(1000.0, 10.0, 1.0);
+        assert_eq!(result.len(), 20);
+    }
+
+    #[test]
+    fn test_convert_to_byte_array_length() {
+        let result = convert_to_byte_array(0x12345678, 4);
+        assert_eq!(result.len(), 4);
+    }
+
+    #[test]
+    fn test_parse_filter_packet_short() {
+        let result = parse_filter_packet(&[0u8; 10][..]);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_quantizer_no_overflow() {
+        let d_arr: Vec<f64> = vec![1.0, -1000.0, 1000.0];
+        let d_arr2: Vec<f64> = vec![1.0, 2.0, 3.0];
+        let result = quantizer(&d_arr, &d_arr2);
+        assert_eq!(result.len(), 5);
+    }
+}
