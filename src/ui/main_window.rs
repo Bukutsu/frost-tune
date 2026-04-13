@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use iced::{
     Element, Task, Subscription, Theme,
-    widget::{button, column, text, row, container, scrollable, slider, checkbox, text_input},
+    widget::{button, column, text, row, container, scrollable, slider, checkbox, text_editor},
     Length,
 };
+use iced::widget::text_editor::Content as EditorContent;
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND_GAIN, MIN_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::autoeq;
@@ -25,9 +26,10 @@ pub enum Message {
     BandFreqChanged(usize, u16),
     BandQChanged(usize, f64),
     GlobalGainChanged(i8),
-    AutoEQInputChanged(String),
+    AutoEQEdit(iced::widget::text_editor::Action),
     ImportAutoEQPressed,
     ExportAutoEQPressed,
+    ClearAutoEQ,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,7 +50,7 @@ impl Default for ConnectionStatus {
 pub struct EditorState {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
-    pub autoeq_input: String,
+    pub autoeq_editor: EditorContent,
     pub autoeq_message: Option<String>,
 }
 
@@ -78,7 +80,7 @@ impl MainWindow {
             editor_state: EditorState { 
                 filters: default_filters.clone(), 
                 global_gain: 0,
-                autoeq_input: String::new(),
+                autoeq_editor: EditorContent::new(),
                 autoeq_message: None,
             },
             operation_lock: OperationLock::default(),
@@ -172,9 +174,10 @@ impl MainWindow {
             Message::BandFreqChanged(index, freq) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.freq = freq; } Task::none() }
             Message::BandQChanged(index, q) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.q = q; } Task::none() }
             Message::GlobalGainChanged(gain) => { self.editor_state.global_gain = gain; Task::none() }
-            Message::AutoEQInputChanged(text) => { self.editor_state.autoeq_input = text; Task::none() }
+            Message::AutoEQEdit(action) => { self.editor_state.autoeq_editor.perform(action); Task::none() }
             Message::ImportAutoEQPressed => {
-                match autoeq::parse_autoeq_text(&self.editor_state.autoeq_input) {
+                let text = self.editor_state.autoeq_editor.text();
+                match autoeq::parse_autoeq_text(&text) {
                     Ok(peq) => {
                         let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
                         self.editor_state.filters = peq.filters;
@@ -189,7 +192,14 @@ impl MainWindow {
             }
             Message::ExportAutoEQPressed => {
                 let peq = PEQData { filters: self.editor_state.filters.clone(), global_gain: self.editor_state.global_gain };
-                self.editor_state.autoeq_input = autoeq::peq_to_autoeq(&peq);
+                let output = autoeq::peq_to_autoeq(&peq);
+                self.editor_state.autoeq_editor = EditorContent::with_text(&output);
+                self.editor_state.autoeq_message = Some("Exported to editor".into());
+                Task::none()
+            }
+            Message::ClearAutoEQ => {
+                self.editor_state.autoeq_editor = EditorContent::new();
+                self.editor_state.autoeq_message = None;
                 Task::none()
             }
         }
@@ -238,11 +248,14 @@ impl MainWindow {
 
         let autoeq_section = column![
             text("AutoEQ Import/Export").size(16),
-            text_input("Paste AutoEQ text here...", &self.editor_state.autoeq_input)
-                .on_input(Message::AutoEQInputChanged),
+            text_editor(&self.editor_state.autoeq_editor)
+                .placeholder("Paste AutoEQ text...\nExample:\nPreamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0")
+                .on_action(Message::AutoEQEdit)
+                .height(Length::Fixed(120.0)),
             row![
                 button("Import").on_press(Message::ImportAutoEQPressed),
                 button("Export").on_press(Message::ExportAutoEQPressed),
+                button("Clear").on_press(Message::ClearAutoEQ),
             ].spacing(10),
             if let Some(ref msg) = self.editor_state.autoeq_message { text(msg).size(14) } else { text("").size(14) },
         ].spacing(10);
