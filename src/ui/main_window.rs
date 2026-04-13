@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use iced::{
-    Element, Task, Subscription, Theme,
+    Element, Task, Subscription, Theme, clipboard,
     widget::{button, column, text, row, container, scrollable, slider, checkbox, text_editor},
     Length,
 };
@@ -28,6 +28,9 @@ pub enum Message {
     GlobalGainChanged(i8),
     AutoEQEdit(iced::widget::text_editor::Action),
     ImportAutoEQPressed,
+    ImportFromClipboard,
+    ImportClipboardReceived(String),
+    ImportClipboardFailed(String),
     ExportAutoEQPressed,
     ClearAutoEQ,
 }
@@ -197,6 +200,32 @@ impl MainWindow {
                 self.editor_state.autoeq_message = Some("Exported to editor".into());
                 Task::none()
             }
+            Message::ImportFromClipboard => {
+                clipboard::read().map(|result| {
+                    match result {
+                        Some(text) => Message::ImportClipboardReceived(text),
+                        None => Message::ImportClipboardFailed("Clipboard empty or not text".into()),
+                    }
+                })
+            }
+            Message::ImportClipboardReceived(text) => {
+                match autoeq::parse_autoeq_text(&text) {
+                    Ok(peq) => {
+                        let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
+                        self.editor_state.filters = peq.filters;
+                        self.editor_state.global_gain = peq.global_gain;
+                        self.editor_state.autoeq_message = Some(format!("Imported {} filters from clipboard", enabled_count));
+                    }
+                    Err(e) => {
+                        self.editor_state.autoeq_message = Some(format!("Error: {}", e));
+                    }
+                }
+                Task::none()
+            }
+            Message::ImportClipboardFailed(msg) => {
+                self.editor_state.autoeq_message = Some(msg);
+                Task::none()
+            }
             Message::ClearAutoEQ => {
                 self.editor_state.autoeq_editor = EditorContent::new();
                 self.editor_state.autoeq_message = None;
@@ -253,6 +282,7 @@ impl MainWindow {
                 .on_action(Message::AutoEQEdit)
                 .height(Length::Fixed(120.0)),
             row![
+                button("Import Clipboard").on_press(Message::ImportFromClipboard),
                 button("Import").on_press(Message::ImportAutoEQPressed),
                 button("Export").on_press(Message::ExportAutoEQPressed),
                 button("Clear").on_press(Message::ClearAutoEQ),
