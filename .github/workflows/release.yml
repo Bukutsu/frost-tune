@@ -39,7 +39,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev
+        run: sudo apt-get update && sudo apt-get install -y libhidapi-dev libudev-dev
 
       - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
