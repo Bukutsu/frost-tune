@@ -49,6 +49,7 @@ pub struct EditorState {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
     pub autoeq_input: String,
+    pub autoeq_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -78,6 +79,7 @@ impl MainWindow {
                 filters: default_filters.clone(), 
                 global_gain: 0,
                 autoeq_input: String::new(),
+                autoeq_message: None,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -174,11 +176,13 @@ impl MainWindow {
             Message::ImportAutoEQPressed => {
                 match autoeq::parse_autoeq_text(&self.editor_state.autoeq_input) {
                     Ok(peq) => {
+                        let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
                         self.editor_state.filters = peq.filters;
                         self.editor_state.global_gain = peq.global_gain;
+                        self.editor_state.autoeq_message = Some(format!("Imported {} filters", enabled_count));
                     }
                     Err(e) => {
-                        log::warn!("AutoEQ import failed: {}", e);
+                        self.editor_state.autoeq_message = Some(format!("Error: {}", e));
                     }
                 }
                 Task::none()
@@ -240,6 +244,7 @@ impl MainWindow {
                 button("Import").on_press(Message::ImportAutoEQPressed),
                 button("Export").on_press(Message::ExportAutoEQPressed),
             ].spacing(10),
+            if let Some(ref msg) = self.editor_state.autoeq_message { text(msg).size(14) } else { text("").size(14) },
         ].spacing(10);
         
         let content = column![
