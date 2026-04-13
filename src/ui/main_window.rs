@@ -1,11 +1,12 @@
 use std::sync::Arc;
 use iced::{
     Element, Task, Subscription, Theme,
-    widget::{button, column, text, row, container, scrollable, slider, checkbox},
+    widget::{button, column, text, row, container, scrollable, slider, checkbox, text_input},
     Length,
 };
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{ConnectionResult, OperationResult, PEQData, Filter, MAX_BAND_GAIN, MIN_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
+use crate::autoeq;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -24,6 +25,8 @@ pub enum Message {
     BandFreqChanged(usize, u16),
     BandQChanged(usize, f64),
     GlobalGainChanged(i8),
+    ImportAutoEQ(String),
+    ExportAutoEQ,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +47,7 @@ impl Default for ConnectionStatus {
 pub struct EditorState {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
+    pub autoeq_input: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -72,6 +76,7 @@ impl MainWindow {
             editor_state: EditorState { 
                 filters: default_filters.clone(), 
                 global_gain: 0,
+                autoeq_input: String::new(),
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -164,6 +169,25 @@ impl MainWindow {
             Message::BandFreqChanged(index, freq) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.freq = freq; } Task::none() }
             Message::BandQChanged(index, q) => { if let Some(band) = self.editor_state.filters.get_mut(index) { band.q = q; } Task::none() }
             Message::GlobalGainChanged(gain) => { self.editor_state.global_gain = gain; Task::none() }
+            Message::ImportAutoEQ(text) => {
+                match autoeq::parse_autoeq_text(&text) {
+                    Ok(peq) => {
+                        self.editor_state.filters = peq.filters;
+                        self.editor_state.global_gain = peq.global_gain;
+                        self.editor_state.autoeq_input.clear();
+                    }
+                    Err(e) => {
+                        self.connection_status = ConnectionStatus::Error(format!("Import failed: {}", e));
+                    }
+                }
+                Task::none()
+            }
+            Message::ExportAutoEQ => {
+                let peq = PEQData { filters: self.editor_state.filters.clone(), global_gain: self.editor_state.global_gain };
+                let output = autoeq::peq_to_autoeq(&peq);
+                self.editor_state.autoeq_input = output;
+                Task::none()
+            }
         }
     }
 
@@ -207,13 +231,24 @@ impl MainWindow {
             slider(MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64, self.editor_state.global_gain as f64, |v| Message::GlobalGainChanged(v as i8)),
             text(format!("{} dB", self.editor_state.global_gain)),
         ].spacing(10);
+
+        let autoeq_section = column![
+            text("AutoEQ Import/Export").size(16),
+            text_input("Paste AutoEQ text here...", &self.editor_state.autoeq_input)
+                .on_input(|s| Message::ImportAutoEQ(s.clone())),
+            row![
+                button("Import").on_press(Message::ImportAutoEQ(self.editor_state.autoeq_input.clone())),
+                button("Export").on_press(Message::ExportAutoEQ),
+            ].spacing(10),
+        ].spacing(10);
         
         let content = column![
             text("Frost-Tune").size(24),
             status_text,
             btn_row,
             global_gain_row,
-            scrollable(bands).height(Length::Fill),
+            scrollable(bands).height(Length::FillPortion(2)),
+            autoeq_section,
         ].spacing(10).padding(20);
         
         container(content).width(Length::Fill).height(Length::Fill).into()

@@ -27,7 +27,7 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
             if idx < 10 {
                 filters[idx].enabled = enabled;
                 filters[idx].filter_type = filter_type;
-                filters[idx].freq = freq.min(20000).max(20) as u16;
+                filters[idx].freq = (freq.min(20000.0).max(20.0)) as u16;
                 filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
                 filters[idx].q = q.min(20.0).max(0.1);
                 parsed_count += 1;

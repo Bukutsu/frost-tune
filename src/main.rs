@@ -2,6 +2,7 @@ pub mod error;
 pub mod hardware;
 pub mod models;
 pub mod ui;
+pub mod autoeq;
 
 use log::info;
 
