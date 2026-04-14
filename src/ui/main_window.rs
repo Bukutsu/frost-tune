@@ -8,7 +8,7 @@ use crate::models::{
 };
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
-use crate::ui::state::{ConnectionStatus, DisconnectReason, EditorState, MainWindow, OperationLock};
+use crate::ui::state::{ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow, OperationLock};
 use crate::ui::theme::{
     self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MUTED,
     TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING,
@@ -75,6 +75,7 @@ impl MainWindow {
                 profiles: Vec::new(),
                 selected_profile_name: None,
                 new_profile_name: String::new(),
+                input_buffer: InputBuffer::default(),
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -358,32 +359,72 @@ impl MainWindow {
                 }
                 Task::none()
             }
-            Message::BandGainInput(index, s) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    let parsed = s.trim().parse::<f64>();
-                    if let Ok(v) = parsed {
-                        band.gain = v;
-                        band.enabled = true;
-                        band.clamp();
-                    }
-                }
+            Message::BandFreqInput(index, s) => {
+                self.editor_state.input_buffer.editing_freq = Some((index, s));
                 Task::none()
             }
-            Message::BandFreqInput(index, s) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    if let Some(v) = parse_freq_string(&s) {
-                        band.freq = v;
-                        band.clamp();
-                    }
-                }
+            Message::BandGainInput(index, s) => {
+                self.editor_state.input_buffer.editing_gain = Some((index, s));
                 Task::none()
             }
             Message::BandQInput(index, s) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    if let Ok(v) = s.trim().parse::<f64>() {
-                        band.q = v;
-                        band.clamp();
+                self.editor_state.input_buffer.editing_q = Some((index, s));
+                Task::none()
+            }
+            Message::BandFreqInputCommit(index) => {
+                if let Some((i, s)) = self.editor_state.input_buffer.editing_freq.take() {
+                    if i == index {
+                        if let Some(band) = self.editor_state.filters.get_mut(index) {
+                            if let Some(v) = parse_freq_string(&s) {
+                                band.freq = v.clamp(MIN_FREQ, MAX_FREQ);
+                                band.enabled = true;
+                            }
+                        }
                     }
+                }
+                Task::none()
+            }
+            Message::BandGainInputCommit(index) => {
+                if let Some((i, s)) = self.editor_state.input_buffer.editing_gain.take() {
+                    if i == index {
+                        if let Some(band) = self.editor_state.filters.get_mut(index) {
+                            if let Ok(v) = s.trim().parse::<f64>() {
+                                band.gain = v.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
+                                band.enabled = true;
+                            }
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::BandQInputCommit(index) => {
+                if let Some((i, s)) = self.editor_state.input_buffer.editing_q.take() {
+                    if i == index {
+                        if let Some(band) = self.editor_state.filters.get_mut(index) {
+                            if let Ok(v) = s.trim().parse::<f64>() {
+                                band.q = v.clamp(MIN_Q, MAX_Q);
+                                band.enabled = true;
+                            }
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::BandFreqInputCancel(index) => {
+                if let Some((i, _)) = self.editor_state.input_buffer.editing_freq.take() {
+                    if i == index {}
+                }
+                Task::none()
+            }
+            Message::BandGainInputCancel(index) => {
+                if let Some((i, _)) = self.editor_state.input_buffer.editing_gain.take() {
+                    if i == index {}
+                }
+                Task::none()
+            }
+            Message::BandQInputCancel(index) => {
+                if let Some((i, _)) = self.editor_state.input_buffer.editing_q.take() {
+                    if i == index {}
                 }
                 Task::none()
             }
@@ -971,10 +1012,18 @@ impl MainWindow {
                         )
                         .width(Length::Fixed(90.0))
                         .text_size(12),
-                        text_input("", &format!("{}", band.freq))
-                            .on_input(move |s| Message::BandFreqInput(i, s))
-                            .width(Length::Fixed(60.0))
-                            .size(TYPE_LABEL),
+                        text_input(
+                            "",
+                            self.editor_state
+                                .input_buffer
+                                .get_freq(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{}", band.freq))
+                        )
+                        .on_input(move |s| Message::BandFreqInput(i, s))
+                        .on_submit(Message::BandFreqInputCommit(i))
+                        .width(Length::Fixed(60.0))
+                        .size(TYPE_LABEL),
                         text("Hz")
                             .size(TYPE_LABEL - 1.0)
                             .color(TOKYO_NIGHT_MUTED),
@@ -994,10 +1043,18 @@ impl MainWindow {
                         )
                         .step(0.5)
                         .width(Length::Fill),
-                        text_input("", &format!("{:.1}", band.gain))
-                            .on_input(move |s| Message::BandGainInput(i, s))
-                            .width(Length::Fixed(50.0))
-                            .size(TYPE_LABEL),
+                        text_input(
+                            "",
+                            self.editor_state
+                                .input_buffer
+                                .get_gain(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{:.1}", band.gain))
+                        )
+                        .on_input(move |s| Message::BandGainInput(i, s))
+                        .on_submit(Message::BandGainInputCommit(i))
+                        .width(Length::Fixed(50.0))
+                        .size(TYPE_LABEL),
                         text("dB")
                             .size(TYPE_LABEL - 1.0)
                             .color(TOKYO_NIGHT_MUTED),
@@ -1017,9 +1074,17 @@ impl MainWindow {
                         )
                         .width(Length::Fixed(80.0))
                         .text_size(12),
-                        text_input("", &format!("{:.2}", band.q))
-                            .on_input(move |s| Message::BandQInput(i, s))
-                            .width(Length::Fixed(50.0))
+                        text_input(
+                            "",
+                            self.editor_state
+                                .input_buffer
+                                .get_q(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{:.2}", band.q))
+                        )
+                        .on_input(move |s| Message::BandQInput(i, s))
+                        .on_submit(Message::BandQInputCommit(i))
+                        .width(Length::Fixed(50.0))
                             .size(TYPE_LABEL),
                     ]
                     .spacing(SPACE_XS)

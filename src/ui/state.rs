@@ -34,6 +34,36 @@ impl Default for DisconnectReason {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct InputBuffer {
+    pub editing_freq: Option<(usize, String)>,
+    pub editing_gain: Option<(usize, String)>,
+    pub editing_q: Option<(usize, String)>,
+}
+
+impl InputBuffer {
+    pub fn get_freq(&self, band_index: usize) -> Option<&String> {
+        self.editing_freq
+            .as_ref()
+            .filter(|(i, _)| *i == band_index)
+            .map(|(_, s)| s)
+    }
+
+    pub fn get_gain(&self, band_index: usize) -> Option<&String> {
+        self.editing_gain
+            .as_ref()
+            .filter(|(i, _)| *i == band_index)
+            .map(|(_, s)| s)
+    }
+
+    pub fn get_q(&self, band_index: usize) -> Option<&String> {
+        self.editing_q
+            .as_ref()
+            .filter(|(i, _)| *i == band_index)
+            .map(|(_, s)| s)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct EditorState {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
@@ -42,6 +72,7 @@ pub struct EditorState {
     pub profiles: Vec<Profile>,
     pub selected_profile_name: Option<String>,
     pub new_profile_name: String,
+    pub input_buffer: InputBuffer,
 }
 
 #[derive(Debug, Clone, Default)]
