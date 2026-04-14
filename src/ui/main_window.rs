@@ -2,8 +2,9 @@ use crate::autoeq;
 use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
-    ConnectionResult, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_GLOBAL_GAIN,
-    MAX_Q, MIN_BAND_GAIN, MIN_GLOBAL_GAIN, MIN_Q,
+    ConnectionResult, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
+    MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso, snap_gain_step,
+    ISO_FREQUENCIES,
 };
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
@@ -344,24 +345,9 @@ impl MainWindow {
                 }
                 Task::none()
             }
-            Message::BandGainChanged(index, gain) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    band.gain = gain;
-                    band.enabled = true;
-                    band.clamp();
-                }
-                Task::none()
-            }
             Message::BandFreqChanged(index, freq) => {
                 if let Some(band) = self.editor_state.filters.get_mut(index) {
                     band.freq = freq;
-                    band.clamp();
-                }
-                Task::none()
-            }
-            Message::BandQChanged(index, q) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    band.q = q;
                     band.clamp();
                 }
                 Task::none()
@@ -402,11 +388,25 @@ impl MainWindow {
                 Task::none()
             }
             Message::BandFreqSliderChanged(index, v) => {
-                // v is log10(freq) - convert back
+                // v is log10(freq) - convert back and snap to ISO
                 if let Some(band) = self.editor_state.filters.get_mut(index) {
                     let hz = 10f64.powf(v).round() as u16;
-                    band.freq = hz;
-                    band.clamp();
+                    band.freq = snap_freq_to_iso(hz);
+                }
+                Task::none()
+            }
+            Message::BandGainChanged(index, v) => {
+                if let Some(band) = self.editor_state.filters.get_mut(index) {
+                    band.gain = snap_gain_step(v);
+                    band.enabled = true;
+                }
+                Task::none()
+            }
+            Message::BandQChanged(index, v) => {
+                if let Some(band) = self.editor_state.filters.get_mut(index) {
+                    // v is log scale Q - convert and snap to ISO
+                    let q_val = 10f64.powf(v);
+                    band.q = snap_q_to_iso(q_val);
                 }
                 Task::none()
             }
@@ -965,7 +965,7 @@ impl MainWindow {
                             .color(TOKYO_NIGHT_MUTED)
                             .width(Length::Fixed(32.0)),
                         slider(
-                            20.0f64.log10()..=20000.0f64.log10(),
+                            (MIN_FREQ as f64).log10()..=(MAX_FREQ as f64).log10(),
                             (band.freq as f64).log10(),
                             move |v| Message::BandFreqSliderChanged(i, v)
                         )
@@ -974,6 +974,9 @@ impl MainWindow {
                             .on_input(move |s| Message::BandFreqInput(i, s))
                             .width(Length::Fixed(60.0))
                             .size(TYPE_LABEL),
+                        text("Hz")
+                            .size(TYPE_LABEL - 1.0)
+                            .color(TOKYO_NIGHT_MUTED),
                     ]
                     .spacing(SPACE_XS)
                     .align_y(iced::Alignment::Center)
@@ -1000,8 +1003,12 @@ impl MainWindow {
                             .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED)
                             .width(Length::Fixed(18.0)),
-                        slider(MIN_Q..=MAX_Q, band.q, move |v| Message::BandQChanged(i, v))
-                            .width(Length::Fill),
+                        slider(
+                            (MIN_Q as f64).log10()..=(MAX_Q as f64).log10(),
+                            (band.q.max(MIN_Q) as f64).log10(),
+                            move |v| Message::BandQChanged(i, v)
+                        )
+                        .width(Length::Fill),
                         text_input("", &format!("{:.2}", band.q))
                             .on_input(move |s| Message::BandQInput(i, s))
                             .width(Length::Fixed(50.0))

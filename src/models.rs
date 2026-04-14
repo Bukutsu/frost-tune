@@ -8,6 +8,7 @@ pub const PRODUCT_ID: u16 = TP35_PRODUCT_ID;
 
 pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;
+pub const GAIN_STEP: f64 = 0.5;
 pub const MAX_GLOBAL_GAIN: i8 = 10;
 pub const MIN_GLOBAL_GAIN: i8 = -10;
 pub const MIN_Q: f64 = 0.1;
@@ -15,6 +16,33 @@ pub const MAX_Q: f64 = 20.0;
 pub const MIN_FREQ: u16 = 20;
 pub const MAX_FREQ: u16 = 20000;
 pub const NUM_BANDS: usize = 10;
+
+pub const ISO_FREQUENCIES: [u16; 31] = [
+    20, 25, 31, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+    2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000,
+];
+
+pub const ISO_Q_VALUES: [f64; 10] = [0.1, 0.25, 0.5, 0.707, 1.0, 1.4, 2.0, 4.0, 8.0, 16.0];
+
+pub fn snap_freq_to_iso(freq: u16) -> u16 {
+    ISO_FREQUENCIES
+        .iter()
+        .min_by_key(|&&f| (f as i32 - freq as i32).abs())
+        .copied()
+        .unwrap_or(freq.min(MAX_FREQ).max(MIN_FREQ))
+}
+
+pub fn snap_q_to_iso(q: f64) -> f64 {
+    ISO_Q_VALUES
+        .iter()
+        .min_by_key(|&&v| ((v - q) * 100.0).abs() as i32)
+        .copied()
+        .unwrap_or(q.clamp(MIN_Q, MAX_Q))
+}
+
+pub fn snap_gain_step(gain: f64) -> f64 {
+    (gain / GAIN_STEP).round() * GAIN_STEP
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {
@@ -320,5 +348,30 @@ mod tests {
             let filter = Filter::enabled(i, true);
             assert_eq!(filter.index, i as u8);
         }
+    }
+
+    #[test]
+    fn test_snap_freq_to_iso() {
+        assert_eq!(snap_freq_to_iso(100), 100);
+        assert_eq!(snap_freq_to_iso(101), 100);
+        assert_eq!(snap_freq_to_iso(99), 100);
+        assert_eq!(snap_freq_to_iso(150), 160);
+        assert_eq!(snap_freq_to_iso(15), 20);
+    }
+
+    #[test]
+    fn test_snap_q_to_iso() {
+        assert_eq!(snap_q_to_iso(1.0), 1.0);
+        assert_eq!(snap_q_to_iso(1.1), 1.0);
+        assert_eq!(snap_q_to_iso(0.1), 0.1);
+        assert_eq!(snap_q_to_iso(3.0), 2.0);
+    }
+
+    #[test]
+    fn test_snap_gain_step() {
+        assert!((snap_gain_step(1.3) - 1.5).abs() < 0.01);
+        assert!((snap_gain_step(-1.3) - (-1.5)).abs() < 0.01);
+        assert!((snap_gain_step(0.0) - 0.0).abs() < 0.01);
+        assert!((snap_gain_step(10.0) - 10.0).abs() < 0.01);
     }
 }
