@@ -45,11 +45,26 @@ pub fn theme() -> Theme {
 
 pub fn card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(TOKYO_NIGHT_SURFACE)),
+        background: Some(Background::Color(Color {
+            a: 0.96,
+            ..TOKYO_NIGHT_SURFACE
+        })),
+        border: Border {
+            color: TOKYO_NIGHT_BLUE,
+            width: 1.0,
+            radius: 12.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn header_card_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(TOKYO_NIGHT_BG_DARK)),
         border: Border {
             color: TOKYO_NIGHT_TERMINAL_BLACK,
             width: 1.0,
-            radius: 8.0.into(),
+            radius: 14.0.into(),
         },
         ..Default::default()
     }

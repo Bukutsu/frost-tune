@@ -24,15 +24,20 @@ use iced::{
 };
 use std::sync::Arc;
 
-const SPACE_XS: f32 = 8.0;
-const SPACE_SM: f32 = 12.0;
-const SPACE_MD: f32 = 16.0;
-const SPACE_LG: f32 = 24.0;
+// COSMIC 8px grid spacing system
+const SPACE_4: f32 = 4.0;
+const SPACE_8: f32 = 8.0;
+const SPACE_12: f32 = 12.0;
+const SPACE_16: f32 = 16.0;
+const SPACE_24: f32 = 24.0;
+const SPACE_32: f32 = 32.0;
 
+// COSMIC typography scale
 const TYPE_DISPLAY: f32 = 28.0;
-const TYPE_TITLE: f32 = 16.0;
-const TYPE_BODY: f32 = 14.0;
-const TYPE_LABEL: f32 = 12.0;
+const TYPE_TITLE: f32 = 20.0;
+const TYPE_BODY: f32 = 16.0;
+const TYPE_LABEL: f32 = 14.0;
+const TYPE_CAPTION: f32 = 12.0;
 
 fn parse_freq_string(s: &str) -> Option<u16> {
     let s = s.trim().to_lowercase();
@@ -757,17 +762,17 @@ impl MainWindow {
             responsive(move |size| {
                 if size.width < 1000.0 {
                     column![self.view_autoeq(), self.view_diagnostics(),]
-                        .spacing(SPACE_MD)
+                        .spacing(SPACE_16)
                         .into()
                 } else {
                     row![self.view_autoeq(), self.view_diagnostics(),]
-                        .spacing(SPACE_MD)
+                        .spacing(SPACE_16)
                         .into()
                 }
             }),
         ]
-        .spacing(SPACE_MD)
-        .padding(SPACE_LG);
+        .spacing(SPACE_16)
+        .padding(SPACE_24);
 
         container(scrollable(content))
             .width(Length::Fill)
@@ -793,10 +798,10 @@ impl MainWindow {
                         .on_press(Message::ClearStatusMessage)
                         .style(iced::widget::button::text)
                 ]
-                .spacing(SPACE_MD)
+                .spacing(SPACE_16)
                 .align_y(iced::Alignment::Center),
             )
-            .padding([SPACE_XS, SPACE_MD])
+            .padding([SPACE_8, SPACE_16])
             .width(Length::Fill)
             .style(move |_| container::Style {
                 background: Some(Background::Color(color)),
@@ -860,31 +865,36 @@ impl MainWindow {
                 button("Push")
             },
         ]
-        .spacing(SPACE_XS);
+        .spacing(SPACE_8);
 
         let loading_indicator = if is_busy {
             row![
-                text("Processing...").size(TYPE_LABEL).color(TOKYO_NIGHT_BLUE),
+                text("Processing...").size(TYPE_CAPTION).color(TOKYO_NIGHT_BLUE),
                 // We could add a spinner here if we had an icon font
             ]
-            .spacing(SPACE_XS)
+            .spacing(SPACE_8)
             .align_y(iced::Alignment::Center)
         } else {
             row![]
         };
 
-        row![
+        container(row![
             column![
                 text("Frost-Tune")
                     .size(TYPE_DISPLAY)
                     .color(TOKYO_NIGHT_PRIMARY),
-                row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_MD),
+                text("COSMIC-inspired controls")
+                    .size(TYPE_CAPTION)
+                    .color(TOKYO_NIGHT_MUTED),
+                row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
             ]
-            .spacing(4),
+            .spacing(SPACE_4),
             container(text("")).width(Length::Fill),
             btn_row,
         ]
-        .align_y(iced::Alignment::Center)
+        .align_y(iced::Alignment::Center))
+        .padding(SPACE_12)
+        .style(theme::header_card_style)
         .into()
     }
 
@@ -919,7 +929,7 @@ impl MainWindow {
                 button("Delete")
             },
         ]
-        .spacing(SPACE_SM)
+        .spacing(SPACE_12)
         .align_y(iced::Alignment::Center);
 
         let preamp_row = row![
@@ -935,11 +945,11 @@ impl MainWindow {
                 .width(Length::Fixed(50.0))
                 .color(TOKYO_NIGHT_PRIMARY),
         ]
-        .spacing(SPACE_SM)
+        .spacing(SPACE_12)
         .align_y(iced::Alignment::Center);
 
-        container(column![preset_row, preamp_row,].spacing(SPACE_MD))
-            .padding(SPACE_MD)
+        container(column![preset_row, preamp_row,].spacing(SPACE_16))
+            .padding(SPACE_16)
             .style(theme::card_style)
             .width(Length::Fill)
             .into()
@@ -954,7 +964,7 @@ impl MainWindow {
             .width(Length::Fill)
             .height(Length::Fixed(220.0)),
         )
-        .padding(SPACE_SM)
+        .padding(SPACE_12)
         .style(theme::card_style)
         .width(Length::Fill)
         .into()
@@ -969,7 +979,7 @@ impl MainWindow {
                     .size(TYPE_LABEL)
                     .color(TOKYO_NIGHT_WARNING),
             )
-            .padding(SPACE_SM)
+            .padding(SPACE_12)
             .into()
         } else {
             text("").into()
@@ -1025,10 +1035,10 @@ impl MainWindow {
                         .width(Length::Fixed(60.0))
                         .size(TYPE_LABEL),
                         text("Hz")
-                            .size(TYPE_LABEL - 1.0)
+                            .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED),
                     ]
-                    .spacing(SPACE_XS)
+                    .spacing(SPACE_8)
                     .align_y(iced::Alignment::Center)
                     .width(Length::FillPortion(3)),
                     row![
@@ -1056,10 +1066,10 @@ impl MainWindow {
                         .width(Length::Fixed(50.0))
                         .size(TYPE_LABEL),
                         text("dB")
-                            .size(TYPE_LABEL - 1.0)
+                            .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED),
                     ]
-                    .spacing(SPACE_XS)
+                    .spacing(SPACE_8)
                     .align_y(iced::Alignment::Center)
                     .width(Length::FillPortion(3)),
                     row![
@@ -1087,18 +1097,18 @@ impl MainWindow {
                         .width(Length::Fixed(50.0))
                             .size(TYPE_LABEL),
                     ]
-                    .spacing(SPACE_XS)
+                    .spacing(SPACE_8)
                     .align_y(iced::Alignment::Center)
                     .width(Length::FillPortion(2)),
                 ]
-                .spacing(SPACE_SM)
+                .spacing(SPACE_12)
                 .align_y(iced::Alignment::Center)
                 .into()
             })
             .collect();
 
-        container(column![busy_notice, scrollable(column(band_list).spacing(SPACE_XS))])
-            .padding(SPACE_SM)
+        container(column![busy_notice, scrollable(column(band_list).spacing(SPACE_8))])
+            .padding(SPACE_12)
             .style(theme::card_style)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -1120,18 +1130,18 @@ impl MainWindow {
                     button("Import File")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromFilePressed) }),
                 ]
-                .spacing(SPACE_XS),
+                .spacing(SPACE_8),
                 row![
                     button("Export Clipboard")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ExportAutoEQPressed) }),
                     button("Export File")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ExportToFilePressed) }),
                 ]
-                .spacing(SPACE_XS),
+                .spacing(SPACE_8),
             ]
-            .spacing(SPACE_SM),
+            .spacing(SPACE_12),
         )
-        .padding(SPACE_MD)
+        .padding(SPACE_16)
         .style(theme::card_style)
         .width(Length::FillPortion(1))
         .into()
@@ -1153,7 +1163,7 @@ impl MainWindow {
                     LogLevel::Error => TOKYO_NIGHT_ERROR,
                 };
                 text(format!("[{}] {} {}", e.level, e.source, e.message))
-                    .size(TYPE_LABEL - 1.0)
+                    .size(TYPE_LABEL)
                     .color(c)
                     .into()
             })
@@ -1180,11 +1190,11 @@ impl MainWindow {
                         .on_press(Message::ClearDiagnostics)
                         .style(iced::widget::button::danger),
                 ]
-                .spacing(SPACE_XS),
+                .spacing(SPACE_8),
             ]
-            .spacing(SPACE_SM),
+            .spacing(SPACE_12),
         )
-        .padding(SPACE_MD)
+        .padding(SPACE_16)
         .style(theme::card_style)
         .width(Length::FillPortion(1))
         .into()
