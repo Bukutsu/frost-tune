@@ -30,5 +30,8 @@ jobs:
           shared-key: "frost-tune"
           cache-on-failure: true
 
-      - name: Run tests
-        run: cargo test --locked -- --nocapture
+      - name: Build check
+        run: cargo check --lib
+
+      - name: Run library tests
+        run: cargo test --lib --locked -- --nocapture
