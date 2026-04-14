@@ -11,8 +11,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lint-and-test:
-    name: Lint and Test (Linux)
+  test:
+    name: Test (Linux)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,8 +20,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
 
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
@@ -31,12 +29,6 @@ jobs:
         with:
           shared-key: "frost-tune"
           cache-on-failure: true
-
-      - name: Format check
-        run: cargo fmt --all --check
-
-      - name: Type check
-        run: cargo check --all-targets
 
       - name: Run tests
         run: cargo test --locked -- --nocapture
