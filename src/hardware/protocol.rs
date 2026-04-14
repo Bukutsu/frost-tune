@@ -1,5 +1,5 @@
 use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
-use crate::models::{Filter, FilterType};
+use crate::models::Filter;
 
 pub const REPORT_ID: u8 = 0x4B;
 
@@ -107,16 +107,12 @@ impl DeviceProtocol for TP35ProProtocol {
         &self,
         index: u8,
         enabled: bool,
-        mut freq: f64,
-        mut gain: f64,
-        mut q: f64,
+        freq: f64,
+        gain: f64,
+        q: f64,
         filter_type: u8,
     ) -> Vec<u8> {
-        if !enabled {
-            freq = 0.0;
-            gain = 0.0;
-            q = 1.0;
-        }
+        let _ = enabled;
 
         let b_arr = compute_iir_filter(freq, gain, q);
 

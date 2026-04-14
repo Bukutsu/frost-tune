@@ -297,28 +297,25 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<(),
         ));
     }
     for (a, f) in actual.filters.iter().zip(filters.iter()) {
-        if f.enabled != a.enabled {
-            return Err(format!("Band {} enabled state mismatch", f.index));
-        }
-        if f.enabled && (a.gain - f.gain).abs() > 0.15 {
+        if (a.gain - f.gain).abs() > 0.15 {
             return Err(format!(
                 "Band {} gain mismatch: expected {:.2}, got {:.2}",
                 f.index, f.gain, a.gain
             ));
         }
-        if f.enabled && (a.freq as i32 - f.freq as i32).abs() > 0 {
+        if (a.freq as i32 - f.freq as i32).abs() > 0 {
             return Err(format!(
                 "Band {} freq mismatch: expected {}, got {}",
                 f.index, f.freq, a.freq
             ));
         }
-        if f.enabled && (a.q - f.q).abs() > 0.05 {
+        if (a.q - f.q).abs() > 0.05 {
             return Err(format!(
                 "Band {} Q mismatch: expected {:.2}, got {:.2}",
                 f.index, f.q, a.q
             ));
         }
-        if f.enabled && f.filter_type != a.filter_type {
+        if f.filter_type != a.filter_type {
             return Err(format!("Band {} filter type mismatch", f.index));
         }
     }

@@ -3,7 +3,7 @@ use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
     ConnectionResult, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
-    MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso, snap_gain_step,
+    MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso,
     ISO_FREQUENCIES,
 };
 use crate::ui::graph::EqGraph;
@@ -18,7 +18,7 @@ use iced::{
     clipboard,
     widget::{
         button, canvas, checkbox, column, container, pick_list, responsive, row, scrollable,
-        slider, text, text_input, toggler,
+        slider, text, text_input,
     },
     Background, Border, Element, Length, Subscription, Task,
 };
@@ -248,7 +248,14 @@ impl MainWindow {
                 if result.success {
                     if let Some(data) = result.data {
                         if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
-                            self.editor_state.filters = peq.filters;
+                            self.editor_state.filters = peq
+                                .filters
+                                .into_iter()
+                                .map(|mut f| {
+                                    f.enabled = true;
+                                    f
+                                })
+                                .collect();
                             self.editor_state.global_gain = peq.global_gain;
                             self.diagnostics.push(DiagnosticEvent::new(
                                 LogLevel::Info,
@@ -280,7 +287,14 @@ impl MainWindow {
                 if result.success {
                     if let Some(data) = result.data {
                         if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
-                            self.editor_state.filters = peq.filters;
+                            self.editor_state.filters = peq
+                                .filters
+                                .into_iter()
+                                .map(|mut f| {
+                                    f.enabled = true;
+                                    f
+                                })
+                                .collect();
                             self.editor_state.global_gain = peq.global_gain;
                             self.diagnostics.push(DiagnosticEvent::new(
                                 LogLevel::Info,
@@ -345,15 +359,10 @@ impl MainWindow {
                     Message::WorkerStatus,
                 )
             }
-            Message::BandEnabledChanged(index, enabled) => {
-                if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    band.enabled = enabled;
-                }
-                Task::none()
-            }
             Message::BandFreqChanged(index, freq) => {
                 if let Some(band) = self.editor_state.filters.get_mut(index) {
                     band.freq = freq;
+                    band.enabled = true;
                     band.clamp();
                 }
                 Task::none()
@@ -443,7 +452,7 @@ impl MainWindow {
             }
             Message::BandGainChanged(index, v) => {
                 if let Some(band) = self.editor_state.filters.get_mut(index) {
-                    band.gain = snap_gain_step(v);
+                    band.gain = v.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
                     band.enabled = true;
                 }
                 Task::none()
@@ -459,6 +468,19 @@ impl MainWindow {
             Message::GlobalGainChanged(gain) => {
                 self.editor_state.global_gain = gain;
                 Task::none()
+            }
+            Message::ResetFiltersPressed => {
+                let default_filters: Vec<Filter> =
+                    (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+                self.editor_state.filters = default_filters;
+                self.editor_state.global_gain = 0;
+                self.editor_state.input_buffer = InputBuffer::default();
+                self.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::UI,
+                    "Reset filters to default",
+                ));
+                self.set_status("Filters reset to default", StatusSeverity::Info)
             }
             Message::ExportAutoEQPressed => {
                 let peq = PEQData {
@@ -485,7 +507,14 @@ impl MainWindow {
                 match autoeq::parse_autoeq_text(&text) {
                     Ok(peq) => {
                         let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
-                        self.editor_state.filters = peq.filters;
+                        self.editor_state.filters = peq
+                            .filters
+                            .into_iter()
+                            .map(|mut f| {
+                                f.enabled = true;
+                                f
+                            })
+                            .collect();
                         self.editor_state.global_gain = peq.global_gain;
                         self.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Info,
@@ -547,7 +576,16 @@ impl MainWindow {
             }
             Message::ProfileSelected(name) => {
                 if let Some(profile) = self.editor_state.profiles.iter().find(|p| p.name == name) {
-                    self.editor_state.filters = profile.data.filters.clone();
+                    self.editor_state.filters = profile
+                        .data
+                        .filters
+                        .clone()
+                        .into_iter()
+                        .map(|mut f| {
+                            f.enabled = true;
+                            f
+                        })
+                        .collect();
                     self.editor_state.global_gain = profile.data.global_gain;
                     self.editor_state.selected_profile_name = Some(name);
                     self.editor_state.new_profile_name = profile.name.clone();
@@ -683,7 +721,14 @@ impl MainWindow {
                     Ok(text) => match autoeq::parse_autoeq_text(&text) {
                         Ok(peq) => {
                             let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
-                            self.editor_state.filters = peq.filters;
+                            self.editor_state.filters = peq
+                                .filters
+                                .into_iter()
+                                .map(|mut f| {
+                                    f.enabled = true;
+                                    f
+                                })
+                                .collect();
                             self.editor_state.global_gain = peq.global_gain;
                             self.diagnostics.push(DiagnosticEvent::new(
                                 LogLevel::Info,
@@ -920,6 +965,9 @@ impl MainWindow {
             text_input("New Name...", &self.editor_state.new_profile_name)
                 .on_input(Message::ProfileNameInput)
                 .width(Length::Fixed(150.0)),
+            button("Reset")
+                .on_press_maybe(if is_busy { None } else { Some(Message::ResetFiltersPressed) })
+                .style(iced::widget::button::secondary),
             button("Save").on_press(Message::SaveProfilePressed),
             if !is_busy && self.editor_state.selected_profile_name.is_some() {
                 button("Delete")
@@ -992,10 +1040,6 @@ impl MainWindow {
             .enumerate()
             .map(|(i, band)| {
                 row![
-                    toggler(band.enabled)
-                        .label("")
-                        .on_toggle(move |v| Message::BandEnabledChanged(i, v))
-                        .size(16),
                     text(format!("{}", i + 1))
                         .size(TYPE_BODY)
                         .width(Length::Fixed(20.0)),
@@ -1051,7 +1095,7 @@ impl MainWindow {
                             band.gain,
                             move |v| Message::BandGainChanged(i, v)
                         )
-                        .step(0.5)
+                        .step(0.1)
                         .width(Length::Fill),
                         text_input(
                             "",
@@ -1059,7 +1103,7 @@ impl MainWindow {
                                 .input_buffer
                                 .get_gain(i)
                                 .as_deref()
-                                .unwrap_or(&format!("{:.1}", band.gain))
+                                .unwrap_or(&format!("{:.2}", band.gain))
                         )
                         .on_input(move |s| Message::BandGainInput(i, s))
                         .on_submit(Message::BandGainInputCommit(i))

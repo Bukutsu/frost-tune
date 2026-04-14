@@ -106,8 +106,8 @@ impl<Message> Program<Message> for EqGraph {
 
         let responses = calculate_total_response(&self.filters, self.global_gain, &test_freqs);
 
-        // Draw faint individual enabled bands first
-        for filter in self.filters.iter().filter(|f| f.enabled) {
+        // Draw faint individual bands first
+        for filter in &self.filters {
             let band_path = Path::new(|builder| {
                 for (i, &f) in test_freqs.iter().enumerate() {
                     let db = get_magnitude_response(filter, f);

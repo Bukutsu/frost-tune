@@ -154,7 +154,7 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
 }
 
 pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
-    if !filter.enabled || filter.freq == 0 {
+    if filter.freq == 0 {
         return 0.0;
     }
     let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter);

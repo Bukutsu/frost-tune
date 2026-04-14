@@ -8,7 +8,7 @@ pub const PRODUCT_ID: u16 = TP35_PRODUCT_ID;
 
 pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;
-pub const GAIN_STEP: f64 = 0.5;
+pub const GAIN_STEP: f64 = 0.1;
 pub const MAX_GLOBAL_GAIN: i8 = 10;
 pub const MIN_GLOBAL_GAIN: i8 = -10;
 pub const MIN_Q: f64 = 0.1;
@@ -207,6 +207,7 @@ impl Filter {
 impl PushPayload {
     pub fn clamp(&mut self) {
         for filter in &mut self.filters {
+            filter.enabled = true;
             filter.clamp();
         }
         if let Some(ref mut gain) = self.global_gain {
@@ -227,6 +228,9 @@ impl PushPayload {
             ));
         }
         for f in &self.filters {
+            if !f.enabled {
+                return Err(format!("Band {} must be enabled in push payload", f.index));
+            }
             if !f.gain.is_finite() {
                 return Err(format!("Band {} gain is not a finite number", f.index));
             }
@@ -302,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_push_payload_valid_with_10_bands() {
-        let filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        let filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, true)).collect();
         let payload = PushPayload {
             filters: filters.clone(),
             global_gain: Some(5),
@@ -318,6 +322,28 @@ mod tests {
             global_gain: Some(0),
         };
         assert!(payload.is_valid().is_err());
+    }
+
+    #[test]
+    fn test_push_payload_invalid_with_disabled_band() {
+        let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, true)).collect();
+        filters[2].enabled = false;
+        let payload = PushPayload {
+            filters,
+            global_gain: Some(0),
+        };
+        assert!(payload.is_valid().is_err());
+    }
+
+    #[test]
+    fn test_push_payload_clamp_enables_all_bands() {
+        let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        let mut payload = PushPayload {
+            filters: std::mem::take(&mut filters),
+            global_gain: Some(0),
+        };
+        payload.clamp();
+        assert!(payload.filters.iter().all(|f| f.enabled));
     }
 
     #[test]
@@ -369,8 +395,8 @@ mod tests {
 
     #[test]
     fn test_snap_gain_step() {
-        assert!((snap_gain_step(1.3) - 1.5).abs() < 0.01);
-        assert!((snap_gain_step(-1.3) - (-1.5)).abs() < 0.01);
+        assert!((snap_gain_step(1.3) - 1.3).abs() < 0.01);
+        assert!((snap_gain_step(-1.3) - (-1.3)).abs() < 0.01);
         assert!((snap_gain_step(0.0) - 0.0).abs() < 0.01);
         assert!((snap_gain_step(10.0) - 10.0).abs() < 0.01);
     }
