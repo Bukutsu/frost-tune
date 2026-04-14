@@ -36,6 +36,7 @@ impl UsbWorker {
         thread::spawn(move || {
             let mut device: Option<hidapi::HidDevice> = None;
             let mut device_type = Device::Unknown;
+            let mut manual_disconnect = false;
             let mut api = match hidapi::HidApi::new() {
                 Ok(a) => {
                     log::info!("HID API initialized successfully");
@@ -66,7 +67,11 @@ impl UsbWorker {
                         log::warn!("DAC physically disconnected!");
                         device = None;
                         device_type = Device::Unknown;
-                    } else if !is_logically_connected && is_physically_connected {
+                        manual_disconnect = false;
+                    } else if !is_logically_connected
+                        && is_physically_connected
+                        && !manual_disconnect
+                    {
                         log::info!("DAC detected, auto-connecting...");
                         let res = worker_connect(&mut device, &mut device_type, &api);
                         if res.success {
@@ -74,16 +79,20 @@ impl UsbWorker {
                         } else {
                             log::warn!("Auto-reconnect failed: {:?}", res.error);
                         }
+                    } else if !is_logically_connected && !is_physically_connected {
+                        manual_disconnect = false;
                     }
                 }
 
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(cmd) => match cmd {
                         UsbCommand::Connect(resp) => {
+                            manual_disconnect = false;
                             let result = worker_connect(&mut device, &mut device_type, &api);
                             let _ = resp.send(result);
                         }
                         UsbCommand::Disconnect(resp) => {
+                            manual_disconnect = true;
                             device = None;
                             device_type = Device::Unknown;
                             let _ = resp.send(OperationResult {
