@@ -964,12 +964,13 @@ impl MainWindow {
                             .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED)
                             .width(Length::Fixed(32.0)),
-                        slider(
-                            (MIN_FREQ as f64).log10()..=(MAX_FREQ as f64).log10(),
-                            (band.freq as f64).log10(),
-                            move |v| Message::BandFreqSliderChanged(i, v)
+                        pick_list(
+                            &ISO_FREQUENCIES[..],
+                            Some(band.freq),
+                            move |v| Message::BandFreqChanged(i, v)
                         )
-                        .width(Length::Fill),
+                        .width(Length::Fixed(90.0))
+                        .text_size(12),
                         text_input("", &format!("{}", band.freq))
                             .on_input(move |s| Message::BandFreqInput(i, s))
                             .width(Length::Fixed(60.0))
@@ -986,14 +987,20 @@ impl MainWindow {
                             .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED)
                             .width(Length::Fixed(36.0)),
-                        slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| {
-                            Message::BandGainChanged(i, v)
-                        })
+                        slider(
+                            MIN_BAND_GAIN..=MAX_BAND_GAIN,
+                            band.gain,
+                            move |v| Message::BandGainChanged(i, v)
+                        )
+                        .step(0.5)
                         .width(Length::Fill),
                         text_input("", &format!("{:.1}", band.gain))
                             .on_input(move |s| Message::BandGainInput(i, s))
                             .width(Length::Fixed(50.0))
                             .size(TYPE_LABEL),
+                        text("dB")
+                            .size(TYPE_LABEL - 1.0)
+                            .color(TOKYO_NIGHT_MUTED),
                     ]
                     .spacing(SPACE_XS)
                     .align_y(iced::Alignment::Center)
@@ -1003,12 +1010,13 @@ impl MainWindow {
                             .size(TYPE_LABEL)
                             .color(TOKYO_NIGHT_MUTED)
                             .width(Length::Fixed(18.0)),
-                        slider(
-                            (MIN_Q as f64).log10()..=(MAX_Q as f64).log10(),
-                            (band.q.max(MIN_Q) as f64).log10(),
+                        pick_list(
+                            &[0.1, 0.25, 0.5, 0.707, 1.0, 1.4, 2.0, 4.0, 8.0, 16.0][..],
+                            Some(band.q),
                             move |v| Message::BandQChanged(i, v)
                         )
-                        .width(Length::Fill),
+                        .width(Length::Fixed(80.0))
+                        .text_size(12),
                         text_input("", &format!("{:.2}", band.q))
                             .on_input(move |s| Message::BandQInput(i, s))
                             .width(Length::Fixed(50.0))
