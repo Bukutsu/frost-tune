@@ -1,4 +1,6 @@
-use crate::models::{Filter, FilterType, PEQData, MAX_BAND_GAIN, MIN_BAND_GAIN};
+use crate::models::{
+    Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_BAND_GAIN, MIN_GLOBAL_GAIN,
+};
 
 pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
     let lines: Vec<&str> = text.lines().collect();
@@ -15,7 +17,7 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
 
         if line.to_lowercase().starts_with("preamp") {
             if let Some(m) = extract_number(line) {
-                let val = m.min(12.0).max(-12.0);
+                let val = m.min(MAX_GLOBAL_GAIN as f64).max(MIN_GLOBAL_GAIN as f64);
                 preamp = val.round() as i8;
             } else {
                 return Err(format!("Line {}: Failed to parse preamp value", line_num));

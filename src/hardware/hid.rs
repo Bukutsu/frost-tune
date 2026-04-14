@@ -1,8 +1,4 @@
-use crate::hardware::dsp::parse_filter_packet;
-use crate::hardware::protocol::{
-    CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_VERSION, END, OFFSET_GAIN_VALUE, OFFSET_INDEX,
-    OFFSET_NONCE, READ, REPORT_ID,
-};
+use crate::hardware::protocol::{DeviceProtocol, READ, REPORT_ID};
 use crate::models::{Device, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -87,9 +83,6 @@ impl Default for ReadTiming {
     }
 }
 
-// Alias for backward compatibility if needed, but we'll move to ReadTiming
-pub type TimingConfig = ReadTiming;
-
 pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
     let mut buf = [0u8; 64];
     let mut total_drained = 0;
@@ -104,19 +97,24 @@ pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
     }
 }
 
-pub fn pull_peq_internal(device: &hidapi::HidDevice, strict: bool) -> Result<PEQData, String> {
-    pull_peq_internal_with_timing(device, &ReadTiming::default(), strict)
+pub fn pull_peq_internal(
+    device: &hidapi::HidDevice,
+    proto: &dyn DeviceProtocol,
+    strict: bool,
+) -> Result<PEQData, String> {
+    pull_peq_internal_with_timing(device, proto, &ReadTiming::default(), strict)
 }
 
 pub fn pull_peq_internal_with_timing(
     device: &hidapi::HidDevice,
+    proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     strict: bool,
 ) -> Result<PEQData, String> {
     flush_hid_buffer(device);
 
     // Version request
-    send_report(device, &[READ, CMD_VERSION, END][..])?;
+    send_report(device, &[READ, proto.cmd_version(), 0x00][..])?; // Changed to use proto
     delay_ms(cfg.post_version_ms);
 
     // Drain version response
@@ -135,13 +133,11 @@ pub fn pull_peq_internal_with_timing(
         }
 
         let filter_nonce = get_next_nonce();
-        send_report(
-            device,
-            &[READ, CMD_PEQ_VALUES, filter_nonce, 0x00, i, END][..],
-        )?;
+        let request = proto.build_filter_request(i, filter_nonce);
+        send_report(device, &request[..])?;
         delay_ms(cfg.filter_request_ms);
 
-        let response = read_single_filter_with_nonce(device, cfg, i, filter_nonce);
+        let response = read_single_filter_with_nonce(device, proto, cfg, i, filter_nonce);
         if strict && response.is_none() {
             return Err(format!(
                 "Failed to read filter {} (nonce: {})",
@@ -152,8 +148,8 @@ pub fn pull_peq_internal_with_timing(
     }
 
     let global_nonce = get_next_nonce();
-    let global_gain = read_global_gain(device, cfg, global_nonce)?;
-    let filters = assemble_filters(filter_responses);
+    let global_gain = read_global_gain(device, proto, cfg, global_nonce)?;
+    let filters = assemble_filters(proto, filter_responses);
 
     Ok(PEQData {
         filters,
@@ -163,6 +159,7 @@ pub fn pull_peq_internal_with_timing(
 
 fn read_single_filter_with_nonce(
     device: &hidapi::HidDevice,
+    proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     expected_index: u8,
     nonce: u8,
@@ -173,15 +170,19 @@ fn read_single_filter_with_nonce(
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
             Ok(count) if count > 0 => {
                 let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
-                if count >= 30 + offset && buf[offset] == READ && buf[offset + 1] == CMD_PEQ_VALUES
+                // Using proto.cmd_peq_values()
+                if count >= 30 + offset
+                    && buf[offset] == READ
+                    && buf[offset + 1] == proto.cmd_peq_values()
                 {
-                    let r_nonce = buf[offset + OFFSET_NONCE];
-                    let r_idx = buf[offset + OFFSET_INDEX];
+                    // For now keeping TP35Pro specific nonce/index offsets,
+                    // but they could also be part of the trait if they differ.
+                    let r_nonce = buf[offset + 2];
+                    let r_idx = buf[offset + 4];
 
                     if r_nonce == nonce && r_idx == expected_index {
                         return Some(buf[offset..offset + 34].to_vec());
                     } else {
-                        // Stale packet, keep reading
                         continue;
                     }
                 }
@@ -196,12 +197,13 @@ fn read_single_filter_with_nonce(
 
 fn read_global_gain(
     device: &hidapi::HidDevice,
+    proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
-    _nonce: u8,
+    nonce: u8,
 ) -> Result<u8, String> {
-    // Use fixed nonce 0x00 for global gain - firmware may not echo nonce for this command
     delay_ms(cfg.post_filter_read_ms);
-    send_report(device, &[READ, CMD_GLOBAL_GAIN, 0x00, END][..])?;
+    let request = proto.build_global_gain_request(nonce);
+    send_report(device, &request[..])?;
     delay_ms(cfg.post_global_gain_ms);
 
     let mut attempts = 0;
@@ -210,33 +212,27 @@ fn read_global_gain(
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
             Ok(count) if count > 0 => {
                 let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
-                // Accept response without strict nonce check - firmware behavior varies
-                if count >= 6 + offset && buf[offset] == READ && buf[offset + 1] == CMD_GLOBAL_GAIN
+                if count >= 6 + offset
+                    && buf[offset] == READ
+                    && buf[offset + 1] == proto.cmd_global_gain()
                 {
-                    return Ok(buf[offset + OFFSET_GAIN_VALUE]);
+                    // Constant offset 4 for gain value
+                    return Ok(buf[offset + 4]);
                 }
             }
             _ => {}
         }
         attempts += 1;
     }
-    Ok(0)
+    Err("Global gain read timeout".into())
 }
 
-fn assemble_filters(responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
+fn assemble_filters(proto: &dyn DeviceProtocol, responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
     let mut filters = Vec::new();
     for (i, resp) in responses.into_iter().enumerate() {
         match resp {
             Some(r) => {
-                if let Some(f) = parse_filter_packet(&r) {
-                    log::debug!(
-                        "Filter {} parsed: freq={}, gain={:.2}, q={:.2}, enabled={}",
-                        f.index,
-                        f.freq,
-                        f.gain,
-                        f.q,
-                        f.enabled
-                    );
+                if let Some(f) = proto.parse_filter_packet(&r) {
                     filters.push(f);
                 } else {
                     log::warn!("Filter {} parse failed, using default", i);
@@ -250,10 +246,8 @@ fn assemble_filters(responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
         }
     }
 
-    // Pad to 10 if needed
     while filters.len() < 10 {
         let idx = filters.len() as u8;
-        log::warn!("Padding missing filter {} with default", idx);
         filters.push(Filter::enabled(idx, false));
     }
 

@@ -10,6 +10,10 @@ pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;
 pub const MAX_GLOBAL_GAIN: i8 = 10;
 pub const MIN_GLOBAL_GAIN: i8 = -10;
+pub const MIN_Q: f64 = 0.1;
+pub const MAX_Q: f64 = 20.0;
+pub const MIN_FREQ: u16 = 20;
+pub const MAX_FREQ: u16 = 20000;
 pub const NUM_BANDS: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +22,16 @@ pub enum Device {
     Unknown,
 }
 
+use crate::hardware::protocol::{DeviceProtocol, TP35ProProtocol};
+
 impl Device {
+    pub fn protocol(&self) -> Box<dyn DeviceProtocol> {
+        match self {
+            Device::TP35Pro => Box::new(TP35ProProtocol),
+            Device::Unknown => Box::new(TP35ProProtocol), // Fallback
+        }
+    }
+
     pub fn from_vid_pid(vid: u16, pid: u16) -> Self {
         match (vid, pid) {
             (TP35_VENDOR_ID, TP35_PRODUCT_ID) => Device::TP35Pro,
@@ -150,15 +163,15 @@ impl Filter {
         } else if self.gain < MIN_BAND_GAIN {
             self.gain = MIN_BAND_GAIN;
         }
-        if self.q < 0.1 {
-            self.q = 0.1;
-        } else if self.q > 20.0 {
-            self.q = 20.0;
+        if self.q < MIN_Q {
+            self.q = MIN_Q;
+        } else if self.q > MAX_Q {
+            self.q = MAX_Q;
         }
-        if self.freq < 20 {
-            self.freq = 20;
-        } else if self.freq > 20000 {
-            self.freq = 20000;
+        if self.freq < MIN_FREQ {
+            self.freq = MIN_FREQ;
+        } else if self.freq > MAX_FREQ {
+            self.freq = MAX_FREQ;
         }
     }
 }
@@ -186,13 +199,19 @@ impl PushPayload {
             ));
         }
         for f in &self.filters {
-            if f.freq < 20 || f.freq > 20000 {
+            if !f.gain.is_finite() {
+                return Err(format!("Band {} gain is not a finite number", f.index));
+            }
+            if !f.q.is_finite() {
+                return Err(format!("Band {} Q is not a finite number", f.index));
+            }
+            if f.freq < MIN_FREQ || f.freq > MAX_FREQ {
                 return Err(format!("Band {} freq out of range: {}", f.index, f.freq));
             }
             if f.gain < MIN_BAND_GAIN || f.gain > MAX_BAND_GAIN {
                 return Err(format!("Band {} gain out of range: {}", f.index, f.gain));
             }
-            if f.q < 0.1 || f.q > 20.0 {
+            if f.q < MIN_Q || f.q > MAX_Q {
                 return Err(format!("Band {} Q out of range: {}", f.index, f.q));
             }
         }
@@ -266,6 +285,28 @@ mod tests {
     #[test]
     fn test_push_payload_invalid_with_wrong_band_count() {
         let filters = vec![Filter::enabled(0, false)];
+        let payload = PushPayload {
+            filters,
+            global_gain: Some(0),
+        };
+        assert!(payload.is_valid().is_err());
+    }
+
+    #[test]
+    fn test_push_payload_invalid_with_nan_gain() {
+        let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        filters[0].gain = f64::NAN;
+        let payload = PushPayload {
+            filters,
+            global_gain: Some(0),
+        };
+        assert!(payload.is_valid().is_err());
+    }
+
+    #[test]
+    fn test_push_payload_invalid_with_inf_q() {
+        let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        filters[0].q = f64::INFINITY;
         let payload = PushPayload {
             filters,
             global_gain: Some(0),

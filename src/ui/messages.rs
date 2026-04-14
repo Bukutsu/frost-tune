@@ -1,0 +1,61 @@
+use crate::hardware::worker::WorkerStatus;
+use crate::models::{ConnectionResult, OperationResult};
+use crate::storage::Profile;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StatusSeverity {
+    Info,
+    Success,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusMessage {
+    pub content: String,
+    pub severity: StatusSeverity,
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    ConnectPressed,
+    DisconnectPressed,
+    PullPressed,
+    PushPressed,
+    WorkerConnected(ConnectionResult),
+    WorkerDisconnected(OperationResult),
+    WorkerPulled(OperationResult),
+    WorkerPushed(OperationResult),
+    WorkerStatus(WorkerStatus),
+    Tick(std::time::Instant),
+    BandEnabledChanged(usize, bool),
+    BandGainChanged(usize, f64),
+    BandFreqChanged(usize, u16),
+    BandQChanged(usize, f64),
+    BandTypeChanged(usize, crate::models::FilterType),
+    BandGainInput(usize, String),
+    BandFreqInput(usize, String),
+    BandQInput(usize, String),
+    BandFreqSliderChanged(usize, f64),
+    GlobalGainChanged(i8),
+    ImportFromClipboard,
+    ImportClipboardReceived(String),
+    ImportClipboardFailed(String),
+    ExportAutoEQPressed,
+    ExportComplete,
+    CopyDiagnostics,
+    ClearDiagnostics,
+    ToggleDiagnosticsErrorsOnly(bool),
+    ExportDiagnosticsToFile,
+    DiagnosticsExported(String),
+    ProfilesLoaded(Vec<Profile>),
+    ProfileSelected(String),
+    ProfileNameInput(String),
+    SaveProfilePressed,
+    DeleteProfilePressed,
+    ImportFromFilePressed,
+    ExportToFilePressed,
+    FileImported(Result<String, String>),
+    FileExported(Result<String, String>),
+    ClearStatusMessage,
+}

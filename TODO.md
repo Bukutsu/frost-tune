@@ -58,6 +58,57 @@ Goal: bring Frost-Tune to feature parity with `../tp35pro-eq` while preserving p
 - [x] Add tests for safety-critical and parser logic.
   - Files: `src/hardware/worker.rs`, `src/hardware/packet_builder.rs`, `src/hardware/dsp.rs`, `tests/*`
 
+## Phase 2 - Robustness & UI Hardening
+
+- [x] **Critical: Fix Rollback Logic**
+  - Files: `src/hardware/worker.rs`
+  - Task: Ensure that a `Err` during the verification read phase triggers an immediate rollback to the previous known-good snapshot.
+  - Done when: Verified by a unit/integration test simulating a read failure during push.
+
+- [x] **Safety: Align Value Clamps & Finite Validation**
+  - Files: `src/autoeq.rs`, `src/models.rs`, `src/ui/main_window.rs`
+  - Tasks:
+    - Update `src/autoeq.rs` to clamp preamp to `±10.0` (matching `MAX_GLOBAL_GAIN`).
+    - Implement `is_finite()` checks in `Filter::is_valid()` and `PEQData::is_valid()` to reject `NaN`/`inf`.
+    - Centralize shared constants for min/max gain, Q, and frequency to prevent drift.
+
+- [x] **Reliability: Improve HID Transport Feedback**
+  - Files: `src/hardware/hid.rs`, `src/hardware/worker.rs`
+  - Tasks:
+    - Stop returning `Ok(0)` on global gain timeout; return a proper `TransportError::Timeout`.
+    - Fix the "dead" retry heuristic (`has_no_filters` check) in the worker pull path.
+    - Replace production `unwrap()` calls in worker serialization with safe error handling.
+
+- [x] **UI: Modernize Hierarchy & Feedback (M3/Material You)**
+  - Files: `src/ui/main_window.rs`, `src/ui/theme.rs`
+  - Tasks:
+    - Implement explicit loading/progress states (e.g., `ProgressBar` or `Spinner`) for Push/Pull/Connect operations.
+    - Add operation-result "Toasts" or Banners with severity levels (Success/Error/Warning).
+    - Refactor band editor rows for better typography hierarchy and larger touch targets.
+    - Implement responsive layout: stack band controls into cards or columns when window width is narrow.
+
+## Phase 3 - Refactoring & Multi-Device Evolution
+
+- [x] **Architecture: Split MainWindow Monolith**
+  - Files: `src/ui/main_window.rs`, `src/ui/state.rs`, `src/ui/messages.rs`
+  - Task: Extract update logic into domain-specific modules (e.g., `ui/update/transport.rs`, `ui/update/editor.rs`, `ui/update/storage.rs`).
+  - Task: Extract view components into a `ui/components/` directory.
+  - Status: Partially done - created `ui/state.rs` and `ui/messages.rs` modules.
+
+- [x] **Structure: Establish Library Boundary**
+  - Files: `src/main.rs`, `src/lib.rs`
+  - Task: Create `src/lib.rs` and move core modules (hardware, models, dsp) there to separate CLI/Core logic from the UI launcher.
+
+- [x] **Multi-Device: Protocol Abstraction Layer**
+  - Files: `src/hardware/protocol.rs`, `src/hardware/packet_builder.rs`
+  - Task: Introduce a `DeviceProtocol` trait to decouple packet building from specific hardware offsets, allowing easier onboarding of non-TP35Pro DACs.
+
+- [ ] **Testing: Transactional Integration Suite**
+  - Files: `tests/worker_tests.rs`
+  - Task: Add integration tests for the `UsbWorker` using a mock HID transport to verify:
+    - Transactional write/verify/rollback flows.
+    - Hotplug auto-reconnect debounce and failure modes.
+
 ## Open Decisions (ANSWERED)
 
 - [x] Out-of-range behavior: **auto-clamp** (values above +10dB are clamped before push).
