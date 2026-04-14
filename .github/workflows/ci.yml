@@ -27,7 +27,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "frost-tune"
+          shared-key: "frost-tune-linux"
           cache-on-failure: true
 
       - name: Build check

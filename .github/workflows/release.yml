@@ -42,7 +42,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "frost-tune-release"
+          shared-key: "frost-tune-${{ matrix.os }}"
           cache-on-failure: true
 
       - name: Install Linux dependencies
