@@ -19,6 +19,20 @@ impl Default for ConnectionStatus {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum DisconnectReason {
+    None,
+    Manual,
+    DeviceLost,
+    Error(String),
+}
+
+impl Default for DisconnectReason {
+    fn default() -> Self {
+        DisconnectReason::None
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct EditorState {
     pub filters: Vec<Filter>,
@@ -40,6 +54,7 @@ pub struct OperationLock {
 #[derive(Default)]
 pub struct MainWindow {
     pub connection_status: ConnectionStatus,
+    pub disconnect_reason: DisconnectReason,
     pub editor_state: EditorState,
     pub operation_lock: OperationLock,
     pub worker: Option<Arc<UsbWorker>>,

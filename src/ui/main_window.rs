@@ -7,7 +7,7 @@ use crate::models::{
 };
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
-use crate::ui::state::{ConnectionStatus, EditorState, MainWindow, OperationLock};
+use crate::ui::state::{ConnectionStatus, DisconnectReason, EditorState, MainWindow, OperationLock};
 use crate::ui::theme::{
     self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MUTED,
     TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING,
@@ -65,6 +65,7 @@ impl MainWindow {
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
         let window = MainWindow {
             connection_status: ConnectionStatus::Disconnected,
+            disconnect_reason: DisconnectReason::None,
             editor_state: EditorState {
                 filters: default_filters.clone(),
                 global_gain: 0,
@@ -127,6 +128,7 @@ impl MainWindow {
                 if self.worker.is_none() {
                     return Task::none();
                 }
+                self.disconnect_reason = DisconnectReason::Manual;
                 self.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,
@@ -689,14 +691,19 @@ impl MainWindow {
     }
 
     fn set_status(&mut self, content: impl Into<String>, severity: StatusSeverity) -> Task<Message> {
+        let should_auto_clear = matches!(severity, StatusSeverity::Info | StatusSeverity::Success);
         self.editor_state.status_message = Some(StatusMessage {
             content: content.into(),
             severity,
         });
-        Task::perform(
-            async { tokio::time::sleep(std::time::Duration::from_secs(5)).await },
-            |_| Message::ClearStatusMessage,
-        )
+        if should_auto_clear {
+            Task::perform(
+                async { tokio::time::sleep(std::time::Duration::from_secs(5)).await },
+                |_| Message::ClearStatusMessage,
+            )
+        } else {
+            Task::none()
+        }
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -770,7 +777,14 @@ impl MainWindow {
             || self.operation_lock.is_connecting;
 
         let status_text = match &self.connection_status {
-            ConnectionStatus::Disconnected => text("Disconnected").color(TOKYO_NIGHT_MUTED),
+            ConnectionStatus::Disconnected => {
+                match self.disconnect_reason {
+                    DisconnectReason::None => text("Disconnected").color(TOKYO_NIGHT_MUTED),
+                    DisconnectReason::Manual => text("Disconnected (by user)").color(TOKYO_NIGHT_MUTED),
+                    DisconnectReason::DeviceLost => text("Disconnected (device unplugged)").color(TOKYO_NIGHT_WARNING),
+                    DisconnectReason::Error(ref e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
+                }
+            }
             ConnectionStatus::Connecting => {
                 text("Connecting...").color(TOKYO_NIGHT_YELLOW)
             }
@@ -908,13 +922,25 @@ impl MainWindow {
     fn view_bands(&self) -> Element<'_, Message> {
         let is_busy = self.operation_lock.is_pulling || self.operation_lock.is_pushing;
 
+        let busy_notice: Element<Message> = if is_busy {
+            container(
+                text("Device sync in progress... controls temporarily locked")
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_WARNING),
+            )
+            .padding(SPACE_SM)
+            .into()
+        } else {
+            text("").into()
+        };
+
         let band_list: Vec<Element<Message>> = self
             .editor_state
             .filters
             .iter()
             .enumerate()
             .map(|(i, band)| {
-                let row_content = row![
+                row![
                     toggler(band.enabled)
                         .label("")
                         .on_toggle(move |v| Message::BandEnabledChanged(i, v))
@@ -986,17 +1012,12 @@ impl MainWindow {
                     .width(Length::FillPortion(2)),
                 ]
                 .spacing(SPACE_SM)
-                .align_y(iced::Alignment::Center);
-
-                if is_busy {
-                    container(row_content).into()
-                } else {
-                    container(row_content).into()
-                }
+                .align_y(iced::Alignment::Center)
+                .into()
             })
             .collect();
 
-        container(scrollable(column(band_list).spacing(SPACE_XS)))
+        container(column![busy_notice, scrollable(column(band_list).spacing(SPACE_XS))])
             .padding(SPACE_SM)
             .style(theme::card_style)
             .width(Length::Fill)

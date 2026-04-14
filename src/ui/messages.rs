@@ -2,7 +2,7 @@ use crate::hardware::worker::WorkerStatus;
 use crate::models::{ConnectionResult, OperationResult};
 use crate::storage::Profile;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StatusSeverity {
     Info,
     Success,
