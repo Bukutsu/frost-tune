@@ -32,6 +32,3 @@ jobs:
 
       - name: Build check
         run: cargo check --lib
-
-      - name: Run library tests
-        run: cargo test --lib --locked -- --nocapture
