@@ -27,10 +27,15 @@ jobs:
       - name: Enable sccache (best effort)
         shell: bash
         run: |
+          export SCCACHE_GHA_ENABLED=true
+          export RUSTC_WRAPPER=sccache
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
           echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          sccache --stop-server || true
           if ! sccache --start-server; then
             echo "sccache backend unavailable, falling back to direct rustc"
+            export RUSTC_WRAPPER=
+            export SCCACHE_GHA_ENABLED=
             echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
             echo "SCCACHE_GHA_ENABLED=" >> "$GITHUB_ENV"
           fi
