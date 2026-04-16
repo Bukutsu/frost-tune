@@ -20,7 +20,7 @@ impl std::fmt::Display for LogLevel {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub enum Source {
     UI,
     Worker,
@@ -78,6 +78,15 @@ pub struct DiagnosticsStore {
 
 impl DiagnosticsStore {
     pub fn push(&mut self, event: DiagnosticEvent) {
+        if let Some(last) = self.events.back() {
+            if last.level == event.level
+                && last.source == event.source
+                && last.message == event.message
+            {
+                return;
+            }
+        }
+
         if self.events.len() >= MAX_EVENTS {
             self.events.pop_front();
         }

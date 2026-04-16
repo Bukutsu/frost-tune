@@ -4,14 +4,14 @@ use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
     ConnectionResult, Device, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
     MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso,
-    ISO_FREQUENCIES,
 };
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
 use crate::ui::state::{ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow, OperationLock};
+use crate::ui::tokens::{WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
 use crate::ui::theme::{
     self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MUTED,
-    TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING,
+    TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING, TOKYO_NIGHT_FG,
     TOKYO_NIGHT_YELLOW,
 };
 use iced::{
@@ -35,9 +35,9 @@ pub enum LayoutBucket {
 }
 
 pub fn layout_bucket_for_width(width: f32) -> LayoutBucket {
-    if width < 1000.0 {
+    if width <= WINDOW_NARROW_MAX {
         LayoutBucket::Narrow
-    } else if width < 1280.0 {
+    } else if width <= WINDOW_MEDIUM_MAX {
         LayoutBucket::Medium
     } else {
         LayoutBucket::Wide
@@ -874,11 +874,19 @@ impl MainWindow {
 
     pub fn set_status(&mut self, content: impl Into<String>, severity: StatusSeverity) -> Task<Message> {
         let content = content.into();
-        self.diagnostics.push(DiagnosticEvent::new(
-            LogLevel::Info,
-            Source::UI,
-            format!("Status set: {}", content),
-        ));
+        let skip_diag_echo = content.starts_with("Loaded profile:")
+            || content.starts_with("Saved profile:")
+            || content.starts_with("Deleted profile:")
+            || content.starts_with("Imported ")
+            || content.starts_with("Exported ");
+
+        if !skip_diag_echo {
+            self.diagnostics.push(DiagnosticEvent::new(
+                LogLevel::Info,
+                Source::UI,
+                format!("Status set: {}", content),
+            ));
+        }
         let should_auto_clear = self.status_should_auto_clear(severity);
         self.editor_state.status_message = Some(StatusMessage {
             content,
@@ -1016,7 +1024,7 @@ impl MainWindow {
         match bucket {
             LayoutBucket::Narrow => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
             LayoutBucket::Medium => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
-            LayoutBucket::Wide => vec!["header", "status", "autoeq", "diagnostics", "presets", "graph", "advanced"],
+            LayoutBucket::Wide => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
         }
     }
 
@@ -1035,10 +1043,20 @@ impl MainWindow {
                 column![
                     self.view_header(),
                     self.view_status_banner(),
-                    row![self.view_autoeq(), self.view_diagnostics_section()].spacing(spacing),
+                    self.view_autoeq(),
                     self.view_presets_and_preamp(),
-                    self.view_graph(),
-                    self.view_advanced_filters_section(),
+                    row![
+                        container(column![
+                            self.view_graph(),
+                            self.view_advanced_filters_section(),
+                        ]
+                        .spacing(spacing))
+                        .width(Length::FillPortion(3)),
+                        container(self.view_diagnostics_section())
+                            .width(Length::FillPortion(2)),
+                    ]
+                    .spacing(spacing)
+                    .align_y(iced::Alignment::Start),
                 ]
                 .spacing(spacing)
             } else {
@@ -1162,9 +1180,11 @@ impl MainWindow {
                 button("Disconnect")
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Read Device").on_press(Message::PullPressed)
-            } else {
                 button("Read Device")
+                    .on_press(Message::PullPressed)
+                    .style(iced::widget::button::secondary)
+            } else {
+                button("Read Device").style(iced::widget::button::secondary)
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
                 button("Write Device").on_press(Message::PushPressed)
@@ -1192,8 +1212,8 @@ impl MainWindow {
                     .color(TOKYO_NIGHT_PRIMARY),
                 device_info_text,
                 text("Workflow: Connect → Read Device → Edit → Write Device")
-                    .size(TYPE_CAPTION)
-                    .color(TOKYO_NIGHT_MUTED),
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_FG),
                 row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
             ]
             .spacing(SPACE_4),
@@ -1267,17 +1287,28 @@ impl MainWindow {
     }
 
     fn view_graph(&self) -> Element<'_, Message> {
-        container(
-            canvas(EqGraph::new(
-                &self.editor_state.filters,
-                self.editor_state.global_gain,
-            ))
+        responsive(move |size| {
+            let height = if size.width < 1000.0 {
+                260.0
+            } else if size.width < 1280.0 {
+                300.0
+            } else {
+                340.0
+            };
+
+            container(
+                canvas(EqGraph::new(
+                    &self.editor_state.filters,
+                    self.editor_state.global_gain,
+                ))
+                .width(Length::Fill)
+                .height(Length::Fixed(height)),
+            )
+            .padding(SPACE_12)
+            .style(theme::card_style)
             .width(Length::Fill)
-            .height(Length::Fixed(220.0)),
-        )
-        .padding(SPACE_12)
-        .style(theme::card_style)
-        .width(Length::Fill)
+            .into()
+        })
         .into()
     }
 
@@ -1318,17 +1349,6 @@ impl MainWindow {
                     .width(Length::Fixed(110.0))
                     .text_size(12),
                     row![
-                        text("Freq")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED)
-                            .width(Length::Fixed(32.0)),
-                        pick_list(
-                            &ISO_FREQUENCIES[..],
-                            Some(band.freq),
-                            move |v| Message::BandFreqChanged(i, v)
-                        )
-                        .width(Length::Fixed(90.0))
-                        .text_size(12),
                         text_input(
                             "",
                             self.editor_state
@@ -1339,20 +1359,13 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandFreqInput(i, s))
                         .on_submit(Message::BandFreqInputCommit(i))
-                        .width(Length::Fixed(60.0))
+                        .width(Length::Fixed(86.0))
                         .size(TYPE_LABEL),
-                        text("Hz")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED),
                     ]
-                    .spacing(SPACE_8)
+                    .spacing(SPACE_4)
                     .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(3)),
+                    .width(Length::FillPortion(2)),
                     row![
-                        text("Gain")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED)
-                            .width(Length::Fixed(36.0)),
                         slider(
                             MIN_BAND_GAIN..=MAX_BAND_GAIN,
                             band.gain,
@@ -1370,27 +1383,13 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandGainInput(i, s))
                         .on_submit(Message::BandGainInputCommit(i))
-                        .width(Length::Fixed(50.0))
+                        .width(Length::Fixed(64.0))
                         .size(TYPE_LABEL),
-                        text("dB")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED),
                     ]
-                    .spacing(SPACE_8)
+                    .spacing(SPACE_4)
                     .align_y(iced::Alignment::Center)
                     .width(Length::FillPortion(3)),
                     row![
-                        text("Q")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED)
-                            .width(Length::Fixed(18.0)),
-                        pick_list(
-                            &[0.1, 0.25, 0.5, 0.707, 1.0, 1.4, 2.0, 4.0, 8.0, 16.0][..],
-                            Some(band.q),
-                            move |v| Message::BandQChanged(i, v)
-                        )
-                        .width(Length::Fixed(80.0))
-                        .text_size(12),
                         text_input(
                             "",
                             self.editor_state
@@ -1401,24 +1400,50 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandQInput(i, s))
                         .on_submit(Message::BandQInputCommit(i))
-                        .width(Length::Fixed(50.0))
+                        .width(Length::Fixed(64.0))
                             .size(TYPE_LABEL),
                     ]
-                    .spacing(SPACE_8)
+                    .spacing(SPACE_4)
                     .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(2)),
+                    .width(Length::FillPortion(1)),
                 ]
-                .spacing(SPACE_12)
+                .spacing(SPACE_8)
                 .align_y(iced::Alignment::Center)
                 .into()
             })
             .collect();
 
-        container(column![busy_notice, scrollable(column(band_list).spacing(SPACE_8))])
-            .padding(SPACE_12)
+        let header = row![
+            text("#").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED).width(Length::Fixed(20.0)),
+            text("Type")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .width(Length::Fixed(110.0)),
+            text("Frequency (Hz)")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .width(Length::FillPortion(2)),
+            text("Gain (dB)")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .width(Length::FillPortion(3)),
+            text("Q")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .width(Length::FillPortion(1)),
+        ]
+        .spacing(SPACE_8)
+        .align_y(iced::Alignment::Center);
+
+        container(
+            container(column![busy_notice, header, scrollable(column(band_list).spacing(SPACE_8))])
+                .max_width(1080),
+        )
+            .padding([SPACE_12, SPACE_8])
             .style(theme::card_style)
             .width(Length::Fill)
             .height(Length::Fill)
+            .center_x(Length::Fill)
             .into()
     }
 
@@ -1476,16 +1501,20 @@ impl MainWindow {
                     .color(TOKYO_NIGHT_MUTED),
                 row![
                     button("Import Clipboard")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromClipboard) }),
+                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromClipboard) })
+                        .style(iced::widget::button::secondary),
                     button("Import File")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromFilePressed) }),
+                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromFilePressed) })
+                        .style(iced::widget::button::secondary),
                 ]
                 .spacing(SPACE_8),
                 row![
                     button("Export Clipboard")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportAutoEQPressed) }),
+                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportAutoEQPressed) })
+                        .style(iced::widget::button::secondary),
                     button("Export File")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportToFilePressed) }),
+                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportToFilePressed) })
+                        .style(iced::widget::button::secondary),
                 ]
                 .spacing(SPACE_8),
             ]
@@ -1498,6 +1527,7 @@ impl MainWindow {
     }
 
     fn view_diagnostics(&self) -> Element<'_, Message> {
+        let has_events = self.diagnostics.count() > 0;
         let diag_events: Vec<Element<Message>> = self
             .diagnostics
             .events()
@@ -1519,26 +1549,52 @@ impl MainWindow {
             })
             .collect();
 
+        let visible_count = diag_events.len().min(20);
+        let logs_height = if visible_count == 0 {
+            84.0
+        } else if visible_count < 4 {
+            92.0
+        } else if visible_count < 10 {
+            120.0
+        } else {
+            160.0
+        };
+
         container(
             column![
                 row![
-                    text("Diagnostics")
-                        .size(TYPE_TITLE)
-                        .color(TOKYO_NIGHT_PRIMARY),
-                    container(text("")).width(Length::Fill),
                     checkbox(self.editor_state.diagnostics_errors_only)
                         .label("Errors Only")
                         .on_toggle(Message::ToggleDiagnosticsErrorsOnly)
                         .size(14),
+                    container(text("")).width(Length::Fill),
                 ]
                 .align_y(iced::Alignment::Center),
-                scrollable(column(diag_events).spacing(2)).height(Length::Fixed(140.0)),
+                if diag_events.is_empty() {
+                    container(
+                        text("No diagnostics events yet. Events will appear during connection, import, and sync operations.")
+                            .size(TYPE_LABEL)
+                            .color(TOKYO_NIGHT_MUTED),
+                    )
+                    .height(Length::Fixed(logs_height))
+                    .align_y(iced::alignment::Vertical::Center)
+                } else {
+                    container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(logs_height)))
+                },
                 row![
-                    button("Copy").on_press(Message::CopyDiagnostics),
-                    button("Export").on_press(Message::ExportDiagnosticsToFile),
+                    button("Copy")
+                        .on_press(Message::CopyDiagnostics)
+                        .style(iced::widget::button::text),
+                    button("Export")
+                        .on_press(Message::ExportDiagnosticsToFile)
+                        .style(iced::widget::button::text),
                     button("Clear")
                         .on_press(Message::ClearDiagnostics)
-                        .style(iced::widget::button::danger),
+                        .style(if has_events {
+                            iced::widget::button::danger
+                        } else {
+                            iced::widget::button::text
+                        }),
                 ]
                 .spacing(SPACE_8),
             ]

@@ -53,12 +53,15 @@ pub fn theme() -> Theme {
 pub fn card_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(Color {
-            a: 0.96,
+            a: 0.98,
             ..TOKYO_NIGHT_SURFACE
         })),
         border: Border {
-            color: TOKYO_NIGHT_BLUE,
-            width: 1.0,
+            color: Color {
+                a: 0.12,
+                ..TOKYO_NIGHT_FG_DARK
+            },
+            width: 0.5,
             radius: 12.0.into(),
         },
         ..Default::default()
@@ -67,10 +70,16 @@ pub fn card_style(_theme: &Theme) -> container::Style {
 
 pub fn header_card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(TOKYO_NIGHT_BG_DARK)),
+        background: Some(Background::Color(Color {
+            a: 0.96,
+            ..TOKYO_NIGHT_BG_DARK
+        })),
         border: Border {
-            color: TOKYO_NIGHT_TERMINAL_BLACK,
-            width: 1.0,
+            color: Color {
+                a: 0.2,
+                ..TOKYO_NIGHT_TERMINAL_BLACK
+            },
+            width: 0.5,
             radius: 14.0.into(),
         },
         ..Default::default()

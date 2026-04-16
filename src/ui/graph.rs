@@ -3,7 +3,7 @@ use crate::models::Filter;
 use iced::widget::canvas::{Frame, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
 
-use crate::ui::theme::TOKYO_NIGHT_PRIMARY;
+use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GraphLabelLayout {
@@ -51,11 +51,11 @@ impl<Message> Program<Message> for EqGraph {
         _cursor: iced::mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        let palette = theme.palette();
+        let _palette = theme.palette();
 
         // 1. Draw Grid
         let grid_color = Color::from_rgba(0.5, 0.5, 0.5, 0.2);
-        let text_color = palette.text;
+        let text_color = TOKYO_NIGHT_FG_DARK;
 
         // Vertical lines (Frequency)
         let freqs: [f64; 10] = [
@@ -85,7 +85,7 @@ impl<Message> Program<Message> for EqGraph {
                 content: label,
                 position: Point::new(x as f32 + 2.0, bounds.height - 15.0),
                 color: text_color,
-                size: 10.0.into(),
+                size: 12.0.into(),
                 ..Default::default()
             });
         }
@@ -111,7 +111,7 @@ impl<Message> Program<Message> for EqGraph {
                 content: format!("{}{}dB", if db > 0.0 { "+" } else { "" }, db),
                 position: Point::new(5.0, y as f32 - 12.0),
                 color: text_color,
-                size: 10.0.into(),
+                size: 12.0.into(),
                 ..Default::default()
             });
         }
