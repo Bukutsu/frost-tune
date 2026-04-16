@@ -25,6 +25,7 @@ use iced::{
 use std::sync::Arc;
 
 pub const STATUS_AUTO_CLEAR_SECS: u64 = 5;
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutBucket {
@@ -596,7 +597,7 @@ impl MainWindow {
             Message::CopyDiagnostics => {
                 let conn_str = format!("{:?}", self.connection_status);
                 let output =
-                    crate::diagnostics::format_diagnostics(&self.diagnostics, "0.1.0", &conn_str);
+                    crate::diagnostics::format_diagnostics(&self.diagnostics, APP_VERSION, &conn_str);
                 let _ = clipboard::write::<()>(output);
                 self.set_status("Diagnostics copied", StatusSeverity::Info)
             }
@@ -611,7 +612,7 @@ impl MainWindow {
             Message::ExportDiagnosticsToFile => {
                 let conn_str = format!("{:?}", self.connection_status);
                 let output =
-                    crate::diagnostics::format_diagnostics(&self.diagnostics, "0.1.0", &conn_str);
+                    crate::diagnostics::format_diagnostics(&self.diagnostics, APP_VERSION, &conn_str);
                 let now = chrono::Local::now();
                 let filename = format!("frost_tune_diag_{}.txt", now.format("%Y%m%d_%H%M%S"));
                 let path = std::path::PathBuf::from(&filename);

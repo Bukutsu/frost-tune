@@ -380,7 +380,16 @@ fn worker_push_peq(
         commit_changes(d, proto, &timing)?;
         Ok(())
     })() {
-        let _ = rollback_state(d, proto, &snapshot);
+        if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+            return OperationResult {
+                success: false,
+                data: None,
+                error: Some(format!(
+                    "Write failed: {} | rollback failed: {}",
+                    e, rollback_error
+                )),
+            };
+        }
         return OperationResult {
             success: false,
             data: None,
@@ -419,7 +428,16 @@ fn worker_push_peq(
                 }
             }
             Err(e) => {
-                let _ = rollback_state(d, proto, &snapshot);
+                if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+                    return OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(format!(
+                            "Verify read error: {} | rollback failed: {}",
+                            e, rollback_error
+                        )),
+                    };
+                }
                 return OperationResult {
                     success: false,
                     data: None,
@@ -428,12 +446,35 @@ fn worker_push_peq(
             }
         }
     }
-    let _ = rollback_state(d, proto, &snapshot);
+    if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+        return OperationResult {
+            success: false,
+            data: None,
+            error: Some(format!(
+                "Verification failed: settings did not match | rollback failed: {}",
+                rollback_error
+            )),
+        };
+    }
     OperationResult {
         success: false,
         data: None,
         error: Some("Verification failed: settings did not match".into()),
     }
+}
+
+fn rollback_and_verify(
+    d: &hidapi::HidDevice,
+    proto: &dyn DeviceProtocol,
+    snapshot: &PEQData,
+) -> Result<(), String> {
+    rollback_state(d, proto, snapshot).map_err(|e| format!("rollback write failed: {}", e))?;
+
+    let restored =
+        pull_peq_data(d, proto, true).map_err(|e| format!("rollback verify read failed: {}", e))?;
+
+    compare_peq(&restored, &snapshot.filters, snapshot.global_gain)
+        .map_err(|e| format!("rollback verify mismatch: {}", e))
 }
 
 fn rollback_state(

@@ -49,9 +49,17 @@ jobs:
       - name: Build check (fallback if sccache fails)
         shell: bash
         run: |
-          if ! cargo check --lib; then
+          if ! cargo check --all-targets; then
             echo "Build check failed, retrying without sccache"
-            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo check --lib
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo check --all-targets
+          fi
+
+      - name: Test suite (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo test --all-targets; then
+            echo "Test run failed, retrying without sccache"
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo test --all-targets
           fi
 
       - name: sccache stats

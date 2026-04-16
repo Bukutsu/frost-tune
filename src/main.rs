@@ -3,7 +3,7 @@ use log::info;
 
 fn main() {
     env_logger::init();
-    info!("Starting Frost-Tune v0.2.1");
+    info!("Starting Frost-Tune v{}", env!("CARGO_PKG_VERSION"));
     if let Err(e) = ui::run() {
         eprintln!("Error running Frost-Tune: {}", e);
         std::process::exit(1);
