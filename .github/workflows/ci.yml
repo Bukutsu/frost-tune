@@ -35,9 +35,9 @@ jobs:
           if ! sccache --start-server; then
             echo "sccache backend unavailable, falling back to direct rustc"
             export RUSTC_WRAPPER=
-            export SCCACHE_GHA_ENABLED=
+            export SCCACHE_GHA_ENABLED=false
             echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
-            echo "SCCACHE_GHA_ENABLED=" >> "$GITHUB_ENV"
+            echo "SCCACHE_GHA_ENABLED=false" >> "$GITHUB_ENV"
           fi
 
       - name: Install Linux dependencies
@@ -56,7 +56,7 @@ jobs:
         run: |
           if ! cargo check --all-targets; then
             echo "Build check failed, retrying without sccache"
-            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo check --all-targets
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED=false cargo check --all-targets
           fi
 
       - name: Test suite (fallback if sccache fails)
@@ -64,7 +64,7 @@ jobs:
         run: |
           if ! cargo test --all-targets; then
             echo "Test run failed, retrying without sccache"
-            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo test --all-targets
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED=false cargo test --all-targets
           fi
 
       - name: sccache stats
