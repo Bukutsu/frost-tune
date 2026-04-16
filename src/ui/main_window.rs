@@ -1181,10 +1181,10 @@ impl MainWindow {
                 Message::ProfileSelected,
             )
             .placeholder("Select Preset")
-            .width(Length::Fixed(200.0)),
+            .width(Length::FillPortion(2)),
             text_input("New Name...", &self.editor_state.new_profile_name)
                 .on_input(Message::ProfileNameInput)
-                .width(Length::Fixed(150.0)),
+                .width(Length::FillPortion(1)),
             button("Reset")
                 .on_press_maybe(if is_busy { None } else { Some(Message::ResetFiltersPressed) })
                 .style(iced::widget::button::secondary),
