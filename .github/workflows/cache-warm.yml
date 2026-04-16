@@ -1,0 +1,74 @@
+name: Cache Warm
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  warm-release-cache:
+    name: Warm Cache (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            deps: libudev-dev pkg-config
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            deps: ""
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Enable sccache (best effort)
+        shell: bash
+        run: |
+          export RUSTC_WRAPPER=sccache
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          sccache --stop-server || true
+          if ! sccache --start-server; then
+            echo "sccache backend unavailable, falling back to direct rustc"
+            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "frost-tune-rust-v1"
+          key: "${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}"
+          cache-on-failure: true
+          cache-directories: |
+            ~/.cache/sccache
+            ~/AppData/Local/Mozilla/sccache/cache
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
+
+      - name: Warm release build (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo build --release --target ${{ matrix.target }}; then
+            echo "Warm build failed, retrying without sccache"
+            RUSTC_WRAPPER= cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: sccache stats
+        run: sccache --show-stats || true
