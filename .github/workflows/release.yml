@@ -10,8 +10,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
 
 jobs:
   build-release-artifacts:
@@ -41,6 +39,17 @@ jobs:
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Enable sccache (best effort)
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          if ! sccache --start-server; then
+            echo "sccache backend unavailable, falling back to direct rustc"
+            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+            echo "SCCACHE_GHA_ENABLED=" >> "$GITHUB_ENV"
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -87,8 +96,16 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
 
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Build release (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo build --release --target ${{ matrix.target }}; then
+            echo "Release build failed, retrying without sccache"
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: sccache stats
+        run: sccache --show-stats || true
 
       - name: Prepare versioned binary filename
         shell: bash

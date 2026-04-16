@@ -9,8 +9,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: sccache
 
 jobs:
   test:
@@ -26,6 +24,17 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.7
 
+      - name: Enable sccache (best effort)
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          if ! sccache --start-server; then
+            echo "sccache backend unavailable, falling back to direct rustc"
+            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+            echo "SCCACHE_GHA_ENABLED=" >> "$GITHUB_ENV"
+          fi
+
       - name: Install Linux dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
 
@@ -37,8 +46,13 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.event_name != 'pull_request' }}
 
-      - name: Build check
-        run: cargo check --lib
+      - name: Build check (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo check --lib; then
+            echo "Build check failed, retrying without sccache"
+            RUSTC_WRAPPER= SCCACHE_GHA_ENABLED= cargo check --lib
+          fi
 
       - name: sccache stats
         run: sccache --show-stats || true
