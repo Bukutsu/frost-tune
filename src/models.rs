@@ -83,7 +83,7 @@ impl Device {
 
     pub fn name(&self) -> &str {
         match self {
-            Device::TP35Pro => "Topping TP35 Pro",
+            Device::TP35Pro => "EPZ TP35 Pro",
             Device::Unknown => "Unknown Device",
         }
     }

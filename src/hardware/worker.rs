@@ -15,6 +15,16 @@ use crate::models::{
 pub struct WorkerStatus {
     pub connected: bool,
     pub physically_present: bool,
+    pub device: Option<DeviceInfo>,
+}
+
+fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
+    DeviceInfo {
+        vendor_id: device_info.vendor_id(),
+        product_id: device_info.product_id(),
+        path: device_info.path().to_string_lossy().into(),
+        manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
+    }
 }
 
 pub enum UsbCommand {
@@ -103,10 +113,12 @@ impl UsbWorker {
                         }
                         UsbCommand::Status(resp) => {
                             let _ = api.refresh_devices();
-                            let physically_present = find_device_info(&api).is_some();
+                            let physical_device = find_device_info(&api);
+                            let physically_present = physical_device.is_some();
                             let status = WorkerStatus {
                                 connected: device.is_some(),
                                 physically_present,
+                                device: physical_device.as_ref().map(device_info_from_hid),
                             };
                             let _ = resp.send(status);
                         }
@@ -173,9 +185,10 @@ fn worker_connect(
     api: &hidapi::HidApi,
 ) -> ConnectionResult {
     if device.is_some() {
+        let current = find_device_info(api).map(|d| device_info_from_hid(&d));
         return ConnectionResult {
             success: true,
-            device: None,
+            device: current,
             error: None,
         };
     }
@@ -197,12 +210,7 @@ fn worker_connect(
             *device_type = Device::from_vid_pid(device_info.vendor_id(), device_info.product_id());
             ConnectionResult {
                 success: true,
-                device: Some(DeviceInfo {
-                    vendor_id: device_info.vendor_id(),
-                    product_id: device_info.product_id(),
-                    path: device_info.path().to_string_lossy().into(),
-                    manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
-                }),
+                device: Some(device_info_from_hid(&device_info)),
                 error: None,
             }
         }

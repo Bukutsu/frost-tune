@@ -21,12 +21,10 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary: frost-tune
-            artifact: frost-tune-x86_64-unknown-linux-gnu.tar.gz
             deps: libudev-dev pkg-config
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: frost-tune.exe
-            artifact: frost-tune-x86_64-pc-windows-msvc.zip
             deps: ""
     runs-on: ${{ matrix.os }}
 
@@ -38,6 +36,40 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Derive release metadata
+        shell: bash
+        run: |
+          echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Sync Cargo.toml version from tag
+        shell: bash
+        run: |
+          python - <<'PY'
+          import pathlib
+          import re
+          import os
+
+          version = os.environ["RELEASE_VERSION"]
+          cargo_toml = pathlib.Path("Cargo.toml")
+          content = cargo_toml.read_text(encoding="utf-8")
+          updated = re.sub(
+              r'(?m)^version\s*=\s*"[^"]+"\s*$',
+              f'version = "{version}"',
+              content,
+              count=1,
+          )
+          if updated == content:
+              raise SystemExit("Failed to update Cargo.toml version")
+          cargo_toml.write_text(updated, encoding="utf-8")
+          print(f"Set Cargo.toml version to {version}")
+          PY
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -52,19 +84,22 @@ jobs:
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package Linux artifact
-        if: matrix.os == 'ubuntu-latest'
-        run: tar czf ${{ matrix.artifact }} -C target/${{ matrix.target }}/release ${{ matrix.binary }}
-
-      - name: Package Windows artifact
-        if: matrix.os == 'windows-latest'
-        run: powershell -Command "Compress-Archive -Path target\${{ matrix.target }}\release\${{ matrix.binary }} -DestinationPath ${{ matrix.artifact }}"
+      - name: Prepare versioned binary filename
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            ASSET_NAME="frost-tune-${RELEASE_TAG}-${{ matrix.target }}.exe"
+          else
+            ASSET_NAME="frost-tune-${RELEASE_TAG}-${{ matrix.target }}"
+          fi
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$ASSET_NAME"
+          echo "ASSET_NAME=$ASSET_NAME" >> "$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_NAME }}
           retention-days: 14
 
   publish-github-release:
@@ -72,23 +107,16 @@ jobs:
     needs: build-release-artifacts
     runs-on: ubuntu-latest
     steps:
-      - name: Download Linux artifact
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
-          name: frost-tune-x86_64-unknown-linux-gnu.tar.gz
+          pattern: frost-tune-*
           path: artifacts
-
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frost-tune-x86_64-pc-windows-msvc.zip
-          path: artifacts
+          merge-multiple: true
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/frost-tune-x86_64-unknown-linux-gnu.tar.gz
-            artifacts/frost-tune-x86_64-pc-windows-msvc.zip
+          files: artifacts/*
           generate_release_notes: true
           fail_on_unmatched_files: true

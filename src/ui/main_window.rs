@@ -2,7 +2,7 @@ use crate::autoeq;
 use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
-    ConnectionResult, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
+    ConnectionResult, Device, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
     MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso,
     ISO_FREQUENCIES,
 };
@@ -104,6 +104,7 @@ impl MainWindow {
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
+            connected_device: None,
             diagnostics: DiagnosticsStore::default(),
         };
         let load_profiles_task = Task::perform(
@@ -250,17 +251,25 @@ impl MainWindow {
             }
             Message::WorkerConnected(result) => {
                 self.operation_lock.is_connecting = false;
-                if result.success {
-                    self.connection_status = ConnectionStatus::Connected;
+                let device_name_owned = if let Some(ref d) = result.device {
+                        Device::from_vid_pid(d.vendor_id, d.product_id).name().to_string()
+                    } else {
+                        "Unknown Device".to_string()
+                    };
+
+                    if result.success {
+                        self.connection_status = ConnectionStatus::Connected;
+                        self.connected_device = result.device;
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
-                        "Connected successfully",
+                        format!("Connected to {}", device_name_owned),
                     ));
-                    self.set_status("Connected successfully", StatusSeverity::Success)
+                    self.set_status(format!("Connected to {}", device_name_owned), StatusSeverity::Success)
                 } else {
                     let err = result.error.unwrap_or_else(|| "Unknown".into());
                     self.connection_status = ConnectionStatus::Error(err.clone());
+                    self.connected_device = None;
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Error,
                         Source::Worker,
@@ -277,6 +286,7 @@ impl MainWindow {
                     "Disconnected",
                 ));
                 self.connection_status = ConnectionStatus::Disconnected;
+                self.connected_device = None;
                 self.set_status("Disconnected", StatusSeverity::Info)
             }
             Message::WorkerPulled(result) => {
@@ -358,8 +368,15 @@ impl MainWindow {
                 }
             }
             Message::WorkerStatus(status) => {
+                self.connected_device = if status.connected {
+                    status.device.clone()
+                } else {
+                    None
+                };
+
                 if status.connected && self.connection_status != ConnectionStatus::Connected {
                     self.connection_status = ConnectionStatus::Connected;
+                    self.disconnect_reason = DisconnectReason::None;
                     log::info!("Device connected");
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
@@ -391,6 +408,7 @@ impl MainWindow {
                         rx.recv().unwrap_or(WorkerStatus {
                             connected: false,
                             physically_present: false,
+                            device: None,
                         })
                     },
                     Message::WorkerStatus,
@@ -1103,6 +1121,29 @@ impl MainWindow {
             ConnectionStatus::Error(e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
         };
 
+        let device_info_text = if let Some(ref dev) = self.connected_device {
+            let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
+            let name = device_type.name();
+            let vid_pid = format!("VID:{:04X} PID:{:04X}", dev.vendor_id, dev.product_id);
+            let mfr = dev.manufacturer.as_deref().map(|m| format!(" ({})", m)).unwrap_or_default();
+            let row_el: Element<'_, Message> = column![
+                text(format!("Device: {}", name))
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_PRIMARY),
+                text(format!("{}{}", vid_pid, mfr))
+                    .size(TYPE_CAPTION)
+                    .color(TOKYO_NIGHT_MUTED),
+            ]
+            .spacing(SPACE_4)
+            .into();
+            row_el
+        } else {
+            text("No device connected")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .into()
+        };
+
         let btn_row = row![
             if !is_busy
                 && (self.connection_status == ConnectionStatus::Disconnected
@@ -1148,6 +1189,7 @@ impl MainWindow {
                 text("Frost-Tune")
                     .size(TYPE_DISPLAY)
                     .color(TOKYO_NIGHT_PRIMARY),
+                device_info_text,
                 text("Workflow: Connect → Read Device → Edit → Write Device")
                     .size(TYPE_CAPTION)
                     .color(TOKYO_NIGHT_MUTED),

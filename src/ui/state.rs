@@ -1,6 +1,6 @@
 use crate::diagnostics::DiagnosticsStore;
 use crate::hardware::worker::UsbWorker;
-use crate::models::Filter;
+use crate::models::{DeviceInfo, Filter};
 use crate::storage::Profile;
 use crate::ui::messages::StatusMessage;
 use std::sync::Arc;
@@ -93,4 +93,5 @@ pub struct MainWindow {
     pub operation_lock: OperationLock,
     pub worker: Option<Arc<UsbWorker>>,
     pub diagnostics: DiagnosticsStore,
+    pub connected_device: Option<DeviceInfo>,
 }
