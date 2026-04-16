@@ -2,6 +2,13 @@ use iced::theme::Palette;
 use iced::widget::container;
 use iced::{color, Background, Border, Color, Theme};
 
+pub const SPACE_8: f32 = 8.0;
+pub const TYPE_BODY: f32 = 16.0;
+pub const SURFACE_BG: Color = TOKYO_NIGHT_BG_HIGHLIGHT;
+pub const BAND_ROW_MIN_HEIGHT: f32 = 40.0;
+pub const BAND_ROW_PADDING: f32 = 8.0;
+pub const BAND_LABEL_WIDTH: f32 = 20.0;
+
 // Official Tokyo Night palette (origin: folke/tokyonight.nvim)
 pub const TOKYO_NIGHT_BG: Color = color!(0x1a1b26);
 pub const TOKYO_NIGHT_BG_DARK: Color = color!(0x16161e);

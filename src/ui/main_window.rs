@@ -24,13 +24,31 @@ use iced::{
 };
 use std::sync::Arc;
 
+pub const STATUS_AUTO_CLEAR_SECS: u64 = 5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutBucket {
+    Narrow,
+    Medium,
+    Wide,
+}
+
+pub fn layout_bucket_for_width(width: f32) -> LayoutBucket {
+    if width < 1000.0 {
+        LayoutBucket::Narrow
+    } else if width < 1280.0 {
+        LayoutBucket::Medium
+    } else {
+        LayoutBucket::Wide
+    }
+}
+
 // COSMIC 8px grid spacing system
 const SPACE_4: f32 = 4.0;
 const SPACE_8: f32 = 8.0;
 const SPACE_12: f32 = 12.0;
 const SPACE_16: f32 = 16.0;
 const SPACE_24: f32 = 24.0;
-const SPACE_32: f32 = 32.0;
 
 // COSMIC typography scale
 const TYPE_DISPLAY: f32 = 28.0;
@@ -81,16 +99,22 @@ impl MainWindow {
                 selected_profile_name: None,
                 new_profile_name: String::new(),
                 input_buffer: InputBuffer::default(),
+                advanced_filters_expanded: false,
+                diagnostics_expanded: false,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
             diagnostics: DiagnosticsStore::default(),
         };
-        let load_task = Task::perform(
+        let load_profiles_task = Task::perform(
             async move { crate::storage::load_all_profiles().unwrap_or_default() },
             Message::ProfilesLoaded,
         );
-        (window, load_task)
+        let load_prefs_task = Task::perform(
+            async move { crate::storage::load_ui_preferences().unwrap_or_default() },
+            Message::UiPreferencesLoaded,
+        );
+        (window, Task::batch(vec![load_profiles_task, load_prefs_task]))
     }
 
     fn title(&self) -> String {
@@ -101,7 +125,7 @@ impl MainWindow {
         theme::theme()
     }
 
-    fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ClearStatusMessage => {
                 self.editor_state.status_message = None;
@@ -119,7 +143,7 @@ impl MainWindow {
                     "Connect pressed",
                 ));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
-                Task::perform(
+                let connect_task = Task::perform(
                     async move {
                         let rx = worker.connect();
                         rx.recv().unwrap_or(ConnectionResult {
@@ -129,20 +153,23 @@ impl MainWindow {
                         })
                     },
                     Message::WorkerConnected,
-                )
+                );
+                let status_task = self.set_status("Connecting to device...", StatusSeverity::Info);
+                Task::batch(vec![connect_task, status_task])
             }
             Message::DisconnectPressed => {
                 if self.worker.is_none() {
                     return Task::none();
                 }
                 self.disconnect_reason = DisconnectReason::Manual;
+                self.operation_lock.is_disconnecting = true;
                 self.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,
                     "Disconnect pressed",
                 ));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
-                Task::perform(
+                let disconnect_task = Task::perform(
                     async move {
                         let rx = worker.disconnect();
                         rx.recv().unwrap_or(OperationResult {
@@ -152,12 +179,15 @@ impl MainWindow {
                         })
                     },
                     Message::WorkerDisconnected,
-                )
+                );
+                let status_task = self.set_status("Disconnecting...", StatusSeverity::Info);
+                Task::batch(vec![disconnect_task, status_task])
             }
             Message::PullPressed => {
                 if self.worker.is_none()
                     || self.operation_lock.is_pulling
                     || self.operation_lock.is_pushing
+                    || self.operation_lock.is_connecting
                 {
                     return Task::none();
                 }
@@ -168,7 +198,7 @@ impl MainWindow {
                     "Pull pressed",
                 ));
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
-                Task::perform(
+                let pull_task = Task::perform(
                     async move {
                         let rx = worker.pull_peq();
                         rx.recv().unwrap_or(OperationResult {
@@ -178,12 +208,15 @@ impl MainWindow {
                         })
                     },
                     Message::WorkerPulled,
-                )
+                );
+                let status_task = self.set_status("Reading from device...", StatusSeverity::Info);
+                Task::batch(vec![pull_task, status_task])
             }
             Message::PushPressed => {
                 if self.worker.is_none()
                     || self.operation_lock.is_pulling
                     || self.operation_lock.is_pushing
+                    || self.operation_lock.is_connecting
                 {
                     return Task::none();
                 }
@@ -196,7 +229,7 @@ impl MainWindow {
                 let worker = Arc::clone(self.worker.as_ref().unwrap());
                 let filters = self.editor_state.filters.clone();
                 let global_gain = self.editor_state.global_gain;
-                Task::perform(
+                let push_task = Task::perform(
                     async move {
                         use crate::models::PushPayload;
                         let payload = PushPayload {
@@ -211,7 +244,9 @@ impl MainWindow {
                         })
                     },
                     Message::WorkerPushed,
-                )
+                );
+                let status_task = self.set_status("Writing to device...", StatusSeverity::Info);
+                Task::batch(vec![push_task, status_task])
             }
             Message::WorkerConnected(result) => {
                 self.operation_lock.is_connecting = false;
@@ -235,6 +270,7 @@ impl MainWindow {
                 }
             }
             Message::WorkerDisconnected(_) => {
+                self.operation_lock.is_disconnecting = false;
                 self.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::Worker,
@@ -333,6 +369,7 @@ impl MainWindow {
                 } else if !status.connected && self.connection_status == ConnectionStatus::Connected
                 {
                     self.connection_status = ConnectionStatus::Disconnected;
+                    self.disconnect_reason = DisconnectReason::DeviceLost;
                     log::info!("Device disconnected");
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
@@ -574,6 +611,11 @@ impl MainWindow {
                 self.editor_state.profiles = profiles;
                 Task::none()
             }
+            Message::UiPreferencesLoaded(prefs) => {
+                self.editor_state.advanced_filters_expanded = prefs.advanced_filters_expanded;
+                self.editor_state.diagnostics_expanded = prefs.diagnostics_expanded;
+                Task::none()
+            }
             Message::ProfileSelected(name) => {
                 if let Some(profile) = self.editor_state.profiles.iter().find(|p| p.name == name) {
                     self.editor_state.filters = profile
@@ -778,18 +820,55 @@ impl MainWindow {
                     _ => Task::none(),
                 }
             }
+            Message::ToggleAdvancedFilters(expanded) => {
+                self.editor_state.advanced_filters_expanded = expanded;
+                let prefs = crate::storage::UiPreferences {
+                    advanced_filters_expanded: self.editor_state.advanced_filters_expanded,
+                    diagnostics_expanded: self.editor_state.diagnostics_expanded,
+                };
+                if let Err(e) = crate::storage::save_ui_preferences(&prefs) {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Warn,
+                        Source::UI,
+                        format!("Failed to save UI preferences: {}", e),
+                    ));
+                }
+                Task::none()
+            }
+            Message::ToggleDiagnosticsExpanded(expanded) => {
+                self.editor_state.diagnostics_expanded = expanded;
+                let prefs = crate::storage::UiPreferences {
+                    advanced_filters_expanded: self.editor_state.advanced_filters_expanded,
+                    diagnostics_expanded: self.editor_state.diagnostics_expanded,
+                };
+                if let Err(e) = crate::storage::save_ui_preferences(&prefs) {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Warn,
+                        Source::UI,
+                        format!("Failed to save UI preferences: {}", e),
+                    ));
+                }
+                Task::none()
+            }
         }
     }
 
-    fn set_status(&mut self, content: impl Into<String>, severity: StatusSeverity) -> Task<Message> {
-        let should_auto_clear = matches!(severity, StatusSeverity::Info | StatusSeverity::Success);
+    pub fn set_status(&mut self, content: impl Into<String>, severity: StatusSeverity) -> Task<Message> {
+        let content = content.into();
+        self.diagnostics.push(DiagnosticEvent::new(
+            LogLevel::Info,
+            Source::UI,
+            format!("Status set: {}", content),
+        ));
+        let should_auto_clear = self.status_should_auto_clear(severity);
         self.editor_state.status_message = Some(StatusMessage {
-            content: content.into(),
+            content,
             severity,
+            created_at: chrono::Local::now().to_rfc3339(),
         });
         if should_auto_clear {
             Task::perform(
-                async { tokio::time::sleep(std::time::Duration::from_secs(5)).await },
+                async { tokio::time::sleep(Self::status_auto_clear_duration()).await },
                 |_| Message::ClearStatusMessage,
             )
         } else {
@@ -797,27 +876,167 @@ impl MainWindow {
         }
     }
 
-    fn view(&self) -> Element<'_, Message> {
-        let content = column![
-            self.view_header(),
-            self.view_status_banner(),
-            self.view_presets_and_preamp(),
-            self.view_graph(),
-            self.view_bands(),
-            responsive(move |size| {
-                if size.width < 1000.0 {
-                    column![self.view_autoeq(), self.view_diagnostics(),]
-                        .spacing(SPACE_16)
-                        .into()
+    pub fn status_auto_clear_duration() -> std::time::Duration {
+        std::time::Duration::from_secs(STATUS_AUTO_CLEAR_SECS)
+    }
+
+    pub fn status_should_auto_clear(&self, severity: StatusSeverity) -> bool {
+        if self.operation_lock.is_connecting
+            || self.operation_lock.is_disconnecting
+            || self.operation_lock.is_pulling
+            || self.operation_lock.is_pushing
+        {
+            return false;
+        }
+        matches!(severity, StatusSeverity::Info | StatusSeverity::Success)
+    }
+
+    pub fn header_status_message(&self) -> String {
+        match &self.connection_status {
+            ConnectionStatus::Disconnected => "Disconnected".to_string(),
+            ConnectionStatus::Connecting => "Connecting...".to_string(),
+            ConnectionStatus::Connected => "Connected".to_string(),
+            ConnectionStatus::Error(e) => format!("Error: {}", e),
+        }
+    }
+
+    pub fn status_banner_message(&self) -> Option<String> {
+        self.editor_state
+            .status_message
+            .as_ref()
+            .map(|m| m.content.clone())
+    }
+
+    pub fn disabled_reason_for_action(&self, action: &str) -> Option<String> {
+        if let ConnectionStatus::Error(e) = &self.connection_status {
+            return Some(format!("Error: {}", e));
+        }
+
+        match action {
+            "connect" => {
+                if self.connection_status == ConnectionStatus::Disconnected {
+                    None
+                } else if self.operation_lock.is_connecting
+                    || self.connection_status == ConnectionStatus::Connecting
+                {
+                    Some("Connecting to device...".to_string())
                 } else {
-                    row![self.view_autoeq(), self.view_diagnostics(),]
-                        .spacing(SPACE_16)
-                        .into()
+                    Some("Device already connected or in error".to_string())
                 }
-            }),
-        ]
-        .spacing(SPACE_16)
-        .padding(SPACE_24);
+            }
+            "disconnect" => {
+                if self.operation_lock.is_disconnecting {
+                    Some("Disconnecting...".to_string())
+                } else if self.connection_status == ConnectionStatus::Disconnected {
+                    Some("Device disconnected".to_string())
+                } else if self.operation_lock.is_connecting
+                    || self.connection_status == ConnectionStatus::Connecting
+                {
+                    Some("Connecting to device...".to_string())
+                } else {
+                    None
+                }
+            }
+            "read" => {
+                if self.connection_status == ConnectionStatus::Disconnected {
+                    Some("Device disconnected".to_string())
+                } else if self.operation_lock.is_connecting
+                    || self.connection_status == ConnectionStatus::Connecting
+                {
+                    Some("Connecting to device...".to_string())
+                } else if self.operation_lock.is_pulling {
+                    Some("Operation in progress: Reading".to_string())
+                } else if self.operation_lock.is_pushing {
+                    Some("Operation in progress: Writing or Connecting".to_string())
+                } else {
+                    None
+                }
+            }
+            "write" => {
+                if self.connection_status == ConnectionStatus::Disconnected {
+                    Some("Device disconnected".to_string())
+                } else if self.operation_lock.is_connecting
+                    || self.connection_status == ConnectionStatus::Connecting
+                {
+                    Some("Connecting to device...".to_string())
+                } else if self.operation_lock.is_pushing {
+                    Some("Operation in progress: Writing".to_string())
+                } else if self.operation_lock.is_pulling {
+                    Some("Operation in progress: Reading or Connecting".to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn header_disabled_reason_message(&self) -> Option<String> {
+        if self.operation_lock.is_disconnecting {
+            return Some("Disconnecting...".to_string());
+        }
+        if self.operation_lock.is_connecting {
+            return Some("Connecting to device...".to_string());
+        }
+        if self.operation_lock.is_pulling {
+            return Some("Operation in progress: Reading".to_string());
+        }
+        if self.operation_lock.is_pushing {
+            return Some("Operation in progress: Writing or Connecting".to_string());
+        }
+        if let ConnectionStatus::Error(e) = &self.connection_status {
+            return Some(format!("Error: {}", e));
+        }
+        if self.connection_status == ConnectionStatus::Disconnected {
+            return Some("Device disconnected".to_string());
+        }
+        None
+    }
+
+    pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
+        match bucket {
+            LayoutBucket::Narrow => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
+            LayoutBucket::Medium => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
+            LayoutBucket::Wide => vec!["header", "status", "autoeq", "diagnostics", "presets", "graph", "advanced"],
+        }
+    }
+
+    fn view(&self) -> Element<'_, Message> {
+        let content = responsive(move |size| {
+            let bucket = layout_bucket_for_width(size.width);
+            let (padding, spacing) = if matches!(bucket, LayoutBucket::Narrow) {
+                (SPACE_16, SPACE_12)
+            } else if matches!(bucket, LayoutBucket::Medium) {
+                (SPACE_24, SPACE_16)
+            } else {
+                (SPACE_24, SPACE_16)
+            };
+
+            let layout = if matches!(bucket, LayoutBucket::Wide) {
+                column![
+                    self.view_header(),
+                    self.view_status_banner(),
+                    row![self.view_autoeq(), self.view_diagnostics_section()].spacing(spacing),
+                    self.view_presets_and_preamp(),
+                    self.view_graph(),
+                    self.view_advanced_filters_section(),
+                ]
+                .spacing(spacing)
+            } else {
+                column![
+                    self.view_header(),
+                    self.view_status_banner(),
+                    self.view_autoeq(),
+                    self.view_presets_and_preamp(),
+                    self.view_graph(),
+                    self.view_advanced_filters_section(),
+                    self.view_diagnostics_section(),
+                ]
+                .spacing(spacing)
+            };
+
+            container(layout.padding(padding)).into()
+        });
 
         container(scrollable(content))
             .width(Length::Fill)
@@ -865,7 +1084,8 @@ impl MainWindow {
     fn view_header(&self) -> Element<'_, Message> {
         let is_busy = self.operation_lock.is_pulling
             || self.operation_lock.is_pushing
-            || self.operation_lock.is_connecting;
+            || self.operation_lock.is_connecting
+            || self.operation_lock.is_disconnecting;
 
         let status_text = match &self.connection_status {
             ConnectionStatus::Disconnected => {
@@ -900,14 +1120,14 @@ impl MainWindow {
                 button("Disconnect")
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Pull").on_press(Message::PullPressed)
+                button("Read Device").on_press(Message::PullPressed)
             } else {
-                button("Pull")
+                button("Read Device")
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Push").on_press(Message::PushPressed)
+                button("Write Device").on_press(Message::PushPressed)
             } else {
-                button("Push")
+                button("Write Device")
             },
         ]
         .spacing(SPACE_8);
@@ -928,7 +1148,7 @@ impl MainWindow {
                 text("Frost-Tune")
                     .size(TYPE_DISPLAY)
                     .color(TOKYO_NIGHT_PRIMARY),
-                text("COSMIC-inspired controls")
+                text("Workflow: Connect → Read Device → Edit → Write Device")
                     .size(TYPE_CAPTION)
                     .color(TOKYO_NIGHT_MUTED),
                 row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
@@ -1159,6 +1379,49 @@ impl MainWindow {
             .into()
     }
 
+    fn view_advanced_filters_section(&self) -> Element<'_, Message> {
+        let expanded = self.editor_state.advanced_filters_expanded;
+        let toggle_text = if expanded {
+            "Hide advanced filters"
+        } else {
+            "Show advanced filters"
+        };
+
+        let heading = row![
+            column![
+                text("Advanced filter controls")
+                    .size(TYPE_TITLE)
+                    .color(TOKYO_NIGHT_PRIMARY),
+                text("Manual PEQ editing for advanced users")
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_MUTED),
+            ]
+            .spacing(SPACE_4),
+            container(text("")).width(Length::Fill),
+            button(toggle_text).on_press(Message::ToggleAdvancedFilters(!expanded)),
+        ]
+        .align_y(iced::Alignment::Center)
+        .spacing(SPACE_12);
+
+        let body: Element<Message> = if expanded {
+            self.view_bands()
+        } else {
+            container(
+                text("AutoEQ import/export is recommended for most users.")
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_MUTED),
+            )
+            .padding([SPACE_12, SPACE_8])
+            .into()
+        };
+
+        container(column![heading, body].spacing(SPACE_12))
+            .padding(SPACE_16)
+            .style(theme::card_style)
+            .width(Length::Fill)
+            .into()
+    }
+
     fn view_autoeq(&self) -> Element<'_, Message> {
         let is_busy = self.operation_lock.is_pulling || self.operation_lock.is_pushing;
 
@@ -1242,6 +1505,43 @@ impl MainWindow {
         .style(theme::card_style)
         .width(Length::FillPortion(1))
         .into()
+    }
+
+    fn view_diagnostics_section(&self) -> Element<'_, Message> {
+        let expanded = self.editor_state.diagnostics_expanded;
+        let toggle_text = if expanded {
+            "Hide diagnostics"
+        } else {
+            "Show diagnostics"
+        };
+
+        let header = row![
+            text("Diagnostics")
+                .size(TYPE_TITLE)
+                .color(TOKYO_NIGHT_PRIMARY),
+            container(text("")).width(Length::Fill),
+            button(toggle_text).on_press(Message::ToggleDiagnosticsExpanded(!expanded)),
+        ]
+        .align_y(iced::Alignment::Center)
+        .spacing(SPACE_12);
+
+        let body: Element<Message> = if expanded {
+            self.view_diagnostics()
+        } else {
+            container(
+                text("Diagnostics are hidden by default. Expand when troubleshooting.")
+                    .size(TYPE_LABEL)
+                    .color(TOKYO_NIGHT_MUTED),
+            )
+            .padding([SPACE_12, SPACE_8])
+            .into()
+        };
+
+        container(column![header, body].spacing(SPACE_12))
+            .padding(SPACE_16)
+            .style(theme::card_style)
+            .width(Length::FillPortion(1))
+            .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {

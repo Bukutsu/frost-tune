@@ -5,6 +5,26 @@ use iced::{Color, Point, Rectangle, Renderer, Theme};
 
 use crate::ui::theme::TOKYO_NIGHT_PRIMARY;
 
+#[derive(Debug, Clone, Copy)]
+pub struct GraphLabelLayout {
+    pub title_pos: Point,
+    pub freq_axis_pos: Point,
+    pub gain_axis_pos: Point,
+    pub legend_combined_pos: Point,
+}
+
+pub fn graph_label_layout(width: f32, height: f32) -> GraphLabelLayout {
+    let safe_width = width.max(320.0);
+    let safe_height = height.max(180.0);
+
+    GraphLabelLayout {
+        title_pos: Point::new(safe_width / 2.0, 24.0),
+        freq_axis_pos: Point::new(safe_width / 2.0, safe_height - 16.0),
+        gain_axis_pos: Point::new(24.0, safe_height / 2.0),
+        legend_combined_pos: Point::new((safe_width - 120.0).max(240.0), 24.0),
+    }
+}
+
 pub struct EqGraph {
     filters: Vec<Filter>,
     global_gain: i8,
