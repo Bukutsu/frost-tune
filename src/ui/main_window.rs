@@ -57,6 +57,13 @@ const TYPE_TITLE: f32 = 20.0;
 const TYPE_BODY: f32 = 16.0;
 const TYPE_LABEL: f32 = 14.0;
 const TYPE_CAPTION: f32 = 12.0;
+const BUTTON_VERTICAL_PADDING: f32 = 10.0;
+const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
+
+fn action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
+    button(text(label).size(TYPE_LABEL))
+        .padding([BUTTON_VERTICAL_PADDING, BUTTON_HORIZONTAL_PADDING])
+}
 
 fn parse_freq_string(s: &str) -> Option<u16> {
     let s = s.trim().to_lowercase();
@@ -1039,38 +1046,17 @@ impl MainWindow {
                 (SPACE_24, SPACE_16)
             };
 
-            let layout = if matches!(bucket, LayoutBucket::Wide) {
-                column![
-                    self.view_header(),
-                    self.view_status_banner(),
-                    self.view_autoeq(),
-                    self.view_presets_and_preamp(),
-                    row![
-                        container(column![
-                            self.view_graph(),
-                            self.view_advanced_filters_section(),
-                        ]
-                        .spacing(spacing))
-                        .width(Length::FillPortion(3)),
-                        container(self.view_diagnostics_section())
-                            .width(Length::FillPortion(2)),
-                    ]
-                    .spacing(spacing)
-                    .align_y(iced::Alignment::Start),
-                ]
-                .spacing(spacing)
-            } else {
-                column![
-                    self.view_header(),
-                    self.view_status_banner(),
-                    self.view_autoeq(),
-                    self.view_presets_and_preamp(),
-                    self.view_graph(),
-                    self.view_advanced_filters_section(),
-                    self.view_diagnostics_section(),
-                ]
-                .spacing(spacing)
-            };
+            let _is_wide = matches!(bucket, LayoutBucket::Wide);
+            let layout = column![
+                self.view_header(),
+                self.view_status_banner(),
+                self.view_autoeq(),
+                self.view_presets_and_preamp(),
+                self.view_graph(),
+                self.view_advanced_filters_section(),
+                self.view_diagnostics_section(),
+            ]
+            .spacing(spacing);
 
             container(layout.padding(padding)).into()
         });
@@ -1097,7 +1083,7 @@ impl MainWindow {
                     container(text("")).width(Length::Fill),
                     button(text("×").size(14))
                         .on_press(Message::ClearStatusMessage)
-                        .style(iced::widget::button::text)
+                        .style(theme::pill_text_button)
                 ]
                 .spacing(SPACE_16)
                 .align_y(iced::Alignment::Center),
@@ -1168,28 +1154,32 @@ impl MainWindow {
                 && (self.connection_status == ConnectionStatus::Disconnected
                     || matches!(&self.connection_status, ConnectionStatus::Error(_)))
             {
-                button("Connect").on_press(Message::ConnectPressed)
+                action_button("Connect")
+                    .on_press(Message::ConnectPressed)
+                    .style(theme::pill_primary_button)
             } else {
-                button("Connect")
+                action_button("Connect").style(theme::pill_primary_button)
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Disconnect")
+                action_button("Disconnect")
                     .on_press(Message::DisconnectPressed)
-                    .style(iced::widget::button::danger)
+                    .style(theme::pill_secondary_button)
             } else {
-                button("Disconnect")
+                action_button("Disconnect").style(theme::pill_secondary_button)
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Read Device")
+                action_button("Read Device")
                     .on_press(Message::PullPressed)
-                    .style(iced::widget::button::secondary)
+                    .style(theme::pill_secondary_button)
             } else {
-                button("Read Device").style(iced::widget::button::secondary)
+                action_button("Read Device").style(theme::pill_secondary_button)
             },
             if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                button("Write Device").on_press(Message::PushPressed)
+                action_button("Write Device")
+                    .on_press(Message::PushPressed)
+                    .style(theme::pill_primary_button)
             } else {
-                button("Write Device")
+                action_button("Write Device").style(theme::pill_primary_button)
             },
         ]
         .spacing(SPACE_8);
@@ -1244,20 +1234,24 @@ impl MainWindow {
                 Message::ProfileSelected,
             )
             .placeholder("Select Preset")
+            .style(theme::m3_input_pick_list)
             .width(Length::FillPortion(2)),
             text_input("New Name...", &self.editor_state.new_profile_name)
                 .on_input(Message::ProfileNameInput)
+                .style(theme::m3_filled_input)
                 .width(Length::FillPortion(1)),
-            button("Reset")
+            action_button("Reset")
                 .on_press_maybe(if is_busy { None } else { Some(Message::ResetFiltersPressed) })
-                .style(iced::widget::button::secondary),
-            button("Save").on_press(Message::SaveProfilePressed),
+                .style(theme::pill_secondary_button),
+            action_button("Save")
+                .on_press(Message::SaveProfilePressed)
+                .style(theme::pill_primary_button),
             if !is_busy && self.editor_state.selected_profile_name.is_some() {
-                button("Delete")
+                action_button("Delete")
                     .on_press(Message::DeleteProfilePressed)
-                    .style(iced::widget::button::danger)
+                    .style(theme::pill_danger_button)
             } else {
-                button("Delete")
+                action_button("Delete").style(theme::pill_danger_button)
             },
         ]
         .spacing(SPACE_12)
@@ -1347,6 +1341,7 @@ impl MainWindow {
                         move |t| Message::BandTypeChanged(i, t),
                     )
                     .width(Length::Fixed(110.0))
+                    .style(theme::m3_input_pick_list)
                     .text_size(12),
                     row![
                         text_input(
@@ -1359,7 +1354,8 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandFreqInput(i, s))
                         .on_submit(Message::BandFreqInputCommit(i))
-                        .width(Length::Fixed(86.0))
+                        .style(theme::m3_outlined_input)
+                        .width(Length::Fixed(80.0))
                         .size(TYPE_LABEL),
                     ]
                     .spacing(SPACE_4)
@@ -1383,12 +1379,13 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandGainInput(i, s))
                         .on_submit(Message::BandGainInputCommit(i))
-                        .width(Length::Fixed(64.0))
+                        .style(theme::m3_outlined_input)
+                        .width(Length::Fixed(60.0))
                         .size(TYPE_LABEL),
                     ]
                     .spacing(SPACE_4)
                     .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(3)),
+                    .width(Length::FillPortion(4)),
                     row![
                         text_input(
                             "",
@@ -1400,14 +1397,15 @@ impl MainWindow {
                         )
                         .on_input(move |s| Message::BandQInput(i, s))
                         .on_submit(Message::BandQInputCommit(i))
-                        .width(Length::Fixed(64.0))
+                        .style(theme::m3_outlined_input)
+                        .width(Length::Fixed(60.0))
                             .size(TYPE_LABEL),
                     ]
                     .spacing(SPACE_4)
                     .align_y(iced::Alignment::Center)
                     .width(Length::FillPortion(1)),
                 ]
-                .spacing(SPACE_8)
+                .spacing(SPACE_4)
                 .align_y(iced::Alignment::Center)
                 .into()
             })
@@ -1423,16 +1421,24 @@ impl MainWindow {
                 .size(TYPE_LABEL)
                 .color(TOKYO_NIGHT_MUTED)
                 .width(Length::FillPortion(2)),
-            text("Gain (dB)")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .width(Length::FillPortion(3)),
+            row![
+                container(
+                    text("Gain (dB)")
+                        .size(TYPE_LABEL)
+                        .color(TOKYO_NIGHT_MUTED)
+                )
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+                container(text(""))
+                    .width(Length::Fixed(60.0)),
+            ]
+            .width(Length::FillPortion(4)),
             text("Q")
                 .size(TYPE_LABEL)
                 .color(TOKYO_NIGHT_MUTED)
                 .width(Length::FillPortion(1)),
         ]
-        .spacing(SPACE_8)
+        .spacing(SPACE_4)
         .align_y(iced::Alignment::Center);
 
         container(
@@ -1466,7 +1472,9 @@ impl MainWindow {
             ]
             .spacing(SPACE_4),
             container(text("")).width(Length::Fill),
-            button(toggle_text).on_press(Message::ToggleAdvancedFilters(!expanded)),
+            action_button(toggle_text)
+                .on_press(Message::ToggleAdvancedFilters(!expanded))
+                .style(theme::pill_secondary_button),
         ]
         .align_y(iced::Alignment::Center)
         .spacing(SPACE_12);
@@ -1500,21 +1508,21 @@ impl MainWindow {
                     .size(TYPE_LABEL)
                     .color(TOKYO_NIGHT_MUTED),
                 row![
-                    button("Import Clipboard")
+                    action_button("Import Clipboard")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromClipboard) })
-                        .style(iced::widget::button::secondary),
-                    button("Import File")
+                        .style(theme::pill_secondary_button),
+                    action_button("Import File")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromFilePressed) })
-                        .style(iced::widget::button::secondary),
+                        .style(theme::pill_secondary_button),
                 ]
                 .spacing(SPACE_8),
                 row![
-                    button("Export Clipboard")
+                    action_button("Export Clipboard")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ExportAutoEQPressed) })
-                        .style(iced::widget::button::secondary),
-                    button("Export File")
+                        .style(theme::pill_secondary_button),
+                    action_button("Export File")
                         .on_press_maybe(if is_busy { None } else { Some(Message::ExportToFilePressed) })
-                        .style(iced::widget::button::secondary),
+                        .style(theme::pill_secondary_button),
                 ]
                 .spacing(SPACE_8),
             ]
@@ -1582,18 +1590,18 @@ impl MainWindow {
                     container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(logs_height)))
                 },
                 row![
-                    button("Copy")
+                    action_button("Copy")
                         .on_press(Message::CopyDiagnostics)
-                        .style(iced::widget::button::text),
-                    button("Export")
+                        .style(theme::pill_text_button),
+                    action_button("Export")
                         .on_press(Message::ExportDiagnosticsToFile)
-                        .style(iced::widget::button::text),
-                    button("Clear")
+                        .style(theme::pill_text_button),
+                    action_button("Clear")
                         .on_press(Message::ClearDiagnostics)
                         .style(if has_events {
-                            iced::widget::button::danger
+                            theme::pill_outlined_danger_button
                         } else {
-                            iced::widget::button::text
+                            theme::pill_text_button
                         }),
                 ]
                 .spacing(SPACE_8),
@@ -1619,7 +1627,9 @@ impl MainWindow {
                 .size(TYPE_TITLE)
                 .color(TOKYO_NIGHT_PRIMARY),
             container(text("")).width(Length::Fill),
-            button(toggle_text).on_press(Message::ToggleDiagnosticsExpanded(!expanded)),
+            action_button(toggle_text)
+                .on_press(Message::ToggleDiagnosticsExpanded(!expanded))
+                .style(theme::pill_secondary_button),
         ]
         .align_y(iced::Alignment::Center)
         .spacing(SPACE_12);
