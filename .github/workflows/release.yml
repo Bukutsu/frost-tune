@@ -80,20 +80,30 @@ jobs:
           import pathlib
           import re
           import os
+          import sys
 
           version = os.environ["RELEASE_VERSION"]
           cargo_toml = pathlib.Path("Cargo.toml")
           content = cargo_toml.read_text(encoding="utf-8")
+
+          match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', content)
+          if not match:
+              print("WARNING: Could not find version in Cargo.toml")
+              sys.exit(0)
+
+          current_version = match.group(1)
+          if current_version == version:
+              print(f"Cargo.toml already at version {version}, skipping update")
+              sys.exit(0)
+
           updated = re.sub(
               r'(?m)^version\s*=\s*"[^"]+"\s*$',
               f'version = "{version}"',
               content,
               count=1,
           )
-          if updated == content:
-              raise SystemExit("Failed to update Cargo.toml version")
           cargo_toml.write_text(updated, encoding="utf-8")
-          print(f"Set Cargo.toml version to {version}")
+          print(f"Updated Cargo.toml version from {current_version} to {version}")
           PY
 
       - name: Install Linux dependencies
