@@ -1061,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "frost-tune"
-version = "0.2.1"
+version = "0.3.10"
 dependencies = [
  "chrono",
  "env_logger",
