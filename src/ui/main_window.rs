@@ -7,7 +7,7 @@ use crate::models::{
 };
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
-use crate::ui::state::{ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow, OperationLock};
+use crate::ui::state::{ConfirmAction, ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow, OperationLock};
 use crate::ui::tokens::{WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
 use crate::ui::theme::{
     self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MUTED,
@@ -50,6 +50,7 @@ const SPACE_8: f32 = 8.0;
 const SPACE_12: f32 = 12.0;
 const SPACE_16: f32 = 16.0;
 const SPACE_24: f32 = 24.0;
+const SPACE_2: f32 = 2.0;
 
 // COSMIC typography scale
 const TYPE_DISPLAY: f32 = 28.0;
@@ -109,6 +110,7 @@ impl MainWindow {
                 input_buffer: InputBuffer::default(),
                 advanced_filters_expanded: false,
                 diagnostics_expanded: false,
+                pending_confirm: ConfirmAction::None,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -138,6 +140,10 @@ impl MainWindow {
         match message {
             Message::ClearStatusMessage => {
                 self.editor_state.status_message = None;
+                Task::none()
+            }
+            Message::DismissConfirmDialog => {
+                self.editor_state.pending_confirm = ConfirmAction::None;
                 Task::none()
             }
             Message::ConnectPressed => {
@@ -455,6 +461,9 @@ impl MainWindow {
                             if let Some(v) = parse_freq_string(&s) {
                                 band.freq = v.clamp(MIN_FREQ, MAX_FREQ);
                                 band.enabled = true;
+                                self.editor_state.input_buffer.freq_error = None;
+                            } else {
+                                self.editor_state.input_buffer.freq_error = Some((index, "Freq: 20-20000 Hz".to_string()));
                             }
                         }
                     }
@@ -466,8 +475,15 @@ impl MainWindow {
                     if i == index {
                         if let Some(band) = self.editor_state.filters.get_mut(index) {
                             if let Ok(v) = s.trim().parse::<f64>() {
-                                band.gain = v.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
-                                band.enabled = true;
+                                if v >= MIN_BAND_GAIN && v <= MAX_BAND_GAIN {
+                                    band.gain = v;
+                                    band.enabled = true;
+                                    self.editor_state.input_buffer.gain_error = None;
+                                } else {
+                                    self.editor_state.input_buffer.gain_error = Some((index, format!("Gain: {:.0} to {:.0}", MIN_BAND_GAIN, MAX_BAND_GAIN)));
+                                }
+                            } else {
+                                self.editor_state.input_buffer.gain_error = Some((index, "Gain: enter number".to_string()));
                             }
                         }
                     }
@@ -479,8 +495,15 @@ impl MainWindow {
                     if i == index {
                         if let Some(band) = self.editor_state.filters.get_mut(index) {
                             if let Ok(v) = s.trim().parse::<f64>() {
-                                band.q = v.clamp(MIN_Q, MAX_Q);
-                                band.enabled = true;
+                                if v >= MIN_Q && v <= MAX_Q {
+                                    band.q = v;
+                                    band.enabled = true;
+                                    self.editor_state.input_buffer.q_error = None;
+                                } else {
+                                    self.editor_state.input_buffer.q_error = Some((index, format!("Q: {:.1} to {:.1}", MIN_Q, MAX_Q)));
+                                }
+                            } else {
+                                self.editor_state.input_buffer.q_error = Some((index, "Q: enter number".to_string()));
                             }
                         }
                     }
@@ -533,17 +556,26 @@ impl MainWindow {
                 Task::none()
             }
             Message::ResetFiltersPressed => {
-                let default_filters: Vec<Filter> =
-                    (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
-                self.editor_state.filters = default_filters;
-                self.editor_state.global_gain = 0;
-                self.editor_state.input_buffer = InputBuffer::default();
-                self.diagnostics.push(DiagnosticEvent::new(
-                    LogLevel::Info,
-                    Source::UI,
-                    "Reset filters to default",
-                ));
-                self.set_status("Filters reset to default", StatusSeverity::Info)
+                self.editor_state.pending_confirm = ConfirmAction::ResetFilters;
+                Task::none()
+            }
+            Message::ConfirmResetFilters => {
+                if matches!(self.editor_state.pending_confirm, ConfirmAction::ResetFilters) {
+                    let default_filters: Vec<Filter> =
+                        (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+                    self.editor_state.filters = default_filters;
+                    self.editor_state.global_gain = 0;
+                    self.editor_state.input_buffer = InputBuffer::default();
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::UI,
+                        "Reset filters to default",
+                    ));
+                    self.editor_state.pending_confirm = ConfirmAction::None;
+                    self.set_status("Filters reset to default", StatusSeverity::Info)
+                } else {
+                    Task::none()
+                }
             }
             Message::ExportAutoEQPressed => {
                 let peq = PEQData {
@@ -705,33 +737,43 @@ impl MainWindow {
                 }
             }
             Message::DeleteProfilePressed => {
-                let name = match &self.editor_state.selected_profile_name {
-                    Some(n) => n.clone(),
-                    None => return Task::none(),
-                };
-                match crate::storage::delete_profile(&name) {
-                    Ok(_) => {
-                        self.editor_state.selected_profile_name = None;
-                        self.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Info,
-                            Source::UI,
-                            format!("Deleted profile: {}", name),
-                        ));
-                        let reload_task = Task::perform(
-                            async move { crate::storage::load_all_profiles().unwrap_or_default() },
-                            Message::ProfilesLoaded,
-                        );
-                        let status_task = self.set_status(format!("Deleted profile: {}", name), StatusSeverity::Info);
-                        Task::batch(vec![reload_task, status_task])
+                self.editor_state.pending_confirm = ConfirmAction::DeleteProfile;
+                Task::none()
+            }
+            Message::ConfirmDeleteProfile => {
+                if matches!(self.editor_state.pending_confirm, ConfirmAction::DeleteProfile) {
+                    let name = match &self.editor_state.selected_profile_name {
+                        Some(n) => n.clone(),
+                        None => return Task::none(),
+                    };
+                    match crate::storage::delete_profile(&name) {
+                        Ok(_) => {
+                            self.editor_state.selected_profile_name = None;
+                            self.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Info,
+                                Source::UI,
+                                format!("Deleted profile: {}", name),
+                            ));
+                            let reload_task = Task::perform(
+                                async move { crate::storage::load_all_profiles().unwrap_or_default() },
+                                Message::ProfilesLoaded,
+                            );
+                            let status_task = self.set_status(format!("Deleted profile: {}", name), StatusSeverity::Info);
+                            self.editor_state.pending_confirm = ConfirmAction::None;
+                            Task::batch(vec![reload_task, status_task])
+                        }
+                        Err(e) => {
+                            self.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Error,
+                                Source::UI,
+                                format!("Delete failed: {}", e),
+                            ));
+                            self.editor_state.pending_confirm = ConfirmAction::None;
+                            self.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error)
+                        }
                     }
-                    Err(e) => {
-                        self.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Error,
-                            Source::UI,
-                            format!("Delete failed: {}", e),
-                        ));
-                        self.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error)
-                    }
+                } else {
+                    Task::none()
                 }
             }
             Message::ImportFromFilePressed => {
@@ -1061,11 +1103,73 @@ impl MainWindow {
             container(layout.padding(padding)).into()
         });
 
-        container(scrollable(content))
+        let main_view = container(scrollable(content))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
+            .into();
+
+        if let Some(dialog) = match self.editor_state.pending_confirm {
+            ConfirmAction::ResetFilters => {
+                Some(self.view_confirm_dialog(
+                    "Reset Filters?",
+                    "This will reset all 10 bands to default values and set global gain to 0.",
+                    "Reset",
+                    Message::ConfirmResetFilters,
+                ))
+            }
+            ConfirmAction::DeleteProfile => {
+                Some(self.view_confirm_dialog(
+                    "Delete Profile?",
+                    "Are you sure you want to delete this profile? This cannot be undone.",
+                    "Delete",
+                    Message::ConfirmDeleteProfile,
+                ))
+            }
+            ConfirmAction::None => None,
+        } {
+            container(
+                column![
+                    container(main_view).width(Length::Fill).height(Length::Fill),
+                    dialog,
+                ]
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
             .into()
+        } else {
+            main_view
+        }
+    }
+
+    fn view_confirm_dialog<'a>(
+        &self,
+        title: &'a str,
+        message: &'a str,
+        confirm_label: &'a str,
+        confirm_msg: Message,
+    ) -> Element<'a, Message> {
+        container(
+            column![
+                text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
+                text(message).size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED),
+                row![
+                    action_button("Cancel")
+                        .on_press(Message::DismissConfirmDialog)
+                        .style(theme::pill_secondary_button),
+                    action_button(confirm_label)
+                        .on_press(confirm_msg)
+                        .style(theme::pill_danger_button),
+                ]
+                .spacing(SPACE_12),
+            ]
+            .spacing(SPACE_12)
+            .padding(SPACE_16),
+        )
+        .style(theme::card_style)
+        .width(Length::Fixed(400.0))
+        .center_x(Length::Fill)
+        .into()
     }
 
     fn view_status_banner(&self) -> Element<'_, Message> {
@@ -1327,86 +1431,117 @@ impl MainWindow {
             .iter()
             .enumerate()
             .map(|(i, band)| {
-                row![
-                    text(format!("{}", i + 1))
-                        .size(TYPE_BODY)
-                        .width(Length::Fixed(20.0)),
-                    pick_list(
-                        &[
-                            crate::models::FilterType::LowShelf,
-                            crate::models::FilterType::Peak,
-                            crate::models::FilterType::HighShelf
-                        ][..],
-                        Some(band.filter_type),
-                        move |t| Message::BandTypeChanged(i, t),
-                    )
-                    .width(Length::Fixed(110.0))
-                    .style(theme::m3_input_pick_list)
-                    .text_size(12),
+                let freq_error = self.editor_state.input_buffer.get_freq_error(i);
+                let gain_error = self.editor_state.input_buffer.get_gain_error(i);
+                let q_error = self.editor_state.input_buffer.get_q_error(i);
+
+                let freq_error_display = if let Some(err) = freq_error {
+                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
+                } else {
+                    text("")
+                };
+                let gain_error_display = if let Some(err) = gain_error {
+                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
+                } else {
+                    text("")
+                };
+                let q_error_display = if let Some(err) = q_error {
+                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
+                } else {
+                    text("")
+                };
+
+                column![
                     row![
-                        text_input(
-                            "",
-                            self.editor_state
-                                .input_buffer
-                                .get_freq(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{}", band.freq))
+                        text(format!("{}", i + 1))
+                            .size(TYPE_BODY)
+                            .width(Length::Fixed(20.0)),
+                        pick_list(
+                            &[
+                                crate::models::FilterType::LowShelf,
+                                crate::models::FilterType::Peak,
+                                crate::models::FilterType::HighShelf
+                            ][..],
+                            Some(band.filter_type),
+                            move |t| Message::BandTypeChanged(i, t),
                         )
-                        .on_input(move |s| Message::BandFreqInput(i, s))
-                        .on_submit(Message::BandFreqInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(80.0))
-                        .size(TYPE_LABEL),
-                    ]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(2)),
-                    row![
-                        slider(
-                            MIN_BAND_GAIN..=MAX_BAND_GAIN,
-                            band.gain,
-                            move |v| Message::BandGainChanged(i, v)
-                        )
-                        .step(0.1)
-                        .width(Length::Fill),
-                        text_input(
-                            "",
-                            self.editor_state
-                                .input_buffer
-                                .get_gain(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{:.2}", band.gain))
-                        )
-                        .on_input(move |s| Message::BandGainInput(i, s))
-                        .on_submit(Message::BandGainInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(60.0))
-                        .size(TYPE_LABEL),
-                    ]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(4)),
-                    row![
-                        text_input(
-                            "",
-                            self.editor_state
-                                .input_buffer
-                                .get_q(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{:.2}", band.q))
-                        )
-                        .on_input(move |s| Message::BandQInput(i, s))
-                        .on_submit(Message::BandQInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(60.0))
+                        .width(Length::Fixed(110.0))
+                        .style(theme::m3_input_pick_list)
+                        .text_size(12),
+                        row![
+                            text_input(
+                                "",
+                                self.editor_state
+                                    .input_buffer
+                                    .get_freq(i)
+                                    .as_deref()
+                                    .unwrap_or(&format!("{}", band.freq))
+                            )
+                            .on_input(move |s| Message::BandFreqInput(i, s))
+                            .on_submit(Message::BandFreqInputCommit(i))
+                            .style(theme::m3_outlined_input)
+                            .width(Length::Fixed(80.0))
                             .size(TYPE_LABEL),
+                        ]
+                        .spacing(SPACE_4)
+                        .align_y(iced::Alignment::Center)
+                        .width(Length::FillPortion(2)),
+                        row![
+                            slider(
+                                MIN_BAND_GAIN..=MAX_BAND_GAIN,
+                                band.gain,
+                                move |v| Message::BandGainChanged(i, v)
+                            )
+                            .step(0.1)
+                            .width(Length::Fill),
+                            text_input(
+                                "",
+                                self.editor_state
+                                    .input_buffer
+                                    .get_gain(i)
+                                    .as_deref()
+                                    .unwrap_or(&format!("{:.2}", band.gain))
+                            )
+                            .on_input(move |s| Message::BandGainInput(i, s))
+                            .on_submit(Message::BandGainInputCommit(i))
+                            .style(theme::m3_outlined_input)
+                            .width(Length::Fixed(60.0))
+                            .size(TYPE_LABEL),
+                        ]
+                        .spacing(SPACE_4)
+                        .align_y(iced::Alignment::Center)
+                        .width(Length::FillPortion(4)),
+                        row![
+                            text_input(
+                                "",
+                                self.editor_state
+                                    .input_buffer
+                                    .get_q(i)
+                                    .as_deref()
+                                    .unwrap_or(&format!("{:.2}", band.q))
+                            )
+                            .on_input(move |s| Message::BandQInput(i, s))
+                            .on_submit(Message::BandQInputCommit(i))
+                            .style(theme::m3_outlined_input)
+                            .width(Length::Fixed(60.0))
+                                .size(TYPE_LABEL),
+                        ]
+                        .spacing(SPACE_4)
+                        .align_y(iced::Alignment::Center)
+                        .width(Length::FillPortion(1)),
                     ]
                     .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(1)),
+                    .align_y(iced::Alignment::Center),
+                    row![
+                        text("").width(Length::Fixed(20.0)),
+                        text("").width(Length::Fixed(110.0)),
+                        freq_error_display.width(Length::FillPortion(2)),
+                        gain_error_display.width(Length::FillPortion(4)),
+                        q_error_display.width(Length::FillPortion(1)),
+                    ]
+                    .spacing(SPACE_4),
                 ]
-                .spacing(SPACE_4)
-                .align_y(iced::Alignment::Center)
+                .spacing(SPACE_2)
                 .into()
             })
             .collect();

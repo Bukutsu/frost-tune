@@ -45,6 +45,7 @@ pub enum Message {
     BandQInputCancel(usize),
     GlobalGainChanged(i8),
     ResetFiltersPressed,
+    ConfirmResetFilters,
     ImportFromClipboard,
     ImportClipboardReceived(String),
     ImportClipboardFailed(String),
@@ -60,6 +61,7 @@ pub enum Message {
     ProfileSelected(String),
     ProfileNameInput(String),
     SaveProfilePressed,
+    ConfirmDeleteProfile,
     DeleteProfilePressed,
     ImportFromFilePressed,
     ExportToFilePressed,
@@ -68,4 +70,5 @@ pub enum Message {
     ToggleAdvancedFilters(bool),
     ToggleDiagnosticsExpanded(bool),
     ClearStatusMessage,
+    DismissConfirmDialog,
 }
