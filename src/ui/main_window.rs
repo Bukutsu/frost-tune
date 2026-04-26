@@ -4,28 +4,20 @@ use crate::error::ErrorKind;
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
     snap_freq_to_iso, snap_q_to_iso, ConnectionResult, Device, Filter, OperationResult, PEQData,
-    MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN,
-    MIN_Q,
+    MAX_BAND_GAIN, MAX_FREQ, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_Q,
 };
-use crate::ui::graph::EqGraph;
 use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
 use crate::ui::state::{
     ConfirmAction, ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow,
     OperationLock,
 };
-use crate::ui::theme::{
-    self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_FG, TOKYO_NIGHT_GREEN,
-    TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS,
-    TOKYO_NIGHT_WARNING, TOKYO_NIGHT_YELLOW,
-};
-use crate::ui::tokens::{WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
+use crate::ui::theme;
+use crate::ui::tokens::{SPACE_16, SPACE_24, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
+use crate::ui::views;
 use iced::{
     clipboard,
-    widget::{
-        button, canvas, checkbox, column, container, pick_list, responsive, row, scrollable,
-        slider, text, text_input,
-    },
-    Background, Border, Element, Length, Subscription, Task,
+    widget::{column, container, responsive, row, scrollable},
+    Element, Length, Subscription, Task,
 };
 use std::sync::Arc;
 
@@ -47,28 +39,6 @@ pub fn layout_bucket_for_width(width: f32) -> LayoutBucket {
     } else {
         LayoutBucket::Wide
     }
-}
-
-// COSMIC 8px grid spacing system
-const SPACE_4: f32 = 4.0;
-const SPACE_8: f32 = 8.0;
-const SPACE_12: f32 = 12.0;
-const SPACE_16: f32 = 16.0;
-const SPACE_24: f32 = 24.0;
-const SPACE_2: f32 = 2.0;
-
-// COSMIC typography scale
-const TYPE_DISPLAY: f32 = 28.0;
-const TYPE_TITLE: f32 = 20.0;
-const TYPE_BODY: f32 = 16.0;
-const TYPE_LABEL: f32 = 14.0;
-const TYPE_CAPTION: f32 = 12.0;
-const BUTTON_VERTICAL_PADDING: f32 = 10.0;
-const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
-
-fn action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
-    button(text(label).size(TYPE_LABEL))
-        .padding([BUTTON_VERTICAL_PADDING, BUTTON_HORIZONTAL_PADDING])
 }
 
 fn parse_freq_string(s: &str) -> Option<u16> {
@@ -1139,73 +1109,111 @@ impl MainWindow {
             LayoutBucket::Narrow => vec![
                 "header",
                 "status",
-                "autoeq",
-                "presets",
                 "graph",
+                "presets",
+                "autoeq",
                 "advanced",
                 "diagnostics",
             ],
             LayoutBucket::Medium => vec![
                 "header",
                 "status",
-                "autoeq",
-                "presets",
                 "graph",
+                "autoeq+presets",
                 "advanced",
                 "diagnostics",
             ],
-            LayoutBucket::Wide => vec![
-                "header",
-                "status",
-                "autoeq",
-                "presets",
-                "graph",
-                "advanced",
-                "diagnostics",
-            ],
+            LayoutBucket::Wide => vec!["header+status", "left:graph+advanced", "right:tools"],
         }
     }
 
-    fn view(&self) -> Element<'_, Message> {
-        let content = responsive(move |size| {
-            let bucket = layout_bucket_for_width(size.width);
-            let (padding, spacing) = if matches!(bucket, LayoutBucket::Narrow) {
-                (SPACE_16, SPACE_12)
-            } else if matches!(bucket, LayoutBucket::Medium) {
-                (SPACE_24, SPACE_16)
-            } else {
-                (SPACE_24, SPACE_16)
-            };
+    fn view_narrow(&self) -> Element<'_, Message> {
+        column![
+            views::header::view_header(self),
+            views::status_banner::view_status_banner(self),
+            views::graph_panel::view_graph(self),
+            views::presets_preamp::view_presets_and_preamp(
+                self,
+                views::presets_preamp::PresetsLayout::Narrow,
+            ),
+            views::autoeq::view_autoeq(self),
+            views::bands::view_advanced_filters_section(self),
+            views::diagnostics::view_diagnostics_section(self),
+        ]
+        .spacing(SPACE_16)
+        .into()
+    }
 
-            let _is_wide = matches!(bucket, LayoutBucket::Wide);
-            let layout = column![
-                self.view_header(),
-                self.view_status_banner(),
-                self.view_autoeq(),
-                self.view_presets_and_preamp(),
-                self.view_graph(),
-                self.view_advanced_filters_section(),
-                self.view_diagnostics_section(),
-            ]
-            .spacing(spacing);
+    fn view_medium(&self) -> Element<'_, Message> {
+        let tools_row = row![
+            views::autoeq::view_autoeq(self),
+            views::presets_preamp::view_presets_and_preamp(
+                self,
+                views::presets_preamp::PresetsLayout::Medium,
+            ),
+        ]
+        .spacing(SPACE_16);
 
-            container(layout.padding(padding)).into()
-        });
+        column![
+            views::header::view_header(self),
+            views::status_banner::view_status_banner(self),
+            views::graph_panel::view_graph(self),
+            tools_row,
+            views::bands::view_advanced_filters_section(self),
+            views::diagnostics::view_diagnostics_section(self),
+        ]
+        .spacing(SPACE_16)
+        .into()
+    }
 
-        let main_view = container(scrollable(content))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .into();
+    fn view_wide(&self) -> Element<'_, Message> {
+        let right_panel_width: f32 = 680.0;
 
+        let left_column = column![
+            views::graph_panel::view_graph(self),
+            views::bands::view_advanced_filters_section(self),
+        ]
+        .spacing(SPACE_16)
+        .width(Length::Fill);
+
+        let right_column = column![
+            views::presets_preamp::view_presets_and_preamp(
+                self,
+                views::presets_preamp::PresetsLayout::Medium,
+            ),
+            views::autoeq::view_autoeq(self),
+            views::diagnostics::view_diagnostics_section(self),
+        ]
+        .spacing(SPACE_16)
+        .width(Length::Fill);
+
+        let content_row = row![
+            container(left_column).width(Length::Fill),
+            container(right_column).width(Length::Fixed(right_panel_width)),
+        ]
+        .spacing(SPACE_16)
+        .width(Length::Fill)
+        .align_y(iced::Alignment::Start);
+
+        column![
+            views::header::view_header(self),
+            views::status_banner::view_status_banner(self),
+            content_row,
+        ]
+        .spacing(SPACE_16)
+        .width(Length::Fill)
+        .into()
+    }
+
+    fn with_modal_overlay<'a>(&self, main_view: Element<'a, Message>) -> Element<'a, Message> {
         if let Some(dialog) = match self.editor_state.pending_confirm {
-            ConfirmAction::ResetFilters => Some(self.view_confirm_dialog(
+            ConfirmAction::ResetFilters => Some(views::confirm_dialog::view_confirm_dialog(
                 "Reset Filters?",
                 "This will reset all 10 bands to default values and set global gain to 0.",
                 "Reset",
                 Message::ConfirmResetFilters,
             )),
-            ConfirmAction::DeleteProfile => Some(self.view_confirm_dialog(
+            ConfirmAction::DeleteProfile => Some(views::confirm_dialog::view_confirm_dialog(
                 "Delete Profile?",
                 "Are you sure you want to delete this profile? This cannot be undone.",
                 "Delete",
@@ -1217,7 +1225,7 @@ impl MainWindow {
                 container(main_view)
                     .width(Length::Fill)
                     .height(Length::Fill),
-                dialog,
+                container(dialog).padding(SPACE_16).center_x(Length::Fill),
             ])
             .width(Length::Fill)
             .height(Length::Fill)
@@ -1227,674 +1235,25 @@ impl MainWindow {
         }
     }
 
-    fn view_confirm_dialog<'a>(
-        &self,
-        title: &'a str,
-        message: &'a str,
-        confirm_label: &'a str,
-        confirm_msg: Message,
-    ) -> Element<'a, Message> {
-        container(
-            column![
-                text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
-                text(message).size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED),
-                row![
-                    action_button("Cancel")
-                        .on_press(Message::DismissConfirmDialog)
-                        .style(theme::pill_secondary_button),
-                    action_button(confirm_label)
-                        .on_press(confirm_msg)
-                        .style(theme::pill_danger_button),
-                ]
-                .spacing(SPACE_12),
-            ]
-            .spacing(SPACE_12)
-            .padding(SPACE_16),
-        )
-        .style(theme::card_style)
-        .width(Length::Fixed(400.0))
-        .center_x(Length::Fill)
-        .into()
-    }
-
-    fn view_status_banner(&self) -> Element<'_, Message> {
-        if let Some(msg) = &self.editor_state.status_message {
-            let color = match msg.severity {
-                StatusSeverity::Info => TOKYO_NIGHT_BLUE,
-                StatusSeverity::Success => TOKYO_NIGHT_GREEN,
-                StatusSeverity::Warning => TOKYO_NIGHT_YELLOW,
-                StatusSeverity::Error => TOKYO_NIGHT_RED,
+    fn view(&self) -> Element<'_, Message> {
+        let content = responsive(move |size| {
+            let bucket = layout_bucket_for_width(size.width);
+            let (padding, layout): (f32, Element<'_, Message>) = match bucket {
+                LayoutBucket::Narrow => (SPACE_16, self.view_narrow()),
+                LayoutBucket::Medium => (SPACE_24, self.view_medium()),
+                LayoutBucket::Wide => (SPACE_24, self.view_wide()),
             };
 
-            container(
-                row![
-                    text(&msg.content).size(TYPE_BODY).color(TOKYO_NIGHT_BG),
-                    container(text("")).width(Length::Fill),
-                    button(text("×").size(14))
-                        .on_press(Message::ClearStatusMessage)
-                        .style(theme::pill_text_button)
-                ]
-                .spacing(SPACE_16)
-                .align_y(iced::Alignment::Center),
-            )
-            .padding([SPACE_8, SPACE_16])
+            container(layout).padding(padding).into()
+        });
+
+        let main_view = container(scrollable(content))
             .width(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(Background::Color(color)),
-                border: Border {
-                    radius: 4.0.into(),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .into()
-        } else {
-            column![].into()
-        }
-    }
-
-    fn view_header(&self) -> Element<'_, Message> {
-        let is_busy = self.operation_lock.is_pulling
-            || self.operation_lock.is_pushing
-            || self.operation_lock.is_connecting
-            || self.operation_lock.is_disconnecting;
-
-        let status_text = match &self.connection_status {
-            ConnectionStatus::Disconnected => match self.disconnect_reason {
-                DisconnectReason::None => text("Disconnected").color(TOKYO_NIGHT_MUTED),
-                DisconnectReason::Manual => text("Disconnected (by user)").color(TOKYO_NIGHT_MUTED),
-                DisconnectReason::DeviceLost => {
-                    text("Disconnected (device unplugged)").color(TOKYO_NIGHT_WARNING)
-                }
-                DisconnectReason::Error(ref e) => {
-                    text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR)
-                }
-            },
-            ConnectionStatus::Connecting => text("Connecting...").color(TOKYO_NIGHT_YELLOW),
-            ConnectionStatus::Connected => text("Connected").color(TOKYO_NIGHT_SUCCESS),
-            ConnectionStatus::Error(e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
-        };
-
-        let device_info_text = if let Some(ref dev) = self.connected_device {
-            let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
-            let name = device_type.name();
-            let vid_pid = format!("VID:{:04X} PID:{:04X}", dev.vendor_id, dev.product_id);
-            let mfr = dev
-                .manufacturer
-                .as_deref()
-                .map(|m| format!(" ({})", m))
-                .unwrap_or_default();
-            let row_el: Element<'_, Message> = column![
-                text(format!("Device: {}", name))
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_PRIMARY),
-                text(format!("{}{}", vid_pid, mfr))
-                    .size(TYPE_CAPTION)
-                    .color(TOKYO_NIGHT_MUTED),
-            ]
-            .spacing(SPACE_4)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
             .into();
-            row_el
-        } else {
-            text("No device connected")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .into()
-        };
 
-        let btn_row = row![
-            if !is_busy
-                && (self.connection_status == ConnectionStatus::Disconnected
-                    || matches!(&self.connection_status, ConnectionStatus::Error(_)))
-            {
-                action_button("Connect")
-                    .on_press(Message::ConnectPressed)
-                    .style(theme::pill_primary_button)
-            } else {
-                action_button("Connect").style(theme::pill_primary_button)
-            },
-            if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                action_button("Disconnect")
-                    .on_press(Message::DisconnectPressed)
-                    .style(theme::pill_secondary_button)
-            } else {
-                action_button("Disconnect").style(theme::pill_secondary_button)
-            },
-            if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                action_button("Read Device")
-                    .on_press(Message::PullPressed)
-                    .style(theme::pill_secondary_button)
-            } else {
-                action_button("Read Device").style(theme::pill_secondary_button)
-            },
-            if !is_busy && self.connection_status == ConnectionStatus::Connected {
-                action_button("Write Device")
-                    .on_press(Message::PushPressed)
-                    .style(theme::pill_primary_button)
-            } else {
-                action_button("Write Device").style(theme::pill_primary_button)
-            },
-        ]
-        .spacing(SPACE_8);
-
-        let loading_indicator = if is_busy {
-            row![
-                text("Processing...")
-                    .size(TYPE_CAPTION)
-                    .color(TOKYO_NIGHT_BLUE),
-                // We could add a spinner here if we had an icon font
-            ]
-            .spacing(SPACE_8)
-            .align_y(iced::Alignment::Center)
-        } else {
-            row![]
-        };
-
-        container(
-            row![
-                column![
-                    text("Frost-Tune")
-                        .size(TYPE_DISPLAY)
-                        .color(TOKYO_NIGHT_PRIMARY),
-                    device_info_text,
-                    text("Workflow: Connect → Read Device → Edit → Write Device")
-                        .size(TYPE_LABEL)
-                        .color(TOKYO_NIGHT_FG),
-                    row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
-                ]
-                .spacing(SPACE_4),
-                container(text("")).width(Length::Fill),
-                btn_row,
-            ]
-            .align_y(iced::Alignment::Center),
-        )
-        .padding(SPACE_12)
-        .style(theme::header_card_style)
-        .into()
-    }
-
-    fn view_presets_and_preamp(&self) -> Element<'_, Message> {
-        let is_busy = self.operation_lock.is_pulling || self.operation_lock.is_pushing;
-
-        let preset_names: Vec<String> = self
-            .editor_state
-            .profiles
-            .iter()
-            .map(|p| p.name.clone())
-            .collect();
-
-        let preset_row = row![
-            text("Presets:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
-            pick_list(
-                preset_names,
-                self.editor_state.selected_profile_name.clone(),
-                Message::ProfileSelected,
-            )
-            .placeholder("Select Preset")
-            .style(theme::m3_input_pick_list)
-            .width(Length::FillPortion(2)),
-            text_input("New Name...", &self.editor_state.new_profile_name)
-                .on_input(Message::ProfileNameInput)
-                .style(theme::m3_filled_input)
-                .width(Length::FillPortion(1)),
-            action_button("Reset")
-                .on_press_maybe(if is_busy {
-                    None
-                } else {
-                    Some(Message::ResetFiltersPressed)
-                })
-                .style(theme::pill_secondary_button),
-            action_button("Save")
-                .on_press(Message::SaveProfilePressed)
-                .style(theme::pill_primary_button),
-            if !is_busy && self.editor_state.selected_profile_name.is_some() {
-                action_button("Delete")
-                    .on_press(Message::DeleteProfilePressed)
-                    .style(theme::pill_danger_button)
-            } else {
-                action_button("Delete").style(theme::pill_danger_button)
-            },
-        ]
-        .spacing(SPACE_12)
-        .align_y(iced::Alignment::Center);
-
-        let preamp_row = row![
-            text("Preamp:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
-            slider(
-                MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
-                self.editor_state.global_gain as f64,
-                |v| Message::GlobalGainChanged(v as i8)
-            )
-            .width(Length::Fill),
-            text(format!("{} dB", self.editor_state.global_gain))
-                .size(TYPE_BODY)
-                .width(Length::Fixed(50.0))
-                .color(TOKYO_NIGHT_PRIMARY),
-        ]
-        .spacing(SPACE_12)
-        .align_y(iced::Alignment::Center);
-
-        container(column![preset_row, preamp_row,].spacing(SPACE_16))
-            .padding(SPACE_16)
-            .style(theme::card_style)
-            .width(Length::Fill)
-            .into()
-    }
-
-    fn view_graph(&self) -> Element<'_, Message> {
-        responsive(move |size| {
-            let height = if size.width < 1000.0 {
-                260.0
-            } else if size.width < 1280.0 {
-                300.0
-            } else {
-                340.0
-            };
-
-            container(
-                canvas(EqGraph::new(
-                    &self.editor_state.filters,
-                    self.editor_state.global_gain,
-                ))
-                .width(Length::Fill)
-                .height(Length::Fixed(height)),
-            )
-            .padding(SPACE_12)
-            .style(theme::card_style)
-            .width(Length::Fill)
-            .into()
-        })
-        .into()
-    }
-
-    fn view_bands(&self) -> Element<'_, Message> {
-        let is_busy = self.operation_lock.is_pulling || self.operation_lock.is_pushing;
-
-        let busy_notice: Element<Message> = if is_busy {
-            container(
-                text("Device sync in progress... controls temporarily locked")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_WARNING),
-            )
-            .padding(SPACE_12)
-            .into()
-        } else {
-            text("").into()
-        };
-
-        let band_list: Vec<Element<Message>> = self
-            .editor_state
-            .filters
-            .iter()
-            .enumerate()
-            .map(|(i, band)| {
-                let freq_error = self.editor_state.input_buffer.get_freq_error(i);
-                let gain_error = self.editor_state.input_buffer.get_gain_error(i);
-                let q_error = self.editor_state.input_buffer.get_q_error(i);
-
-                let freq_error_display = if let Some(err) = freq_error {
-                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-                } else {
-                    text("")
-                };
-                let gain_error_display = if let Some(err) = gain_error {
-                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-                } else {
-                    text("")
-                };
-                let q_error_display = if let Some(err) = q_error {
-                    text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-                } else {
-                    text("")
-                };
-
-                column![
-                    row![
-                        text(format!("{}", i + 1))
-                            .size(TYPE_BODY)
-                            .width(Length::Fixed(20.0)),
-                        pick_list(
-                            &[
-                                crate::models::FilterType::LowShelf,
-                                crate::models::FilterType::Peak,
-                                crate::models::FilterType::HighShelf
-                            ][..],
-                            Some(band.filter_type),
-                            move |t| Message::BandTypeChanged(i, t),
-                        )
-                        .width(Length::Fixed(110.0))
-                        .style(theme::m3_input_pick_list)
-                        .text_size(12),
-                        row![text_input(
-                            "",
-                            self.editor_state
-                                .input_buffer
-                                .get_freq(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{}", band.freq))
-                        )
-                        .on_input(move |s| Message::BandFreqInput(i, s))
-                        .on_submit(Message::BandFreqInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(80.0))
-                        .size(TYPE_LABEL),]
-                        .spacing(SPACE_4)
-                        .align_y(iced::Alignment::Center)
-                        .width(Length::FillPortion(2)),
-                        row![
-                            slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| {
-                                Message::BandGainChanged(i, v)
-                            })
-                            .step(0.1)
-                            .width(Length::Fill),
-                            text_input(
-                                "",
-                                self.editor_state
-                                    .input_buffer
-                                    .get_gain(i)
-                                    .as_deref()
-                                    .unwrap_or(&format!("{:.2}", band.gain))
-                            )
-                            .on_input(move |s| Message::BandGainInput(i, s))
-                            .on_submit(Message::BandGainInputCommit(i))
-                            .style(theme::m3_outlined_input)
-                            .width(Length::Fixed(60.0))
-                            .size(TYPE_LABEL),
-                        ]
-                        .spacing(SPACE_4)
-                        .align_y(iced::Alignment::Center)
-                        .width(Length::FillPortion(4)),
-                        row![text_input(
-                            "",
-                            self.editor_state
-                                .input_buffer
-                                .get_q(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{:.2}", band.q))
-                        )
-                        .on_input(move |s| Message::BandQInput(i, s))
-                        .on_submit(Message::BandQInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(60.0))
-                        .size(TYPE_LABEL),]
-                        .spacing(SPACE_4)
-                        .align_y(iced::Alignment::Center)
-                        .width(Length::FillPortion(1)),
-                    ]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center),
-                    row![
-                        text("").width(Length::Fixed(20.0)),
-                        text("").width(Length::Fixed(110.0)),
-                        freq_error_display.width(Length::FillPortion(2)),
-                        gain_error_display.width(Length::FillPortion(4)),
-                        q_error_display.width(Length::FillPortion(1)),
-                    ]
-                    .spacing(SPACE_4),
-                ]
-                .spacing(SPACE_2)
-                .into()
-            })
-            .collect();
-
-        let header = row![
-            text("#")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .width(Length::Fixed(20.0)),
-            text("Type")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .width(Length::Fixed(110.0)),
-            text("Frequency (Hz)")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .width(Length::FillPortion(2)),
-            row![
-                container(text("Gain (dB)").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED))
-                    .width(Length::Fill)
-                    .center_x(Length::Fill),
-                container(text("")).width(Length::Fixed(60.0)),
-            ]
-            .width(Length::FillPortion(4)),
-            text("Q")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED)
-                .width(Length::FillPortion(1)),
-        ]
-        .spacing(SPACE_4)
-        .align_y(iced::Alignment::Center);
-
-        container(
-            container(column![
-                busy_notice,
-                header,
-                scrollable(column(band_list).spacing(SPACE_8))
-            ])
-            .max_width(1080),
-        )
-        .padding([SPACE_12, SPACE_8])
-        .style(theme::card_style)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .into()
-    }
-
-    fn view_advanced_filters_section(&self) -> Element<'_, Message> {
-        let expanded = self.editor_state.advanced_filters_expanded;
-        let toggle_text = if expanded {
-            "Hide advanced filters"
-        } else {
-            "Show advanced filters"
-        };
-
-        let heading = row![
-            column![
-                text("Advanced filter controls")
-                    .size(TYPE_TITLE)
-                    .color(TOKYO_NIGHT_PRIMARY),
-                text("Manual PEQ editing for advanced users")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_MUTED),
-            ]
-            .spacing(SPACE_4),
-            container(text("")).width(Length::Fill),
-            action_button(toggle_text)
-                .on_press(Message::ToggleAdvancedFilters(!expanded))
-                .style(theme::pill_secondary_button),
-        ]
-        .align_y(iced::Alignment::Center)
-        .spacing(SPACE_12);
-
-        let body: Element<Message> = if expanded {
-            self.view_bands()
-        } else {
-            container(
-                text("AutoEQ import/export is recommended for most users.")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_MUTED),
-            )
-            .padding([SPACE_12, SPACE_8])
-            .into()
-        };
-
-        container(column![heading, body].spacing(SPACE_12))
-            .padding(SPACE_16)
-            .style(theme::card_style)
-            .width(Length::Fill)
-            .into()
-    }
-
-    fn view_autoeq(&self) -> Element<'_, Message> {
-        let is_busy = self.operation_lock.is_pulling || self.operation_lock.is_pushing;
-
-        container(
-            column![
-                text("AutoEQ").size(TYPE_TITLE).color(TOKYO_NIGHT_PRIMARY),
-                text("Import/export standard parametric EQ text files (AutoEQ format).")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_MUTED),
-                row![
-                    action_button("Import Clipboard")
-                        .on_press_maybe(if is_busy {
-                            None
-                        } else {
-                            Some(Message::ImportFromClipboard)
-                        })
-                        .style(theme::pill_secondary_button),
-                    action_button("Import File")
-                        .on_press_maybe(if is_busy {
-                            None
-                        } else {
-                            Some(Message::ImportFromFilePressed)
-                        })
-                        .style(theme::pill_secondary_button),
-                ]
-                .spacing(SPACE_8),
-                row![
-                    action_button("Export Clipboard")
-                        .on_press_maybe(if is_busy {
-                            None
-                        } else {
-                            Some(Message::ExportAutoEQPressed)
-                        })
-                        .style(theme::pill_secondary_button),
-                    action_button("Export File")
-                        .on_press_maybe(if is_busy {
-                            None
-                        } else {
-                            Some(Message::ExportToFilePressed)
-                        })
-                        .style(theme::pill_secondary_button),
-                ]
-                .spacing(SPACE_8),
-            ]
-            .spacing(SPACE_12),
-        )
-        .padding(SPACE_16)
-        .style(theme::card_style)
-        .width(Length::FillPortion(1))
-        .into()
-    }
-
-    fn view_diagnostics(&self) -> Element<'_, Message> {
-        let has_events = self.diagnostics.count() > 0;
-        let diag_events: Vec<Element<Message>> = self
-            .diagnostics
-            .events()
-            .filter(|e| !self.editor_state.diagnostics_errors_only || e.level == LogLevel::Error)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .take(20)
-            .map(|e| {
-                let c = match e.level {
-                    LogLevel::Info => TOKYO_NIGHT_MUTED,
-                    LogLevel::Warn => TOKYO_NIGHT_WARNING,
-                    LogLevel::Error => TOKYO_NIGHT_ERROR,
-                };
-                text(format!("[{}] {} {}", e.level, e.source, e.message))
-                    .size(TYPE_LABEL)
-                    .color(c)
-                    .into()
-            })
-            .collect();
-
-        let visible_count = diag_events.len().min(20);
-        let logs_height = if visible_count == 0 {
-            84.0
-        } else if visible_count < 4 {
-            92.0
-        } else if visible_count < 10 {
-            120.0
-        } else {
-            160.0
-        };
-
-        container(
-            column![
-                row![
-                    checkbox(self.editor_state.diagnostics_errors_only)
-                        .label("Errors Only")
-                        .on_toggle(Message::ToggleDiagnosticsErrorsOnly)
-                        .size(14),
-                    container(text("")).width(Length::Fill),
-                ]
-                .align_y(iced::Alignment::Center),
-                if diag_events.is_empty() {
-                    container(
-                        text("No diagnostics events yet. Events will appear during connection, import, and sync operations.")
-                            .size(TYPE_LABEL)
-                            .color(TOKYO_NIGHT_MUTED),
-                    )
-                    .height(Length::Fixed(logs_height))
-                    .align_y(iced::alignment::Vertical::Center)
-                } else {
-                    container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(logs_height)))
-                },
-                row![
-                    action_button("Copy")
-                        .on_press(Message::CopyDiagnostics)
-                        .style(theme::pill_text_button),
-                    action_button("Export")
-                        .on_press(Message::ExportDiagnosticsToFile)
-                        .style(theme::pill_text_button),
-                    action_button("Clear")
-                        .on_press(Message::ClearDiagnostics)
-                        .style(if has_events {
-                            theme::pill_outlined_danger_button
-                        } else {
-                            theme::pill_text_button
-                        }),
-                ]
-                .spacing(SPACE_8),
-            ]
-            .spacing(SPACE_12),
-        )
-        .padding(SPACE_16)
-        .style(theme::card_style)
-        .width(Length::FillPortion(1))
-        .into()
-    }
-
-    fn view_diagnostics_section(&self) -> Element<'_, Message> {
-        let expanded = self.editor_state.diagnostics_expanded;
-        let toggle_text = if expanded {
-            "Hide diagnostics"
-        } else {
-            "Show diagnostics"
-        };
-
-        let header = row![
-            text("Diagnostics")
-                .size(TYPE_TITLE)
-                .color(TOKYO_NIGHT_PRIMARY),
-            container(text("")).width(Length::Fill),
-            action_button(toggle_text)
-                .on_press(Message::ToggleDiagnosticsExpanded(!expanded))
-                .style(theme::pill_secondary_button),
-        ]
-        .align_y(iced::Alignment::Center)
-        .spacing(SPACE_12);
-
-        let body: Element<Message> = if expanded {
-            self.view_diagnostics()
-        } else {
-            container(
-                text("Diagnostics are hidden by default. Expand when troubleshooting.")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_MUTED),
-            )
-            .padding([SPACE_12, SPACE_8])
-            .into()
-        };
-
-        container(column![header, body].spacing(SPACE_12))
-            .padding(SPACE_16)
-            .style(theme::card_style)
-            .width(Length::FillPortion(1))
-            .into()
+        self.with_modal_overlay(main_view)
     }
 
     fn subscription(&self) -> Subscription<Message> {

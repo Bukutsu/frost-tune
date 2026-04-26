@@ -20,9 +20,22 @@ pub const M3_COLOR_ERROR: Color = TOKYO_NIGHT_RED;
 pub const WINDOW_NARROW_MAX: f32 = 999.0;
 pub const WINDOW_MEDIUM_MAX: f32 = 1279.0;
 
-// Spacing scale (8pt baseline with compact variants).
+// Spacing scale.
+pub const SPACE_2: f32 = 2.0;
 pub const SPACE_4: f32 = 4.0;
 pub const SPACE_8: f32 = 8.0;
 pub const SPACE_12: f32 = 12.0;
 pub const SPACE_16: f32 = 16.0;
 pub const SPACE_24: f32 = 24.0;
+pub const SPACE_32: f32 = 32.0;
+
+// Typography scale.
+pub const TYPE_DISPLAY: f32 = 28.0;
+pub const TYPE_TITLE: f32 = 20.0;
+pub const TYPE_BODY: f32 = 16.0;
+pub const TYPE_LABEL: f32 = 14.0;
+pub const TYPE_CAPTION: f32 = 12.0;
+
+// Control metrics.
+pub const BUTTON_VERTICAL_PADDING: f32 = 10.0;
+pub const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
