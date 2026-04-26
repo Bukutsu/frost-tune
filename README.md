@@ -65,17 +65,44 @@ sudo apt install libhidapi-dev
 - WebView2 (pre-installed on Windows 10/11)
 - Microsoft Visual C++ Build Tools
 
-### Linux USB Permissions (udev rules)
+### Linux USB Permissions (polkit)
 
-By default, Linux restricts direct access to USB HID devices. To allow the application to communicate with the DAC without requiring root (`sudo`) privileges, you must configure a udev rule:
+On Linux, Frost-Tune works out of the box after build. If direct HID access is denied, it relaunches itself via `pkexec` in helper mode and asks for authentication.
 
-1. Create a new udev rule file:
+No `make install` is required for basic usage.
+
+#### Optional: install helper + policy (recommended for packaged/system installs)
+
 ```bash
-echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", MODE="0666"' | sudo tee /etc/udev/rules.d/99-frosttune.rules
+# Build helper in release mode
+cargo build --release --bin frost-tune-hid-helper
+
+# Install helper + policy
+sudo make install
 ```
 
-2. Reload the udev rules and trigger them (or unplug and replug your DAC):
+Manual install (alternative):
+
 ```bash
+sudo mkdir -p /usr/libexec/frost-tune
+sudo cp target/release/frost-tune-hid-helper /usr/libexec/frost-tune/
+sudo cp packaging/linux/org.frosttune.hid.policy /usr/share/polkit-1/actions/
+```
+
+#### Troubleshooting
+
+If you see authentication or permission errors:
+
+1. Verify policy: `ls /usr/share/polkit-1/actions/org.frosttune.hid.policy`
+2. Verify helper: `ls /usr/libexec/frost-tune/frost-tune-hid-helper`
+3. Retry connection from Frost-Tune
+
+#### Legacy udev mode (optional)
+
+If polkit is unavailable, you can still use udev rules:
+
+```bash
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", MODE="0666"' | sudo tee /etc/udev/rules.d/99-frosttune.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 

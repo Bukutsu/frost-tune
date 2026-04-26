@@ -1,19 +1,24 @@
 use crate::autoeq;
 use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
+use crate::error::ErrorKind;
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
-    ConnectionResult, Device, Filter, OperationResult, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN,
-    MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q, snap_freq_to_iso, snap_q_to_iso,
+    snap_freq_to_iso, snap_q_to_iso, ConnectionResult, Device, Filter, OperationResult, PEQData,
+    MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_GLOBAL_GAIN,
+    MIN_Q,
 };
 use crate::ui::graph::EqGraph;
-use crate::ui::messages::{Message, StatusSeverity, StatusMessage};
-use crate::ui::state::{ConfirmAction, ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow, OperationLock};
-use crate::ui::tokens::{WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
-use crate::ui::theme::{
-    self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MUTED,
-    TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING, TOKYO_NIGHT_FG,
-    TOKYO_NIGHT_YELLOW,
+use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
+use crate::ui::state::{
+    ConfirmAction, ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow,
+    OperationLock,
 };
+use crate::ui::theme::{
+    self, TOKYO_NIGHT_BG, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_FG, TOKYO_NIGHT_GREEN,
+    TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_SUCCESS,
+    TOKYO_NIGHT_WARNING, TOKYO_NIGHT_YELLOW,
+};
+use crate::ui::tokens::{WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
 use iced::{
     clipboard,
     widget::{
@@ -125,7 +130,10 @@ impl MainWindow {
             async move { crate::storage::load_ui_preferences().unwrap_or_default() },
             Message::UiPreferencesLoaded,
         );
-        (window, Task::batch(vec![load_profiles_task, load_prefs_task]))
+        (
+            window,
+            Task::batch(vec![load_profiles_task, load_prefs_task]),
+        )
     }
 
     fn title(&self) -> String {
@@ -266,30 +274,42 @@ impl MainWindow {
             Message::WorkerConnected(result) => {
                 self.operation_lock.is_connecting = false;
                 let device_name_owned = if let Some(ref d) = result.device {
-                        Device::from_vid_pid(d.vendor_id, d.product_id).name().to_string()
-                    } else {
-                        "Unknown Device".to_string()
-                    };
+                    Device::from_vid_pid(d.vendor_id, d.product_id)
+                        .name()
+                        .to_string()
+                } else {
+                    "Unknown Device".to_string()
+                };
 
-                    if result.success {
-                        self.connection_status = ConnectionStatus::Connected;
-                        self.connected_device = result.device;
+                if result.success {
+                    self.connection_status = ConnectionStatus::Connected;
+                    self.connected_device = result.device;
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
                         format!("Connected to {}", device_name_owned),
                     ));
-                    self.set_status(format!("Connected to {}", device_name_owned), StatusSeverity::Success)
+                    self.set_status(
+                        format!("Connected to {}", device_name_owned),
+                        StatusSeverity::Success,
+                    )
                 } else {
                     let err = result.error.unwrap_or_else(|| "Unknown".into());
-                    self.connection_status = ConnectionStatus::Error(err.clone());
+                    let user_error = match ErrorKind::from_string(&err) {
+                        ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
+                        _ => err.clone(),
+                    };
+                    self.connection_status = ConnectionStatus::Error(user_error.clone());
                     self.connected_device = None;
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Error,
                         Source::Worker,
                         format!("Connect failed: {}", err),
                     ));
-                    self.set_status(format!("Connect failed: {}", err), StatusSeverity::Error)
+                    self.set_status(
+                        format!("Connect failed: {}", user_error),
+                        StatusSeverity::Error,
+                    )
                 }
             }
             Message::WorkerDisconnected(_) => {
@@ -322,7 +342,8 @@ impl MainWindow {
                                 Source::Worker,
                                 "Pull successful",
                             ));
-                            return self.set_status("Data pulled from device", StatusSeverity::Success);
+                            return self
+                                .set_status("Data pulled from device", StatusSeverity::Success);
                         }
                     }
                     Task::none()
@@ -361,7 +382,10 @@ impl MainWindow {
                                 Source::Worker,
                                 "Push successful",
                             ));
-                            return self.set_status("Settings applied and verified", StatusSeverity::Success);
+                            return self.set_status(
+                                "Settings applied and verified",
+                                StatusSeverity::Success,
+                            );
                         }
                     }
                     Task::none()
@@ -463,7 +487,8 @@ impl MainWindow {
                                 band.enabled = true;
                                 self.editor_state.input_buffer.freq_error = None;
                             } else {
-                                self.editor_state.input_buffer.freq_error = Some((index, "Freq: 20-20000 Hz".to_string()));
+                                self.editor_state.input_buffer.freq_error =
+                                    Some((index, "Freq: 20-20000 Hz".to_string()));
                             }
                         }
                     }
@@ -480,10 +505,17 @@ impl MainWindow {
                                     band.enabled = true;
                                     self.editor_state.input_buffer.gain_error = None;
                                 } else {
-                                    self.editor_state.input_buffer.gain_error = Some((index, format!("Gain: {:.0} to {:.0}", MIN_BAND_GAIN, MAX_BAND_GAIN)));
+                                    self.editor_state.input_buffer.gain_error = Some((
+                                        index,
+                                        format!(
+                                            "Gain: {:.0} to {:.0}",
+                                            MIN_BAND_GAIN, MAX_BAND_GAIN
+                                        ),
+                                    ));
                                 }
                             } else {
-                                self.editor_state.input_buffer.gain_error = Some((index, "Gain: enter number".to_string()));
+                                self.editor_state.input_buffer.gain_error =
+                                    Some((index, "Gain: enter number".to_string()));
                             }
                         }
                     }
@@ -500,10 +532,12 @@ impl MainWindow {
                                     band.enabled = true;
                                     self.editor_state.input_buffer.q_error = None;
                                 } else {
-                                    self.editor_state.input_buffer.q_error = Some((index, format!("Q: {:.1} to {:.1}", MIN_Q, MAX_Q)));
+                                    self.editor_state.input_buffer.q_error =
+                                        Some((index, format!("Q: {:.1} to {:.1}", MIN_Q, MAX_Q)));
                                 }
                             } else {
-                                self.editor_state.input_buffer.q_error = Some((index, "Q: enter number".to_string()));
+                                self.editor_state.input_buffer.q_error =
+                                    Some((index, "Q: enter number".to_string()));
                             }
                         }
                     }
@@ -560,7 +594,10 @@ impl MainWindow {
                 Task::none()
             }
             Message::ConfirmResetFilters => {
-                if matches!(self.editor_state.pending_confirm, ConfirmAction::ResetFilters) {
+                if matches!(
+                    self.editor_state.pending_confirm,
+                    ConfirmAction::ResetFilters
+                ) {
                     let default_filters: Vec<Filter> =
                         (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
                     self.editor_state.filters = default_filters;
@@ -598,45 +635,52 @@ impl MainWindow {
                     None => Message::ImportClipboardFailed("Clipboard empty or not text".into()),
                 })
             }
-            Message::ImportClipboardReceived(text) => {
-                match autoeq::parse_autoeq_text(&text) {
-                    Ok(peq) => {
-                        let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
-                        self.editor_state.filters = peq
-                            .filters
-                            .into_iter()
-                            .map(|mut f| {
-                                f.enabled = true;
-                                f
-                            })
-                            .collect();
-                        self.editor_state.global_gain = peq.global_gain;
-                        self.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Info,
-                            Source::AutoEQ,
-                            format!("Import successful: {} filters", enabled_count),
-                        ));
-                        self.set_status(format!("Imported {} filters", enabled_count), StatusSeverity::Success)
-                    }
-                    Err(e) => {
-                        self.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Error,
-                            Source::AutoEQ,
-                            format!("Import failed: {}", e),
-                        ));
-                        self.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
-                    }
+            Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(&text) {
+                Ok(peq) => {
+                    let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
+                    self.editor_state.filters = peq
+                        .filters
+                        .into_iter()
+                        .map(|mut f| {
+                            f.enabled = true;
+                            f
+                        })
+                        .collect();
+                    self.editor_state.global_gain = peq.global_gain;
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::AutoEQ,
+                        format!("Import successful: {} filters", enabled_count),
+                    ));
+                    self.set_status(
+                        format!("Imported {} filters", enabled_count),
+                        StatusSeverity::Success,
+                    )
                 }
-            }
+                Err(e) => {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::AutoEQ,
+                        format!("Import failed: {}", e),
+                    ));
+                    self.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
+                }
+            },
             Message::ImportClipboardFailed(msg) => {
-                self.diagnostics
-                    .push(DiagnosticEvent::new(LogLevel::Error, Source::AutoEQ, msg.clone()));
+                self.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Error,
+                    Source::AutoEQ,
+                    msg.clone(),
+                ));
                 self.set_status(msg, StatusSeverity::Error)
             }
             Message::CopyDiagnostics => {
                 let conn_str = format!("{:?}", self.connection_status);
-                let output =
-                    crate::diagnostics::format_diagnostics(&self.diagnostics, APP_VERSION, &conn_str);
+                let output = crate::diagnostics::format_diagnostics(
+                    &self.diagnostics,
+                    APP_VERSION,
+                    &conn_str,
+                );
                 let _ = clipboard::write::<()>(output);
                 self.set_status("Diagnostics copied", StatusSeverity::Info)
             }
@@ -650,8 +694,11 @@ impl MainWindow {
             }
             Message::ExportDiagnosticsToFile => {
                 let conn_str = format!("{:?}", self.connection_status);
-                let output =
-                    crate::diagnostics::format_diagnostics(&self.diagnostics, APP_VERSION, &conn_str);
+                let output = crate::diagnostics::format_diagnostics(
+                    &self.diagnostics,
+                    APP_VERSION,
+                    &conn_str,
+                );
                 let now = chrono::Local::now();
                 let filename = format!("frost_tune_diag_{}.txt", now.format("%Y%m%d_%H%M%S"));
                 let path = std::path::PathBuf::from(&filename);
@@ -694,7 +741,10 @@ impl MainWindow {
                         Source::UI,
                         format!("Loaded profile: {}", profile.name),
                     ));
-                    self.set_status(format!("Loaded profile: {}", profile.name), StatusSeverity::Info)
+                    self.set_status(
+                        format!("Loaded profile: {}", profile.name),
+                        StatusSeverity::Info,
+                    )
                 } else {
                     Task::none()
                 }
@@ -723,7 +773,10 @@ impl MainWindow {
                             async move { crate::storage::load_all_profiles().unwrap_or_default() },
                             Message::ProfilesLoaded,
                         );
-                        let status_task = self.set_status(format!("Saved profile: {}", name), StatusSeverity::Success);
+                        let status_task = self.set_status(
+                            format!("Saved profile: {}", name),
+                            StatusSeverity::Success,
+                        );
                         Task::batch(vec![reload_task, status_task])
                     }
                     Err(e) => {
@@ -741,7 +794,10 @@ impl MainWindow {
                 Task::none()
             }
             Message::ConfirmDeleteProfile => {
-                if matches!(self.editor_state.pending_confirm, ConfirmAction::DeleteProfile) {
+                if matches!(
+                    self.editor_state.pending_confirm,
+                    ConfirmAction::DeleteProfile
+                ) {
                     let name = match &self.editor_state.selected_profile_name {
                         Some(n) => n.clone(),
                         None => return Task::none(),
@@ -758,7 +814,10 @@ impl MainWindow {
                                 async move { crate::storage::load_all_profiles().unwrap_or_default() },
                                 Message::ProfilesLoaded,
                             );
-                            let status_task = self.set_status(format!("Deleted profile: {}", name), StatusSeverity::Info);
+                            let status_task = self.set_status(
+                                format!("Deleted profile: {}", name),
+                                StatusSeverity::Info,
+                            );
                             self.editor_state.pending_confirm = ConfirmAction::None;
                             Task::batch(vec![reload_task, status_task])
                         }
@@ -769,7 +828,10 @@ impl MainWindow {
                                 format!("Delete failed: {}", e),
                             ));
                             self.editor_state.pending_confirm = ConfirmAction::None;
-                            self.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error)
+                            self.set_status(
+                                format!("Failed to delete: {}", e),
+                                StatusSeverity::Error,
+                            )
                         }
                     }
                 } else {
@@ -826,68 +888,67 @@ impl MainWindow {
                     Message::FileExported,
                 )
             }
-            Message::FileImported(result) => {
-                match result {
-                    Ok(text) => match autoeq::parse_autoeq_text(&text) {
-                        Ok(peq) => {
-                            let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
-                            self.editor_state.filters = peq
-                                .filters
-                                .into_iter()
-                                .map(|mut f| {
-                                    f.enabled = true;
-                                    f
-                                })
-                                .collect();
-                            self.editor_state.global_gain = peq.global_gain;
-                            self.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Info,
-                                Source::AutoEQ,
-                                format!("Import successful from file: {} filters", enabled_count),
-                            ));
-                            self.set_status(format!("Imported {} filters from file", enabled_count), StatusSeverity::Success)
-                        }
-                        Err(e) => {
-                            self.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Error,
-                                Source::AutoEQ,
-                                format!("Import failed: {}", e),
-                            ));
-                            self.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
-                        }
-                    },
-                    Err(e) if e != "Cancelled" => {
-                        self.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Error,
-                            Source::UI,
-                            format!("File error: {}", e),
-                        ));
-                        self.set_status(format!("File error: {}", e), StatusSeverity::Error)
-                    }
-                    _ => Task::none(),
-                }
-            }
-            Message::FileExported(result) => {
-                match result {
-                    Ok(name) => {
+            Message::FileImported(result) => match result {
+                Ok(text) => match autoeq::parse_autoeq_text(&text) {
+                    Ok(peq) => {
+                        let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
+                        self.editor_state.filters = peq
+                            .filters
+                            .into_iter()
+                            .map(|mut f| {
+                                f.enabled = true;
+                                f
+                            })
+                            .collect();
+                        self.editor_state.global_gain = peq.global_gain;
                         self.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Info,
-                            Source::UI,
-                            format!("Exported to {}", name),
+                            Source::AutoEQ,
+                            format!("Import successful from file: {} filters", enabled_count),
                         ));
-                        self.set_status(format!("Exported to {}", name), StatusSeverity::Success)
+                        self.set_status(
+                            format!("Imported {} filters from file", enabled_count),
+                            StatusSeverity::Success,
+                        )
                     }
-                    Err(e) if e != "Cancelled" => {
+                    Err(e) => {
                         self.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Error,
-                            Source::UI,
-                            format!("Export error: {}", e),
+                            Source::AutoEQ,
+                            format!("Import failed: {}", e),
                         ));
-                        self.set_status(format!("Export error: {}", e), StatusSeverity::Error)
+                        self.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
                     }
-                    _ => Task::none(),
+                },
+                Err(e) if e != "Cancelled" => {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::UI,
+                        format!("File error: {}", e),
+                    ));
+                    self.set_status(format!("File error: {}", e), StatusSeverity::Error)
                 }
-            }
+                _ => Task::none(),
+            },
+            Message::FileExported(result) => match result {
+                Ok(name) => {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::UI,
+                        format!("Exported to {}", name),
+                    ));
+                    self.set_status(format!("Exported to {}", name), StatusSeverity::Success)
+                }
+                Err(e) if e != "Cancelled" => {
+                    self.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::UI,
+                        format!("Export error: {}", e),
+                    ));
+                    self.set_status(format!("Export error: {}", e), StatusSeverity::Error)
+                }
+                _ => Task::none(),
+            },
             Message::ToggleAdvancedFilters(expanded) => {
                 self.editor_state.advanced_filters_expanded = expanded;
                 let prefs = crate::storage::UiPreferences {
@@ -921,7 +982,11 @@ impl MainWindow {
         }
     }
 
-    pub fn set_status(&mut self, content: impl Into<String>, severity: StatusSeverity) -> Task<Message> {
+    pub fn set_status(
+        &mut self,
+        content: impl Into<String>,
+        severity: StatusSeverity,
+    ) -> Task<Message> {
         let content = content.into();
         let skip_diag_echo = content.starts_with("Loaded profile:")
             || content.starts_with("Saved profile:")
@@ -1071,9 +1136,33 @@ impl MainWindow {
 
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
         match bucket {
-            LayoutBucket::Narrow => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
-            LayoutBucket::Medium => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
-            LayoutBucket::Wide => vec!["header", "status", "autoeq", "presets", "graph", "advanced", "diagnostics"],
+            LayoutBucket::Narrow => vec![
+                "header",
+                "status",
+                "autoeq",
+                "presets",
+                "graph",
+                "advanced",
+                "diagnostics",
+            ],
+            LayoutBucket::Medium => vec![
+                "header",
+                "status",
+                "autoeq",
+                "presets",
+                "graph",
+                "advanced",
+                "diagnostics",
+            ],
+            LayoutBucket::Wide => vec![
+                "header",
+                "status",
+                "autoeq",
+                "presets",
+                "graph",
+                "advanced",
+                "diagnostics",
+            ],
         }
     }
 
@@ -1110,30 +1199,26 @@ impl MainWindow {
             .into();
 
         if let Some(dialog) = match self.editor_state.pending_confirm {
-            ConfirmAction::ResetFilters => {
-                Some(self.view_confirm_dialog(
-                    "Reset Filters?",
-                    "This will reset all 10 bands to default values and set global gain to 0.",
-                    "Reset",
-                    Message::ConfirmResetFilters,
-                ))
-            }
-            ConfirmAction::DeleteProfile => {
-                Some(self.view_confirm_dialog(
-                    "Delete Profile?",
-                    "Are you sure you want to delete this profile? This cannot be undone.",
-                    "Delete",
-                    Message::ConfirmDeleteProfile,
-                ))
-            }
+            ConfirmAction::ResetFilters => Some(self.view_confirm_dialog(
+                "Reset Filters?",
+                "This will reset all 10 bands to default values and set global gain to 0.",
+                "Reset",
+                Message::ConfirmResetFilters,
+            )),
+            ConfirmAction::DeleteProfile => Some(self.view_confirm_dialog(
+                "Delete Profile?",
+                "Are you sure you want to delete this profile? This cannot be undone.",
+                "Delete",
+                Message::ConfirmDeleteProfile,
+            )),
             ConfirmAction::None => None,
         } {
-            container(
-                column![
-                    container(main_view).width(Length::Fill).height(Length::Fill),
-                    dialog,
-                ]
-            )
+            container(column![
+                container(main_view)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+                dialog,
+            ])
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -1215,17 +1300,17 @@ impl MainWindow {
             || self.operation_lock.is_disconnecting;
 
         let status_text = match &self.connection_status {
-            ConnectionStatus::Disconnected => {
-                match self.disconnect_reason {
-                    DisconnectReason::None => text("Disconnected").color(TOKYO_NIGHT_MUTED),
-                    DisconnectReason::Manual => text("Disconnected (by user)").color(TOKYO_NIGHT_MUTED),
-                    DisconnectReason::DeviceLost => text("Disconnected (device unplugged)").color(TOKYO_NIGHT_WARNING),
-                    DisconnectReason::Error(ref e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
+            ConnectionStatus::Disconnected => match self.disconnect_reason {
+                DisconnectReason::None => text("Disconnected").color(TOKYO_NIGHT_MUTED),
+                DisconnectReason::Manual => text("Disconnected (by user)").color(TOKYO_NIGHT_MUTED),
+                DisconnectReason::DeviceLost => {
+                    text("Disconnected (device unplugged)").color(TOKYO_NIGHT_WARNING)
                 }
-            }
-            ConnectionStatus::Connecting => {
-                text("Connecting...").color(TOKYO_NIGHT_YELLOW)
-            }
+                DisconnectReason::Error(ref e) => {
+                    text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR)
+                }
+            },
+            ConnectionStatus::Connecting => text("Connecting...").color(TOKYO_NIGHT_YELLOW),
             ConnectionStatus::Connected => text("Connected").color(TOKYO_NIGHT_SUCCESS),
             ConnectionStatus::Error(e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
         };
@@ -1234,7 +1319,11 @@ impl MainWindow {
             let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
             let name = device_type.name();
             let vid_pid = format!("VID:{:04X} PID:{:04X}", dev.vendor_id, dev.product_id);
-            let mfr = dev.manufacturer.as_deref().map(|m| format!(" ({})", m)).unwrap_or_default();
+            let mfr = dev
+                .manufacturer
+                .as_deref()
+                .map(|m| format!(" ({})", m))
+                .unwrap_or_default();
             let row_el: Element<'_, Message> = column![
                 text(format!("Device: {}", name))
                     .size(TYPE_LABEL)
@@ -1290,7 +1379,9 @@ impl MainWindow {
 
         let loading_indicator = if is_busy {
             row![
-                text("Processing...").size(TYPE_CAPTION).color(TOKYO_NIGHT_BLUE),
+                text("Processing...")
+                    .size(TYPE_CAPTION)
+                    .color(TOKYO_NIGHT_BLUE),
                 // We could add a spinner here if we had an icon font
             ]
             .spacing(SPACE_8)
@@ -1299,22 +1390,24 @@ impl MainWindow {
             row![]
         };
 
-        container(row![
-            column![
-                text("Frost-Tune")
-                    .size(TYPE_DISPLAY)
-                    .color(TOKYO_NIGHT_PRIMARY),
-                device_info_text,
-                text("Workflow: Connect → Read Device → Edit → Write Device")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_FG),
-                row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
+        container(
+            row![
+                column![
+                    text("Frost-Tune")
+                        .size(TYPE_DISPLAY)
+                        .color(TOKYO_NIGHT_PRIMARY),
+                    device_info_text,
+                    text("Workflow: Connect → Read Device → Edit → Write Device")
+                        .size(TYPE_LABEL)
+                        .color(TOKYO_NIGHT_FG),
+                    row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
+                ]
+                .spacing(SPACE_4),
+                container(text("")).width(Length::Fill),
+                btn_row,
             ]
-            .spacing(SPACE_4),
-            container(text("")).width(Length::Fill),
-            btn_row,
-        ]
-        .align_y(iced::Alignment::Center))
+            .align_y(iced::Alignment::Center),
+        )
         .padding(SPACE_12)
         .style(theme::header_card_style)
         .into()
@@ -1345,7 +1438,11 @@ impl MainWindow {
                 .style(theme::m3_filled_input)
                 .width(Length::FillPortion(1)),
             action_button("Reset")
-                .on_press_maybe(if is_busy { None } else { Some(Message::ResetFiltersPressed) })
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ResetFiltersPressed)
+                })
                 .style(theme::pill_secondary_button),
             action_button("Save")
                 .on_press(Message::SaveProfilePressed)
@@ -1468,30 +1565,26 @@ impl MainWindow {
                         .width(Length::Fixed(110.0))
                         .style(theme::m3_input_pick_list)
                         .text_size(12),
-                        row![
-                            text_input(
-                                "",
-                                self.editor_state
-                                    .input_buffer
-                                    .get_freq(i)
-                                    .as_deref()
-                                    .unwrap_or(&format!("{}", band.freq))
-                            )
-                            .on_input(move |s| Message::BandFreqInput(i, s))
-                            .on_submit(Message::BandFreqInputCommit(i))
-                            .style(theme::m3_outlined_input)
-                            .width(Length::Fixed(80.0))
-                            .size(TYPE_LABEL),
-                        ]
+                        row![text_input(
+                            "",
+                            self.editor_state
+                                .input_buffer
+                                .get_freq(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{}", band.freq))
+                        )
+                        .on_input(move |s| Message::BandFreqInput(i, s))
+                        .on_submit(Message::BandFreqInputCommit(i))
+                        .style(theme::m3_outlined_input)
+                        .width(Length::Fixed(80.0))
+                        .size(TYPE_LABEL),]
                         .spacing(SPACE_4)
                         .align_y(iced::Alignment::Center)
                         .width(Length::FillPortion(2)),
                         row![
-                            slider(
-                                MIN_BAND_GAIN..=MAX_BAND_GAIN,
-                                band.gain,
-                                move |v| Message::BandGainChanged(i, v)
-                            )
+                            slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| {
+                                Message::BandGainChanged(i, v)
+                            })
                             .step(0.1)
                             .width(Length::Fill),
                             text_input(
@@ -1511,21 +1604,19 @@ impl MainWindow {
                         .spacing(SPACE_4)
                         .align_y(iced::Alignment::Center)
                         .width(Length::FillPortion(4)),
-                        row![
-                            text_input(
-                                "",
-                                self.editor_state
-                                    .input_buffer
-                                    .get_q(i)
-                                    .as_deref()
-                                    .unwrap_or(&format!("{:.2}", band.q))
-                            )
-                            .on_input(move |s| Message::BandQInput(i, s))
-                            .on_submit(Message::BandQInputCommit(i))
-                            .style(theme::m3_outlined_input)
-                            .width(Length::Fixed(60.0))
-                                .size(TYPE_LABEL),
-                        ]
+                        row![text_input(
+                            "",
+                            self.editor_state
+                                .input_buffer
+                                .get_q(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{:.2}", band.q))
+                        )
+                        .on_input(move |s| Message::BandQInput(i, s))
+                        .on_submit(Message::BandQInputCommit(i))
+                        .style(theme::m3_outlined_input)
+                        .width(Length::Fixed(60.0))
+                        .size(TYPE_LABEL),]
                         .spacing(SPACE_4)
                         .align_y(iced::Alignment::Center)
                         .width(Length::FillPortion(1)),
@@ -1547,7 +1638,10 @@ impl MainWindow {
             .collect();
 
         let header = row![
-            text("#").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED).width(Length::Fixed(20.0)),
+            text("#")
+                .size(TYPE_LABEL)
+                .color(TOKYO_NIGHT_MUTED)
+                .width(Length::Fixed(20.0)),
             text("Type")
                 .size(TYPE_LABEL)
                 .color(TOKYO_NIGHT_MUTED)
@@ -1557,15 +1651,10 @@ impl MainWindow {
                 .color(TOKYO_NIGHT_MUTED)
                 .width(Length::FillPortion(2)),
             row![
-                container(
-                    text("Gain (dB)")
-                        .size(TYPE_LABEL)
-                        .color(TOKYO_NIGHT_MUTED)
-                )
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-                container(text(""))
-                    .width(Length::Fixed(60.0)),
+                container(text("Gain (dB)").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED))
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+                container(text("")).width(Length::Fixed(60.0)),
             ]
             .width(Length::FillPortion(4)),
             text("Q")
@@ -1577,15 +1666,19 @@ impl MainWindow {
         .align_y(iced::Alignment::Center);
 
         container(
-            container(column![busy_notice, header, scrollable(column(band_list).spacing(SPACE_8))])
-                .max_width(1080),
+            container(column![
+                busy_notice,
+                header,
+                scrollable(column(band_list).spacing(SPACE_8))
+            ])
+            .max_width(1080),
         )
-            .padding([SPACE_12, SPACE_8])
-            .style(theme::card_style)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .into()
+        .padding([SPACE_12, SPACE_8])
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .into()
     }
 
     fn view_advanced_filters_section(&self) -> Element<'_, Message> {
@@ -1644,19 +1737,35 @@ impl MainWindow {
                     .color(TOKYO_NIGHT_MUTED),
                 row![
                     action_button("Import Clipboard")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromClipboard) })
+                        .on_press_maybe(if is_busy {
+                            None
+                        } else {
+                            Some(Message::ImportFromClipboard)
+                        })
                         .style(theme::pill_secondary_button),
                     action_button("Import File")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ImportFromFilePressed) })
+                        .on_press_maybe(if is_busy {
+                            None
+                        } else {
+                            Some(Message::ImportFromFilePressed)
+                        })
                         .style(theme::pill_secondary_button),
                 ]
                 .spacing(SPACE_8),
                 row![
                     action_button("Export Clipboard")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportAutoEQPressed) })
+                        .on_press_maybe(if is_busy {
+                            None
+                        } else {
+                            Some(Message::ExportAutoEQPressed)
+                        })
                         .style(theme::pill_secondary_button),
                     action_button("Export File")
-                        .on_press_maybe(if is_busy { None } else { Some(Message::ExportToFilePressed) })
+                        .on_press_maybe(if is_busy {
+                            None
+                        } else {
+                            Some(Message::ExportToFilePressed)
+                        })
                         .style(theme::pill_secondary_button),
                 ]
                 .spacing(SPACE_8),

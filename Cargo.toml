@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Bukutsu"]
 description = "Native cross-platform parametric EQ editor for USB DACs. Built with Rust and Iced."
 license = "MIT"
+default-run = "frost-tune"
 
 [dependencies]
 iced = { version = "0.14", features = ["tokio", "canvas"] }
@@ -25,6 +26,10 @@ hidapi = { version = "2.6", default-features = false, features = ["windows-nativ
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libc = "0.2"
+
+[[bin]]
+name = "frost-tune-hid-helper"
+path = "src/bin/frost-tune-hid-helper.rs"
 
 [profile.release]
 strip = true

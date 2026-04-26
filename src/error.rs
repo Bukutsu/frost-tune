@@ -39,6 +39,7 @@ pub type Result<T> = std::result::Result<T, AppError>;
 pub enum ErrorKind {
     NotConnected,
     PermissionDenied,
+    PolkitAuthRequired,
     DeviceBusy,
     ReadTimeout,
     WriteError,
@@ -53,6 +54,7 @@ impl ErrorKind {
         match self {
             ErrorKind::NotConnected => "Device not found. Is it plugged in?",
             ErrorKind::PermissionDenied => "Access denied. Check USB permissions.",
+            ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt (or install the optional Frost-Tune policy for improved UX).",
             ErrorKind::DeviceBusy => "Device is busy. Another app may be connected.",
             ErrorKind::ReadTimeout => "USB read timeout. Try again.",
             ErrorKind::WriteError => "USB write failed.",
@@ -68,6 +70,8 @@ impl ErrorKind {
     pub fn from_string(s: &str) -> Self {
         if s.contains("Not connected") || s.contains("not found") || s.contains("No such") {
             ErrorKind::NotConnected
+        } else if s.contains("POLKIT_AUTH_REQUIRED") || s.contains("Authentication required") {
+            ErrorKind::PolkitAuthRequired
         } else if s.contains("Permission denied") || s.contains("Access denied") {
             ErrorKind::PermissionDenied
         } else if s.contains("busy") || s.contains("in use") {

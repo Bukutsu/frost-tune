@@ -11,6 +11,11 @@ use crate::models::{
     ConnectionResult, Device, DeviceInfo, Filter, OperationResult, PEQData, PushPayload,
 };
 
+#[cfg(target_os = "linux")]
+use crate::hardware::elevated_transport::ElevatedTransport;
+#[cfg(target_os = "linux")]
+use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
+
 #[derive(Debug, Clone)]
 pub struct WorkerStatus {
     pub connected: bool,
@@ -24,6 +29,36 @@ fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
         product_id: device_info.product_id(),
         path: device_info.path().to_string_lossy().into(),
         manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackendKind {
+    Local,
+    #[cfg(target_os = "linux")]
+    Elevated,
+}
+
+enum TransportBackend {
+    Local {
+        device: hidapi::HidDevice,
+        device_type: Device,
+        info: DeviceInfo,
+    },
+    #[cfg(target_os = "linux")]
+    Elevated {
+        transport: ElevatedTransport,
+        info: DeviceInfo,
+    },
+}
+
+impl TransportBackend {
+    fn device_info(&self) -> DeviceInfo {
+        match self {
+            TransportBackend::Local { info, .. } => info.clone(),
+            #[cfg(target_os = "linux")]
+            TransportBackend::Elevated { info, .. } => info.clone(),
+        }
     }
 }
 
@@ -44,9 +79,10 @@ impl UsbWorker {
         let (tx, rx) = mpsc::channel();
 
         thread::spawn(move || {
-            let mut device: Option<hidapi::HidDevice> = None;
-            let mut device_type = Device::Unknown;
-            let mut manual_disconnect = false;
+            let mut backend: Option<TransportBackend> = None;
+            let mut manual_disconnect: bool = false;
+            let mut preferred_backend: BackendKind = BackendKind::Local;
+
             let mut api = match hidapi::HidApi::new() {
                 Ok(a) => {
                     log::info!("HID API initialized successfully");
@@ -70,26 +106,70 @@ impl UsbWorker {
                         log::warn!("Failed to refresh USB device list: {}", e);
                     }
 
-                    let is_physically_connected = find_device_info(&api).is_some();
-                    let is_logically_connected = device.is_some();
+                    let local_physical_device = find_device_info(&api);
+                    let is_physically_connected = local_physical_device.is_some();
 
-                    if is_logically_connected && !is_physically_connected {
-                        log::warn!("DAC physically disconnected!");
-                        device = None;
-                        device_type = Device::Unknown;
+                    let mut clear_backend = false;
+                    let mut has_logical_connection = backend.is_some();
+
+                    if let Some(current_backend) = backend.as_mut() {
+                        match current_backend {
+                            TransportBackend::Local { .. } => {
+                                if !is_physically_connected {
+                                    log::warn!("DAC physically disconnected (local backend)");
+                                    clear_backend = true;
+                                }
+                            }
+                            #[cfg(target_os = "linux")]
+                            TransportBackend::Elevated { transport, .. } => {
+                                match transport.round_trip(&HelperRequest::Status) {
+                                    Ok(HelperResponse::Status {
+                                        connected,
+                                        physically_present,
+                                        ..
+                                    }) => {
+                                        if !connected || !physically_present {
+                                            log::warn!(
+                                                "DAC disconnected (elevated backend status: connected={}, physically_present={})",
+                                                connected,
+                                                physically_present
+                                            );
+                                            clear_backend = true;
+                                        }
+                                    }
+                                    Ok(_) => {
+                                        clear_backend = true;
+                                    }
+                                    Err(e) => {
+                                        log::warn!("Elevated backend status failed: {}", e);
+                                        clear_backend = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if clear_backend {
+                        backend = None;
                         manual_disconnect = false;
-                    } else if !is_logically_connected
-                        && is_physically_connected
-                        && !manual_disconnect
-                    {
+                        has_logical_connection = false;
+                    }
+
+                    if !has_logical_connection && is_physically_connected && !manual_disconnect {
                         log::info!("DAC detected, auto-connecting...");
-                        let res = worker_connect(&mut device, &mut device_type, &api);
+                        let preferred = preferred_backend;
+                        let res = worker_connect(
+                            &mut backend,
+                            &mut preferred_backend,
+                            &api,
+                            Some(preferred),
+                        );
                         if res.success {
                             log::info!("Auto-reconnect successful");
                         } else {
                             log::warn!("Auto-reconnect failed: {:?}", res.error);
                         }
-                    } else if !is_logically_connected && !is_physically_connected {
+                    } else if !has_logical_connection && !is_physically_connected {
                         manual_disconnect = false;
                     }
                 }
@@ -98,13 +178,24 @@ impl UsbWorker {
                     Ok(cmd) => match cmd {
                         UsbCommand::Connect(resp) => {
                             manual_disconnect = false;
-                            let result = worker_connect(&mut device, &mut device_type, &api);
+                            let preferred = preferred_backend;
+                            let result = worker_connect(
+                                &mut backend,
+                                &mut preferred_backend,
+                                &api,
+                                Some(preferred),
+                            );
                             let _ = resp.send(result);
                         }
                         UsbCommand::Disconnect(resp) => {
                             manual_disconnect = true;
-                            device = None;
-                            device_type = Device::Unknown;
+                            if let Some(current) = backend.as_mut() {
+                                #[cfg(target_os = "linux")]
+                                if let TransportBackend::Elevated { transport, .. } = current {
+                                    let _ = transport.round_trip(&HelperRequest::Disconnect);
+                                }
+                            }
+                            backend = None;
                             let _ = resp.send(OperationResult {
                                 success: true,
                                 data: None,
@@ -112,24 +203,15 @@ impl UsbWorker {
                             });
                         }
                         UsbCommand::Status(resp) => {
-                            let _ = api.refresh_devices();
-                            let physical_device = find_device_info(&api);
-                            let physically_present = physical_device.is_some();
-                            let status = WorkerStatus {
-                                connected: device.is_some(),
-                                physically_present,
-                                device: physical_device.as_ref().map(device_info_from_hid),
-                            };
+                            let status = worker_status(&mut backend, &mut api);
                             let _ = resp.send(status);
                         }
                         UsbCommand::PullPEQ(resp) => {
-                            let proto = device_type.protocol();
-                            let result = worker_pull_peq(&device, proto.as_ref());
+                            let result = worker_pull_peq(&mut backend);
                             let _ = resp.send(result);
                         }
                         UsbCommand::PushPEQ(payload, resp) => {
-                            let proto = device_type.protocol();
-                            let result = worker_push_peq(&device, proto.as_ref(), payload);
+                            let result = worker_push_peq(&mut backend, payload);
                             let _ = resp.send(result);
                         }
                     },
@@ -179,45 +261,315 @@ impl Default for UsbWorker {
     }
 }
 
+fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidApi) -> WorkerStatus {
+    let _ = api.refresh_devices();
+    let physical_device = find_device_info(api);
+    let physically_present = physical_device.is_some();
+
+    let mut should_clear_backend = false;
+
+    let status = match backend.as_mut() {
+        Some(TransportBackend::Local { info, .. }) => WorkerStatus {
+            connected: true,
+            physically_present,
+            device: Some(info.clone()),
+        },
+        #[cfg(target_os = "linux")]
+        Some(TransportBackend::Elevated { transport, info }) => {
+            match transport.round_trip(&HelperRequest::Status) {
+                Ok(HelperResponse::Status {
+                    connected,
+                    physically_present,
+                    device,
+                }) => {
+                    if !connected {
+                        should_clear_backend = true;
+                    }
+                    WorkerStatus {
+                        connected,
+                        physically_present,
+                        device: device.or_else(|| Some(info.clone())),
+                    }
+                }
+                Ok(_) | Err(_) => {
+                    should_clear_backend = true;
+                    WorkerStatus {
+                        connected: false,
+                        physically_present,
+                        device: physical_device.as_ref().map(device_info_from_hid),
+                    }
+                }
+            }
+        }
+        None => WorkerStatus {
+            connected: false,
+            physically_present,
+            device: physical_device.as_ref().map(device_info_from_hid),
+        },
+    };
+
+    if should_clear_backend {
+        *backend = None;
+    }
+
+    status
+}
+
 fn worker_connect(
-    device: &mut Option<hidapi::HidDevice>,
-    device_type: &mut Device,
+    backend: &mut Option<TransportBackend>,
+    preferred_backend: &mut BackendKind,
     api: &hidapi::HidApi,
+    preferred: Option<BackendKind>,
 ) -> ConnectionResult {
-    if device.is_some() {
-        let current = find_device_info(api).map(|d| device_info_from_hid(&d));
+    if let Some(current_backend) = backend.as_ref() {
         return ConnectionResult {
             success: true,
-            device: current,
+            device: Some(current_backend.device_info()),
             error: None,
         };
     }
 
-    let device_info = match find_device_info(api) {
-        Some(d) => d,
-        None => {
-            return ConnectionResult {
-                success: false,
-                device: None,
-                error: Some("Device not found. Is it plugged in?".into()),
-            };
-        }
-    };
+    let local_first = !matches!(preferred, Some(BackendKind::Elevated));
 
-    match device_info.open_device(api) {
-        Ok(d) => {
-            *device = Some(d);
-            *device_type = Device::from_vid_pid(device_info.vendor_id(), device_info.product_id());
-            ConnectionResult {
-                success: true,
-                device: Some(device_info_from_hid(&device_info)),
-                error: None,
+    if local_first {
+        let local = try_connect_local(api);
+        match local {
+            Ok(Some(connected)) => {
+                *preferred_backend = BackendKind::Local;
+                let info = connected.device_info();
+                *backend = Some(connected);
+                return ConnectionResult {
+                    success: true,
+                    device: Some(info),
+                    error: None,
+                };
+            }
+            Ok(None) => {
+                return ConnectionResult {
+                    success: false,
+                    device: None,
+                    error: Some("Device not found. Is it plugged in?".into()),
+                };
+            }
+            Err(local_err) => {
+                #[cfg(target_os = "linux")]
+                {
+                    if is_permission_denied_error(&local_err) {
+                        match try_connect_elevated() {
+                            Ok(connected) => {
+                                *preferred_backend = BackendKind::Elevated;
+                                let info = connected.device_info();
+                                *backend = Some(connected);
+                                return ConnectionResult {
+                                    success: true,
+                                    device: Some(info),
+                                    error: None,
+                                };
+                            }
+                            Err(elevated_err) => {
+                                return ConnectionResult {
+                                    success: false,
+                                    device: None,
+                                    error: Some(format!("POLKIT_AUTH_REQUIRED: {}", elevated_err)),
+                                };
+                            }
+                        }
+                    }
+                }
+
+                return ConnectionResult {
+                    success: false,
+                    device: None,
+                    error: Some(local_err),
+                };
             }
         }
-        Err(e) => ConnectionResult {
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        match try_connect_elevated() {
+            Ok(connected) => {
+                *preferred_backend = BackendKind::Elevated;
+                let info = connected.device_info();
+                *backend = Some(connected);
+                return ConnectionResult {
+                    success: true,
+                    device: Some(info),
+                    error: None,
+                };
+            }
+            Err(elevated_err) => {
+                let local = try_connect_local(api);
+                match local {
+                    Ok(Some(connected)) => {
+                        *preferred_backend = BackendKind::Local;
+                        let info = connected.device_info();
+                        *backend = Some(connected);
+                        return ConnectionResult {
+                            success: true,
+                            device: Some(info),
+                            error: None,
+                        };
+                    }
+                    Ok(None) => {
+                        return ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some("Device not found. Is it plugged in?".into()),
+                        };
+                    }
+                    Err(local_err) => {
+                        return ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(format!(
+                                "POLKIT_AUTH_REQUIRED: {} | local open failed: {}",
+                                elevated_err, local_err
+                            )),
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    #[allow(unreachable_code)]
+    ConnectionResult {
+        success: false,
+        device: None,
+        error: Some("Connect failed".into()),
+    }
+}
+
+fn try_connect_local(api: &hidapi::HidApi) -> Result<Option<TransportBackend>, String> {
+    let device_info = match find_device_info(api) {
+        Some(d) => d,
+        None => return Ok(None),
+    };
+
+    let info = device_info_from_hid(&device_info);
+    match device_info.open_device(api) {
+        Ok(d) => {
+            let device_type =
+                Device::from_vid_pid(device_info.vendor_id(), device_info.product_id());
+            Ok(Some(TransportBackend::Local {
+                device: d,
+                device_type,
+                info,
+            }))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn try_connect_elevated() -> Result<TransportBackend, String> {
+    let mut transport = ElevatedTransport::spawn()?;
+    match transport.round_trip(&HelperRequest::Connect)? {
+        HelperResponse::Connected { device } => {
+            let info = device.ok_or_else(|| "Helper connected without device info".to_string())?;
+            Ok(TransportBackend::Elevated { transport, info })
+        }
+        HelperResponse::Error { message } => Err(message),
+        _ => Err("Unexpected response from elevated helper during connect".to_string()),
+    }
+}
+
+fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResult {
+    match backend.as_mut() {
+        Some(TransportBackend::Local {
+            device,
+            device_type,
+            info: _,
+        }) => {
+            let proto = device_type.protocol();
+            worker_pull_peq_local(device, proto.as_ref())
+        }
+        #[cfg(target_os = "linux")]
+        Some(TransportBackend::Elevated { transport, info: _ }) => {
+            match transport.round_trip(&HelperRequest::PullPeq { strict: false }) {
+                Ok(HelperResponse::Pulled { data }) => OperationResult {
+                    success: true,
+                    data: Some(data),
+                    error: None,
+                },
+                Ok(HelperResponse::Error { message }) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(message),
+                },
+                Ok(_) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some("Unexpected helper response for pull".to_string()),
+                },
+                Err(e) => {
+                    *backend = None;
+                    OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(e),
+                    }
+                }
+            }
+        }
+        None => OperationResult {
             success: false,
-            device: None,
-            error: Some(e.to_string()),
+            data: None,
+            error: Some("Not connected".into()),
+        },
+    }
+}
+
+fn worker_push_peq(
+    backend: &mut Option<TransportBackend>,
+    payload: PushPayload,
+) -> OperationResult {
+    match backend.as_mut() {
+        Some(TransportBackend::Local {
+            device,
+            device_type,
+            info: _,
+        }) => {
+            let proto = device_type.protocol();
+            worker_push_peq_local(device, proto.as_ref(), payload)
+        }
+        #[cfg(target_os = "linux")]
+        Some(TransportBackend::Elevated { transport, info: _ }) => {
+            match transport.round_trip(&HelperRequest::PushPeq {
+                filters: payload.filters,
+                global_gain: payload.global_gain,
+            }) {
+                Ok(HelperResponse::Pushed { data }) => OperationResult {
+                    success: true,
+                    data: Some(data),
+                    error: None,
+                },
+                Ok(HelperResponse::Error { message }) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(message),
+                },
+                Ok(_) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some("Unexpected helper response for push".to_string()),
+                },
+                Err(e) => {
+                    *backend = None;
+                    OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(e),
+                    }
+                }
+            }
+        }
+        None => OperationResult {
+            success: false,
+            data: None,
+            error: Some("Not connected".into()),
         },
     }
 }
@@ -242,22 +594,11 @@ fn pull_peq_data(
     Err(last_err)
 }
 
-fn worker_pull_peq(
-    device: &Option<hidapi::HidDevice>,
+fn worker_pull_peq_local(
+    device: &hidapi::HidDevice,
     proto: &dyn DeviceProtocol,
 ) -> OperationResult {
-    let d = match device {
-        Some(d) => d,
-        None => {
-            return OperationResult {
-                success: false,
-                data: None,
-                error: Some("Not connected".into()),
-            }
-        }
-    };
-
-    let first_result = pull_peq_data(d, proto, false);
+    let first_result = pull_peq_data(device, proto, false);
 
     let needs_retry = match &first_result {
         Ok(peq) => {
@@ -271,7 +612,7 @@ fn worker_pull_peq(
 
     let final_result = if needs_retry {
         delay_ms(100);
-        pull_peq_data(d, proto, false)
+        pull_peq_data(device, proto, false)
     } else {
         first_result
     };
@@ -330,22 +671,11 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<(),
     Ok(())
 }
 
-fn worker_push_peq(
-    device: &Option<hidapi::HidDevice>,
+fn worker_push_peq_local(
+    device: &hidapi::HidDevice,
     proto: &dyn DeviceProtocol,
     payload: PushPayload,
 ) -> OperationResult {
-    let d = match device {
-        Some(d) => d,
-        None => {
-            return OperationResult {
-                success: false,
-                data: None,
-                error: Some("Not connected".into()),
-            }
-        }
-    };
-
     let mut payload = payload;
     payload.clamp();
     if let Err(e) = payload.is_valid() {
@@ -356,7 +686,7 @@ fn worker_push_peq(
         };
     }
 
-    let snapshot = match pull_peq_data(d, proto, true) {
+    let snapshot = match pull_peq_data(device, proto, true) {
         Ok(s) => s,
         Err(e) => {
             return OperationResult {
@@ -369,18 +699,18 @@ fn worker_push_peq(
 
     let timing = WriteTiming::default();
     if let Err(e) = (|| -> Result<(), String> {
-        init_device_session(d, proto)?;
+        init_device_session(device, proto)?;
         write_filters_and_gain(
-            d,
+            device,
             proto,
             &payload.filters,
             payload.global_gain.unwrap_or(0),
             &timing,
         )?;
-        commit_changes(d, proto, &timing)?;
+        commit_changes(device, proto, &timing)?;
         Ok(())
     })() {
-        if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+        if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
             return OperationResult {
                 success: false,
                 data: None,
@@ -400,7 +730,7 @@ fn worker_push_peq(
     for attempt in 0..3 {
         let backoff_ms = 300 + (attempt * 200);
         delay_ms(backoff_ms);
-        match pull_peq_data(d, proto, true) {
+        match pull_peq_data(device, proto, true) {
             Ok(read_back) => {
                 if compare_peq(
                     &read_back,
@@ -428,7 +758,7 @@ fn worker_push_peq(
                 }
             }
             Err(e) => {
-                if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+                if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
                     return OperationResult {
                         success: false,
                         data: None,
@@ -446,7 +776,7 @@ fn worker_push_peq(
             }
         }
     }
-    if let Err(rollback_error) = rollback_and_verify(d, proto, &snapshot) {
+    if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
         return OperationResult {
             success: false,
             data: None,
@@ -485,4 +815,10 @@ fn rollback_state(
     let timing = WriteTiming::default();
     write_filters_and_gain(d, proto, &state.filters, state.global_gain, &timing)?;
     commit_changes(d, proto, &timing)
+}
+
+#[cfg(target_os = "linux")]
+fn is_permission_denied_error(message: &str) -> bool {
+    let lowered = message.to_lowercase();
+    lowered.contains("permission denied") || lowered.contains("access denied")
 }
