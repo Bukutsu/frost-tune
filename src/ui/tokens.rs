@@ -19,6 +19,8 @@ pub const M3_COLOR_ERROR: Color = TOKYO_NIGHT_RED;
 // Window-class helpers for adaptive layout decisions.
 pub const WINDOW_NARROW_MAX: f32 = 999.0;
 pub const WINDOW_MEDIUM_MAX: f32 = 1279.0;
+pub const WINDOW_MAX_CONTENT_WIDTH: f32 = 1280.0;
+
 
 // Spacing scale.
 pub const SPACE_2: f32 = 2.0;

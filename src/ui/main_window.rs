@@ -1146,13 +1146,16 @@ impl MainWindow {
 
     fn view_medium(&self) -> Element<'_, Message> {
         let tools_row = row![
-            views::autoeq::view_autoeq(self),
-            views::presets_preamp::view_presets_and_preamp(
+            container(views::presets_preamp::view_presets_and_preamp(
                 self,
                 views::presets_preamp::PresetsLayout::Medium,
-            ),
+            ))
+            .width(Length::FillPortion(1)),
+            container(views::autoeq::view_autoeq(self)).width(Length::FillPortion(1)),
         ]
-        .spacing(SPACE_16);
+        .spacing(SPACE_16)
+        .align_y(iced::Alignment::Start)
+        .width(Length::Fill);
 
         column![
             views::header::view_header(self),
@@ -1169,27 +1172,21 @@ impl MainWindow {
     fn view_wide(&self) -> Element<'_, Message> {
         let right_panel_width: f32 = 680.0;
 
-        let left_column = column![
-            views::graph_panel::view_graph(self),
-            views::bands::view_advanced_filters_section(self),
-        ]
-        .spacing(SPACE_16)
-        .width(Length::Fill);
-
-        let right_column = column![
-            views::presets_preamp::view_presets_and_preamp(
+        let row_one = row![
+            container(views::graph_panel::view_graph(self)).width(Length::Fill),
+            container(views::presets_preamp::view_presets_and_preamp(
                 self,
                 views::presets_preamp::PresetsLayout::Medium,
-            ),
-            views::autoeq::view_autoeq(self),
-            views::diagnostics::view_diagnostics_section(self),
+            ))
+            .width(Length::Fixed(right_panel_width)),
         ]
         .spacing(SPACE_16)
-        .width(Length::Fill);
+        .width(Length::Fill)
+        .align_y(iced::Alignment::Start);
 
-        let content_row = row![
-            container(left_column).width(Length::Fill),
-            container(right_column).width(Length::Fixed(right_panel_width)),
+        let row_two = row![
+            container(views::diagnostics::view_diagnostics_section(self)).width(Length::Fill),
+            container(views::autoeq::view_autoeq(self)).width(Length::Fixed(right_panel_width)),
         ]
         .spacing(SPACE_16)
         .width(Length::Fill)
@@ -1198,7 +1195,9 @@ impl MainWindow {
         column![
             views::header::view_header(self),
             views::status_banner::view_status_banner(self),
-            content_row,
+            row_one,
+            row_two,
+            views::bands::view_advanced_filters_section(self),
         ]
         .spacing(SPACE_16)
         .width(Length::Fill)
@@ -1244,7 +1243,11 @@ impl MainWindow {
                 LayoutBucket::Wide => (SPACE_24, self.view_wide()),
             };
 
-            container(layout).padding(padding).into()
+            container(layout)
+                .padding(padding)
+                .width(Length::Fixed(crate::ui::tokens::WINDOW_MAX_CONTENT_WIDTH))
+                .center_x(Length::Fill)
+                .into()
         });
 
         let main_view = container(scrollable(content))

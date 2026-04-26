@@ -165,19 +165,14 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     .spacing(SPACE_4)
     .align_y(iced::Alignment::Center);
 
-    container(
-        container(column![
-            busy_notice,
-            header,
-            scrollable(column(band_list).spacing(SPACE_8))
-        ])
-        .max_width(1080),
-    )
+    container(column![
+        busy_notice,
+        header,
+        scrollable(column(band_list).spacing(SPACE_8))
+    ])
     .padding([SPACE_12, SPACE_8])
     .style(theme::card_style)
     .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
     .into()
 }
 
