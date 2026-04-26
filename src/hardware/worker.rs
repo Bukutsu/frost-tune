@@ -329,7 +329,11 @@ fn worker_connect(
         };
     }
 
+    #[cfg(target_os = "linux")]
     let local_first = !matches!(preferred, Some(BackendKind::Elevated));
+
+    #[cfg(not(target_os = "linux"))]
+    let local_first = true;
 
     if local_first {
         let local = try_connect_local(api);
