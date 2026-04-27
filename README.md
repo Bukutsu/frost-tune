@@ -2,82 +2,76 @@
 
 Native cross-platform parametric EQ editor for USB DACs.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Rust-1.75%2B-orange?style=flat-square&logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/Iced-0.14-blue?style=flat-square" alt="Iced">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-lightgrey?style=flat-square&logo=linux&logoColor=white" alt="Platform">
-  <img src="https://img.shields.io/badge/HID-hidapi-yellow?style=flat-square" alt="HID Library">
-  <img src="https://img.shields.io/badge/Theme-Tokyo%20Night-purple?style=flat-square" alt="Theme">
-</p>
+![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=flat-square&logo=rust)
+![Iced](https://img.shields.io/badge/Iced-0.14-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-lightgrey?style=flat-square)
+![HID](https://img.shields.io/badge/HID-hidapi-yellow?style=flat-square)
+![Theme](https://img.shields.io/badge/Theme-Tokyo%20Night-purple?style=flat-square)
 
-## About
+Frost-Tune is a desktop app for tuning PEQ directly on supported USB DACs.
+It is built in Rust with Iced, runs fully offline, and talks to hardware over
+USB HID using a safety-first push model.
 
-Frost-Tune is a native desktop application for configuring parametric equalizer (PEQ) settings on USB DACs. Built with **Rust** and **Iced** GUI framework, it provides a modern, cross-platform experience without the overhead of Electron or WebView. The application communicates directly with DAC hardware over USB HID, providing precise control over audio equalization parameters.
+## Why Frost-Tune
 
-## Features
+- Native performance and small binaries
+- Predictable hardware behavior with transactional writes
+- Clean desktop UX aligned with Material 3 principles
+- Extensible protocol layer for more DACs over time
 
-- **Native Performance**: Built with Rust for blazing-fast speed and small binary size
-- **Modern UI**: Iced-based UI with Tokyo Night theme support following Material Design 3 principles
-- **Multi-DAC Support**: Extensible architecture supporting multiple DAC protocols (starting with EPZ TP35 Pro)
-- **Transactional Updates**: Safe push mechanism with write → read-back → verify pattern and automatic rollback
-- **Profile Management**: Import/export EQ configurations in standard formats compatible with AutoEQ and REW
-- **Persistent Storage**: Save equalizer configurations directly to DAC flash memory
-- **Offline First**: No internet required, runs completely offline
-- **Cross-Platform**: Supports Linux and Windows with planned macOS support
+## Current device support
 
-## Supported Devices
+- EPZ TP35 Pro (`0x3302` / `0x43E6`) - supported
 
-| DAC | Vendor ID | Product ID | Status |
-|-----|-----------|------------|--------|
-| EPZ TP35 Pro | 0x3302 | 0x43E6 | ✅ Supported |
-
-## Screenshots
+## Screenshot
 
 ![Frost-Tune Main Interface](assets/screenshot.png)
 
-*Parametric equalizer interface showing 10-band PEQ editor with frequency, Q, and gain controls*
+## Safety model
+
+Frost-Tune treats hardware writes as a critical operation:
+
+1. Write new EQ payload
+2. Read back device state
+3. Verify values match
+4. Roll back automatically on mismatch
+
+Additional safety constraints:
+
+- Band gain limit: `+10 dB`
+- Global preamp limit: `+10 dB`
+- HID I/O is isolated to a background worker thread
 
 ## Installation
 
-### From Source
+### Prerequisites
+
+- Rust toolchain: <https://rustup.rs>
+- Git
+- Platform-specific dependencies:
+  - Linux: `libhidapi-dev`
+  - Windows: Visual C++ build tools
+
+### Build from source
 
 ```bash
-# Clone the repository
 git clone https://github.com/Bukutsu/frost-tune.git
 cd frost-tune
-
-# Build
 cargo build --release
-
-# Run
 cargo run --release
 ```
 
-### Dependencies
+## Linux permissions (polkit + helper)
 
-**Linux:**
-```bash
-sudo apt install libhidapi-dev
-```
+On Linux, Frost-Tune can relaunch in helper mode with `pkexec` when direct HID
+access is denied.
 
-**Windows:**
-- WebView2 (pre-installed on Windows 10/11)
-- Microsoft Visual C++ Build Tools
-
-### Linux USB Permissions (polkit)
-
-On Linux, Frost-Tune works out of the box after build. If direct HID access is denied, it relaunches itself via `pkexec` in helper mode and asks for authentication.
-
-No `make install` is required for basic usage.
-
-#### Optional: install helper + policy (recommended for packaged/system installs)
+No global install is required for local development, but for packaged/system
+usage:
 
 ```bash
-# Build helper in release mode
 cargo build --release --bin frost-tune-hid-helper
-
-# Install helper + policy
 sudo make install
 ```
 
@@ -89,115 +83,112 @@ sudo cp target/release/frost-tune-hid-helper /usr/libexec/frost-tune/
 sudo cp packaging/linux/org.frosttune.hid.policy /usr/share/polkit-1/actions/
 ```
 
-#### Troubleshooting
+### Optional legacy udev mode
 
-If you see authentication or permission errors:
-
-1. Verify policy: `ls /usr/share/polkit-1/actions/org.frosttune.hid.policy`
-2. Verify helper: `ls /usr/libexec/frost-tune/frost-tune-hid-helper`
-3. Retry connection from Frost-Tune
-
-#### Legacy udev mode (optional)
-
-If polkit is unavailable, you can still use udev rules:
+If polkit is not available:
 
 ```bash
-echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", MODE="0666"' | sudo tee /etc/udev/rules.d/99-frosttune.rules
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", \
+ATTRS{idProduct}=="43e6", MODE="0666"' \
+| sudo tee /etc/udev/rules.d/99-frosttune.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
+## Usage
+
+1. Connect a supported DAC
+2. Launch Frost-Tune
+3. Adjust PEQ bands (Freq / Q / Gain)
+4. Preview and validate response curve
+5. Push settings to device (transactional verify is automatic)
+6. Save or export profiles as needed
+
 ## Development
 
-### Project Structure
-
-```
-frost-tune/
-├── src/
-│   ├── main.rs              # Application entry point
-│   ├── lib.rs               # Core library exports and module definitions
-│   ├── models.rs            # Data structures (Filter, PEQData, DeviceInfo)
-│   ├── storage.rs           # Persistent storage for EQ profiles
-│   ├── error.rs             # Error handling definitions
-│   ├── diagnostics.rs       # Diagnostic and logging utilities
-│   ├── autoeq.rs            # AutoEQ profile parsing utilities
-│   ├── hardware/             # USB HID communication and DSP logic
-│   │   ├── mod.rs           # Hardware module exports
-│   │   ├── worker.rs        # Background thread for hidapi operations
-│   │   ├── protocol.rs      # Raw USB packet building and parsing
-│   │   ├── dsp.rs           # Frequency/Q/Gain to Biquad math conversion
-│   │   ├── hid.rs           # HID device read/write operations
-│   │   └── packet_builder.rs # Command packet construction utilities
-│   └── ui/                   # Iced GUI components
-│       ├── mod.rs           # UI module exports
-│       ├── main_window.rs   # Main application window and layout
-│       ├── state.rs         # Application state management
-│       ├── messages.rs      # UI message definitions
-│       ├── graph.rs         # Frequency response visualization
-│       ├── theme.rs         # Tokyo Night theme implementation
-│       └── tokens.rs        # Theme color tokens
-├── Cargo.toml
-├── AGENTS.md                # Developer instructions and coding standards
-└── README.md
-```
-
-### Commands
+### Useful commands
 
 ```bash
-# Build debug version
-cargo build
-
-# Run in development mode
-cargo run
-
-# Check for errors
 cargo check
-
-# Run tests
+cargo build
+cargo run
 cargo test
-
-# Build release version
-cargo build --release
-
-# Build with optimizations
 cargo build --release
 ```
 
-### Safety Features
+### Project structure
 
-Frost-Tune implements multiple layers of safety for audio hardware control:
+```text
+frost-tune/
+|- src/
+|  |- main.rs
+|  |- lib.rs
+|  |- models.rs
+|  |- storage.rs
+|  |- error.rs
+|  |- diagnostics.rs
+|  |- autoeq.rs
+|  |- bin/
+|  |  `- frost-tune-hid-helper.rs
+|  |- hardware/
+|  |  |- mod.rs
+|  |  |- worker.rs
+|  |  |- protocol.rs
+|  |  |- dsp.rs
+|  |  |- hid.rs
+|  |  |- packet_builder.rs
+|  |  |- elevated_transport.rs
+|  |  |- helper_ipc.rs
+|  |  `- helper_server.rs
+|  `- ui/
+|     |- mod.rs
+|     |- main_window.rs
+|     |- state.rs
+|     |- messages.rs
+|     |- graph.rs
+|     |- theme.rs
+|     |- tokens.rs
+|     `- views/
+`- packaging/linux/org.frosttune.hid.policy
+```
 
-1. **Transactional Push**: All EQ updates follow `Write → Read Back → Verify` pattern
-2. **Automatic Rollback**: If verification fails, device state is rolled back to previous
-3. **Safety Limits**: Band gain capped at +10dB, global preamp at +10dB
-4. **Timing Gaps**: Proper delays between packets prevent flash corruption
-5. **Unified Threading Model**: All HID calls happen in background thread, never from UI widgets
+## Troubleshooting
 
-### Tech Stack
+If device access fails on Linux:
 
-- **Language**: Rust 1.75+ (Edition 2021)
-- **GUI Framework**: [Iced](https://iced.rs/) 0.14
-- **HID Library**: [hidapi](https://github.com/libusb/hidapi)
-- **Logging**: [env_logger](https://crates.io/crates/env_logger) with log crate
-- **Theme**: Built-in Tokyo Night (with full theme support)
-- **Build System**: Cargo
-
-### Cross-Platform Notes
-
-- **Linux**: Requires `libhidapi-dev` (`sudo apt install libhidapi-dev`)
-- **Windows**: Requires WebView2 (usually pre-installed on Win10/11)
-- **macOS**: Planned support (currently untested)
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-- [Iced](https://iced.rs/) - Cross-platform GUI library for Rust
-- [hidapi](https://github.com/libusb/hidapi) - Cross-platform HID library
-- Original [tp35pro-eq](https://github.com/Bukutsu/tp35pro-eq) project for hardware protocol reference
-- Material Design 3 guidelines for UI/UX principles
+1. Confirm helper policy exists:
+   - `/usr/share/polkit-1/actions/org.frosttune.hid.policy`
+2. Confirm helper binary exists:
+   - `/usr/libexec/frost-tune/frost-tune-hid-helper`
+3. Retry connection from the app
+4. Fall back to udev mode if needed
 
 ## Contributing
 
-Contributions are welcome! Please read [AGENTS.md](AGENTS.md) for developer instructions, coding standards, and project architecture details before contributing.
+Contributions are welcome.
+
+Before opening a PR, read [AGENTS.md](AGENTS.md) for architecture and safety
+rules, especially HID threading and transactional write requirements.
+
+Recommended pre-PR checks:
+
+```bash
+cargo fmt
+cargo check
+cargo test
+```
+
+## Roadmap
+
+- Expand support for additional USB DACs
+- Improve profile workflows and diagnostics
+- Validate and package broader cross-platform distribution
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Acknowledgments
+
+- [Iced](https://iced.rs/) for native Rust GUI
+- [hidapi](https://github.com/libusb/hidapi) for cross-platform HID access
+- [tp35pro-eq](https://github.com/Bukutsu/tp35pro-eq) for protocol reference
