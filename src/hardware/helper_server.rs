@@ -1,83 +1,32 @@
 #[cfg(target_os = "linux")]
-use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
+use crate::hardware::hid::{delay_ms, device_info_from_hid, find_device_info};
 #[cfg(target_os = "linux")]
-use crate::hardware::hid::{delay_ms, find_device_info, pull_peq_internal};
+use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
 #[cfg(target_os = "linux")]
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain, WriteTiming,
 };
 #[cfg(target_os = "linux")]
-use crate::hardware::worker::compare_peq;
-#[cfg(target_os = "linux")]
 use crate::models::{Device, DeviceInfo, Filter, PEQData, PushPayload};
 
 #[cfg(target_os = "linux")]
+use crate::error::{AppError, ErrorKind};
+#[cfg(target_os = "linux")]
+use crate::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
+#[cfg(target_os = "linux")]
 use std::io::{self, BufRead, Write};
 
-#[cfg(target_os = "linux")]
-fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
-    DeviceInfo {
-        vendor_id: device_info.vendor_id(),
-        product_id: device_info.product_id(),
-        path: device_info.path().to_string_lossy().into(),
-        manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
-    }
-}
 
-#[cfg(target_os = "linux")]
-fn pull_peq_data(
-    d: &hidapi::HidDevice,
-    proto: &dyn crate::hardware::protocol::DeviceProtocol,
-    strict: bool,
-) -> Result<PEQData, String> {
-    let mut last_err = "Timeout".to_string();
-    for attempt in 0..3 {
-        match pull_peq_internal(d, proto, strict) {
-            Ok(data) => return Ok(data),
-            Err(e) => {
-                last_err = e;
-            }
-        }
-        if attempt < 2 {
-            delay_ms(200);
-        }
-    }
-    Err(last_err)
-}
 
-#[cfg(target_os = "linux")]
-fn rollback_state(
-    d: &hidapi::HidDevice,
-    proto: &dyn crate::hardware::protocol::DeviceProtocol,
-    state: &PEQData,
-) -> Result<(), String> {
-    let timing = WriteTiming::default();
-    write_filters_and_gain(d, proto, &state.filters, state.global_gain, &timing)?;
-    commit_changes(d, proto, &timing)
-}
 
-#[cfg(target_os = "linux")]
-fn rollback_and_verify(
-    d: &hidapi::HidDevice,
-    proto: &dyn crate::hardware::protocol::DeviceProtocol,
-    snapshot: &PEQData,
-) -> Result<(), String> {
-    rollback_state(d, proto, snapshot).map_err(|e| format!("rollback write failed: {}", e))?;
-
-    let restored =
-        pull_peq_data(d, proto, true).map_err(|e| format!("rollback verify read failed: {}", e))?;
-
-    compare_peq(&restored, &snapshot.filters, snapshot.global_gain)
-        .map_err(|e| format!("rollback verify mismatch: {}", e))
-}
 
 #[cfg(target_os = "linux")]
 fn pull_logic(
     device: &hidapi::HidDevice,
     device_type: Device,
     strict: bool,
-) -> Result<PEQData, String> {
-    let proto = device_type.protocol();
+) -> crate::error::Result<PEQData> {
+    let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
     let first_result = pull_peq_data(device, proto.as_ref(), strict);
 
     let needs_retry = match &first_result {
@@ -104,20 +53,20 @@ fn push_logic(
     device_type: Device,
     filters: Vec<Filter>,
     global_gain: Option<i8>,
-) -> Result<PEQData, String> {
-    let proto = device_type.protocol();
+) -> crate::error::Result<PEQData> {
+    let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
 
     let mut payload = PushPayload {
         filters,
         global_gain,
     };
     payload.clamp();
-    payload.is_valid()?;
+    payload.is_valid().map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     let snapshot = pull_peq_data(device, proto.as_ref(), true)?;
 
     let timing = WriteTiming::default();
-    if let Err(e) = (|| -> Result<(), String> {
+    let write_res = (|| -> crate::error::Result<()> {
         init_device_session(device, proto.as_ref())?;
         write_filters_and_gain(
             device,
@@ -128,16 +77,21 @@ fn push_logic(
         )?;
         commit_changes(device, proto.as_ref(), &timing)?;
         Ok(())
-    })() {
-        rollback_and_verify(device, proto.as_ref(), &snapshot).map_err(|rollback_error| {
-            format!("Write failed: {} | rollback failed: {}", e, rollback_error)
-        })?;
-        return Err(format!("Write failed: {}", e));
+    })();
+
+    if let Err(e) = write_res {
+        if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
+            return Err(AppError::new(
+                ErrorKind::RollbackFailed,
+                format!("Write failed: {} | rollback failed: {}", e.message, rollback_error.message),
+            ));
+        }
+        return Err(e);
     }
 
     for attempt in 0..3 {
-        let backoff_ms = 300 + (attempt * 200);
-        delay_ms(backoff_ms);
+        let backoff_ms = 200 * (2u64.pow(attempt as u32));
+        delay_ms(backoff_ms as u64);
         match pull_peq_data(device, proto.as_ref(), true) {
             Ok(read_back) => {
                 if compare_peq(
@@ -151,48 +105,49 @@ fn push_logic(
                 }
             }
             Err(e) => {
-                rollback_and_verify(device, proto.as_ref(), &snapshot).map_err(
-                    |rollback_error| {
-                        format!(
-                            "Verify read error: {} | rollback failed: {}",
-                            e, rollback_error
-                        )
-                    },
-                )?;
-                return Err(format!("Verify read error: {}", e));
+                if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
+                    return Err(AppError::new(
+                        ErrorKind::RollbackFailed,
+                        format!("Verify read error: {} | rollback failed: {}", e.message, rollback_error.message),
+                    ));
+                }
+                return Err(e);
             }
         }
     }
 
-    rollback_and_verify(device, proto.as_ref(), &snapshot).map_err(|rollback_error| {
-        format!("Verification failed | rollback failed: {}", rollback_error)
-    })?;
+    if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
+        return Err(AppError::new(
+            ErrorKind::RollbackFailed,
+            format!("Verification failed | rollback failed: {}", rollback_error.message),
+        ));
+    }
 
-    Err("Verification failed: settings did not match".to_string())
+    Err(AppError::new(ErrorKind::VerifyFailed, "Verification failed: settings did not match"))
 }
 
 #[cfg(target_os = "linux")]
 fn write_response(
     stdout: &mut io::StdoutLock<'_>,
     response: &HelperResponse,
-) -> Result<(), String> {
+) -> crate::error::Result<()> {
     let line = serde_json::to_string(response)
-        .map_err(|e| format!("Failed to serialize response: {}", e))?;
+        .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to serialize response: {}", e)))?;
     stdout
         .write_all(line.as_bytes())
-        .map_err(|e| format!("Failed writing response: {}", e))?;
+        .map_err(|e| AppError::general(format!("Failed writing response: {}", e)))?;
     stdout
         .write_all(b"\n")
-        .map_err(|e| format!("Failed writing response delimiter: {}", e))?;
+        .map_err(|e| AppError::general(format!("Failed writing response delimiter: {}", e)))?;
     stdout
         .flush()
-        .map_err(|e| format!("Failed flushing response: {}", e))?;
+        .map_err(|e| AppError::general(format!("Failed flushing response: {}", e)))?;
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-pub fn run() -> Result<(), String> {
-    let mut api = hidapi::HidApi::new().map_err(|e| format!("Failed to init HID API: {}", e))?;
+pub fn run() -> crate::error::Result<()> {
+    let mut api = hidapi::HidApi::new().map_err(|e| AppError::general(format!("Failed to init HID API: {}", e)))?;
     let mut device: Option<hidapi::HidDevice> = None;
     let mut device_info: Option<DeviceInfo> = None;
     let mut device_type: Device = Device::Unknown;
@@ -209,7 +164,7 @@ pub fn run() -> Result<(), String> {
                 let _ = write_response(
                     &mut stdout_lock,
                     &HelperResponse::Error {
-                        message: format!("Failed reading request: {}", e),
+                        error: AppError::general(format!("Failed reading request: {}", e)),
                     },
                 );
                 continue;
@@ -226,7 +181,7 @@ pub fn run() -> Result<(), String> {
                 let _ = write_response(
                     &mut stdout_lock,
                     &HelperResponse::Error {
-                        message: format!("Invalid request payload: {}", e),
+                        error: AppError::general(format!("Invalid request payload: {}", e)),
                     },
                 );
                 continue;
@@ -247,7 +202,7 @@ pub fn run() -> Result<(), String> {
                                 Device::from_vid_pid(found.vendor_id(), found.product_id());
                             if found_type == Device::Unknown {
                                 HelperResponse::Error {
-                                    message: "Unsupported DAC device".to_string(),
+                                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                                 }
                             } else {
                                 match found.open_device(&api) {
@@ -259,13 +214,13 @@ pub fn run() -> Result<(), String> {
                                         HelperResponse::Connected { device: Some(info) }
                                     }
                                     Err(e) => HelperResponse::Error {
-                                        message: e.to_string(),
+                                        error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
                                     },
                                 }
                             }
                         }
                         None => HelperResponse::Error {
-                            message: "Device not found. Is it plugged in?".to_string(),
+                            error: AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?"),
                         },
                     }
                 }
@@ -291,20 +246,23 @@ pub fn run() -> Result<(), String> {
                     device: physical.as_ref().map(device_info_from_hid),
                 }
             }
+            HelperRequest::Version => HelperResponse::Version {
+                version: IPC_VERSION.to_string(),
+            },
             HelperRequest::PullPeq { strict } => {
                 if let Some(d) = &device {
                     match pull_logic(d, device_type, strict) {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {
-                                message: format!("Serialization failed: {}", e),
+                                error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
                             },
                         },
-                        Err(e) => HelperResponse::Error { message: e },
+                        Err(e) => HelperResponse::Error { error: e },
                     }
                 } else {
                     HelperResponse::Error {
-                        message: "Not connected".to_string(),
+                        error: AppError::new(ErrorKind::NotConnected, "Not connected"),
                     }
                 }
             }
@@ -317,14 +275,14 @@ pub fn run() -> Result<(), String> {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {
-                                message: format!("Serialization failed: {}", e),
+                                error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
                             },
                         },
-                        Err(e) => HelperResponse::Error { message: e },
+                        Err(e) => HelperResponse::Error { error: e },
                     }
                 } else {
                     HelperResponse::Error {
-                        message: "Not connected".to_string(),
+                        error: AppError::new(ErrorKind::NotConnected, "Not connected"),
                     }
                 }
             }

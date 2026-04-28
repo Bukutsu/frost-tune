@@ -1,6 +1,6 @@
 use crate::autoeq;
 use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
-use crate::error::ErrorKind;
+use crate::error::{AppError, ErrorKind};
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
 use crate::models::{
     snap_freq_to_iso, snap_q_to_iso, ConnectionResult, Device, Filter, OperationResult, PEQData,
@@ -12,12 +12,12 @@ use crate::ui::state::{
     OperationLock,
 };
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_16, SPACE_24, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
+use crate::ui::tokens::{SPACE_8, SPACE_16, SPACE_24, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
 use crate::ui::views;
 use iced::{
     clipboard,
     widget::{column, container, responsive, row, scrollable},
-    Element, Length, Subscription, Task,
+    Element, Length, Padding, Subscription, Task,
 };
 use std::sync::Arc;
 
@@ -168,7 +168,7 @@ impl MainWindow {
                         rx.recv().unwrap_or(OperationResult {
                             success: false,
                             data: None,
-                            error: Some("Worker closed".into()),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
                         })
                     },
                     Message::WorkerDisconnected,
@@ -197,7 +197,7 @@ impl MainWindow {
                         rx.recv().unwrap_or(OperationResult {
                             success: false,
                             data: None,
-                            error: Some("Worker closed".into()),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
                         })
                     },
                     Message::WorkerPulled,
@@ -233,7 +233,7 @@ impl MainWindow {
                         rx.recv().unwrap_or(OperationResult {
                             success: false,
                             data: None,
-                            error: Some("Worker closed".into()),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
                         })
                     },
                     Message::WorkerPushed,
@@ -264,17 +264,17 @@ impl MainWindow {
                         StatusSeverity::Success,
                     )
                 } else {
-                    let err = result.error.unwrap_or_else(|| "Unknown".into());
-                    let user_error = match ErrorKind::from_string(&err) {
+                    let err = result.error.unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
+                    let user_error = match err.kind {
                         ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
-                        _ => err.clone(),
+                        _ => err.message.clone(),
                     };
                     self.connection_status = ConnectionStatus::Error(user_error.clone());
                     self.connected_device = None;
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Error,
                         Source::Worker,
-                        format!("Connect failed: {}", err),
+                        format!("Connect failed: {}", err.message),
                     ));
                     self.set_status(
                         format!("Connect failed: {}", user_error),
@@ -296,39 +296,37 @@ impl MainWindow {
             Message::WorkerPulled(result) => {
                 self.operation_lock.is_pulling = false;
                 if result.success {
-                    if let Some(data) = result.data {
-                        if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
-                            self.editor_state.filters = peq
-                                .filters
-                                .into_iter()
-                                .map(|mut f| {
-                                    f.enabled = true;
-                                    f
-                                })
-                                .collect();
-                            self.editor_state.global_gain = peq.global_gain;
-                            self.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Info,
-                                Source::Worker,
-                                "Pull successful",
-                            ));
-                            return self
-                                .set_status("Data pulled from device", StatusSeverity::Success);
-                        }
+                    if let Some(peq) = result.data {
+                        self.editor_state.filters = peq
+                            .filters
+                            .into_iter()
+                            .map(|mut f| {
+                                f.enabled = true;
+                                f
+                            })
+                            .collect();
+                        self.editor_state.global_gain = peq.global_gain;
+                        self.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Info,
+                            Source::Worker,
+                            "Pull successful",
+                        ));
+                        return self
+                            .set_status("Data pulled from device", StatusSeverity::Success);
                     }
                     Task::none()
                 } else if let Some(err) = result.error {
-                    if err.contains("Not connected") || err.contains("not found") {
+                    if err.kind == ErrorKind::NotConnected || err.kind == ErrorKind::PolkitAuthRequired {
                         self.connection_status = ConnectionStatus::Disconnected;
                     } else {
-                        self.connection_status = ConnectionStatus::Error(err.clone());
+                        self.connection_status = ConnectionStatus::Error(err.message.clone());
                     }
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Error,
                         Source::Worker,
-                        format!("Pull failed: {}", err),
+                        format!("Connection failed: {}", err.message),
                     ));
-                    self.set_status(format!("Pull failed: {}", err), StatusSeverity::Error)
+                    self.set_status(format!("Connection failed: {}", err.message), StatusSeverity::Error)
                 } else {
                     Task::none()
                 }
@@ -336,41 +334,39 @@ impl MainWindow {
             Message::WorkerPushed(result) => {
                 self.operation_lock.is_pushing = false;
                 if result.success {
-                    if let Some(data) = result.data {
-                        if let Ok(peq) = serde_json::from_value::<PEQData>(data) {
-                            self.editor_state.filters = peq
-                                .filters
-                                .into_iter()
-                                .map(|mut f| {
-                                    f.enabled = true;
-                                    f
-                                })
-                                .collect();
-                            self.editor_state.global_gain = peq.global_gain;
-                            self.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Info,
-                                Source::Worker,
-                                "Push successful",
-                            ));
-                            return self.set_status(
-                                "Settings applied and verified",
-                                StatusSeverity::Success,
-                            );
-                        }
+                    if let Some(peq) = result.data {
+                        self.editor_state.filters = peq
+                            .filters
+                            .into_iter()
+                            .map(|mut f| {
+                                f.enabled = true;
+                                f
+                            })
+                            .collect();
+                        self.editor_state.global_gain = peq.global_gain;
+                        self.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Info,
+                            Source::Worker,
+                            "Push successful",
+                        ));
+                        return self.set_status(
+                            "Settings applied and verified",
+                            StatusSeverity::Success,
+                        );
                     }
                     Task::none()
                 } else if let Some(err) = result.error {
-                    if err.contains("Not connected") || err.contains("not found") {
+                    if err.kind == ErrorKind::NotConnected {
                         self.connection_status = ConnectionStatus::Disconnected;
                     } else {
-                        self.connection_status = ConnectionStatus::Error(err.clone());
+                        self.connection_status = ConnectionStatus::Error(err.message.clone());
                     }
                     self.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Error,
                         Source::Worker,
-                        format!("Push failed: {}", err),
+                        format!("Push failed: {}", err.message),
                     ));
-                    self.set_status(format!("Push failed: {}", err), StatusSeverity::Error)
+                    self.set_status(format!("Push failed: {}", err.message), StatusSeverity::Error)
                 } else {
                     Task::none()
                 }
@@ -590,8 +586,9 @@ impl MainWindow {
                     global_gain: self.editor_state.global_gain,
                 };
                 let output = autoeq::peq_to_autoeq(&peq);
-                let _write_task: iced::Task<()> = clipboard::write(output);
-                self.set_status("Exported to clipboard", StatusSeverity::Success)
+                let write_task = clipboard::write(output).map(|()| Message::ExportComplete);
+                let status_task = self.set_status("Exported to clipboard", StatusSeverity::Success);
+                Task::batch(vec![write_task, status_task])
             }
             Message::ExportComplete => Task::none(),
             Message::ImportFromClipboard => {
@@ -651,8 +648,9 @@ impl MainWindow {
                     APP_VERSION,
                     &conn_str,
                 );
-                let _ = clipboard::write::<()>(output);
-                self.set_status("Diagnostics copied", StatusSeverity::Info)
+                let write_task = clipboard::write(output).map(|()| Message::ExportComplete);
+                let status_task = self.set_status("Diagnostics copied", StatusSeverity::Info);
+                Task::batch(vec![write_task, status_task])
             }
             Message::ClearDiagnostics => {
                 self.diagnostics.clear();
@@ -1128,19 +1126,20 @@ impl MainWindow {
     }
 
     fn view_narrow(&self) -> Element<'_, Message> {
-        column![
-            views::header::view_header(self),
-            views::status_banner::view_status_banner(self),
-            views::graph_panel::view_graph(self),
-            views::presets_preamp::view_presets_and_preamp(
-                self,
-                views::presets_preamp::PresetsLayout::Narrow,
-            ),
-            views::autoeq::view_autoeq(self),
-            views::bands::view_advanced_filters_section(self),
-            views::diagnostics::view_diagnostics_section(self),
-        ]
-        .spacing(SPACE_16)
+        scrollable(
+            column![
+                views::graph_panel::view_graph(self),
+                views::presets_preamp::view_presets_and_preamp(
+                    self,
+                    views::presets_preamp::PresetsLayout::Narrow,
+                ),
+                views::autoeq::view_autoeq(self),
+                views::bands::view_bands(self),
+                views::diagnostics::view_diagnostics_section(self),
+            ]
+            .spacing(SPACE_16)
+            .width(Length::Fill)
+        )
         .into()
     }
 
@@ -1157,51 +1156,53 @@ impl MainWindow {
         .align_y(iced::Alignment::Start)
         .width(Length::Fill);
 
-        column![
-            views::header::view_header(self),
-            views::status_banner::view_status_banner(self),
-            views::graph_panel::view_graph(self),
-            tools_row,
-            views::bands::view_advanced_filters_section(self),
-            views::diagnostics::view_diagnostics_section(self),
-        ]
-        .spacing(SPACE_16)
+        scrollable(
+            column![
+                views::graph_panel::view_graph(self),
+                tools_row,
+                views::bands::view_bands(self),
+                views::diagnostics::view_diagnostics_section(self),
+            ]
+            .spacing(SPACE_16)
+            .width(Length::Fill)
+        )
         .into()
     }
 
     fn view_wide(&self) -> Element<'_, Message> {
-        let right_panel_width: f32 = 680.0;
+        let left_content = scrollable(
+            column![
+                views::graph_panel::view_graph(self),
+                views::bands::view_bands(self),
+            ]
+            .spacing(SPACE_16)
+            .width(Length::Fill)
+            .padding(Padding { top: 0.0, right: SPACE_16, bottom: 0.0, left: SPACE_16 })
+        )
+        .height(Length::Fill);
 
-        let row_one = row![
-            container(views::graph_panel::view_graph(self)).width(Length::Fill),
-            container(views::presets_preamp::view_presets_and_preamp(
-                self,
-                views::presets_preamp::PresetsLayout::Medium,
-            ))
-            .width(Length::Fixed(right_panel_width)),
-        ]
-        .spacing(SPACE_16)
-        .width(Length::Fill)
-        .align_y(iced::Alignment::Start);
+        let right_sidebar = container(
+            scrollable(
+                column![
+                    views::presets_preamp::view_presets_and_preamp(
+                        self,
+                        views::presets_preamp::PresetsLayout::Narrow,
+                    ),
+                    views::autoeq::view_autoeq(self),
+                    views::diagnostics::view_diagnostics_section(self),
+                ]
+                .spacing(SPACE_16)
+                .padding(Padding { top: 0.0, right: SPACE_16, bottom: SPACE_16, left: 0.0 })
+            )
+            .height(Length::Fill)
+        )
+        .width(Length::Fixed(crate::ui::tokens::SIDEBAR_WIDTH));
 
-        let row_two = row![
-            container(views::diagnostics::view_diagnostics_section(self)).width(Length::Fill),
-            container(views::autoeq::view_autoeq(self)).width(Length::Fixed(right_panel_width)),
-        ]
-        .spacing(SPACE_16)
-        .width(Length::Fill)
-        .align_y(iced::Alignment::Start);
-
-        column![
-            views::header::view_header(self),
-            views::status_banner::view_status_banner(self),
-            row_one,
-            row_two,
-            views::bands::view_advanced_filters_section(self),
-        ]
-        .spacing(SPACE_16)
-        .width(Length::Fill)
-        .into()
+        row![left_content, right_sidebar]
+            .spacing(0)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn with_modal_overlay<'a>(&self, main_view: Element<'a, Message>) -> Element<'a, Message> {
@@ -1220,14 +1221,18 @@ impl MainWindow {
             )),
             ConfirmAction::None => None,
         } {
-            container(column![
-                container(main_view)
+            iced::widget::stack![
+                main_view,
+                container(dialog)
                     .width(Length::Fill)
-                    .height(Length::Fill),
-                container(dialog).padding(SPACE_16).center_x(Length::Fill),
-            ])
-            .width(Length::Fill)
-            .height(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .style(|_theme| container::Style {
+                        background: Some(iced::Color { a: 0.8, ..crate::ui::theme::TOKYO_NIGHT_BG_DARK }.into()),
+                        ..Default::default()
+                    })
+            ]
             .into()
         } else {
             main_view
@@ -1237,24 +1242,30 @@ impl MainWindow {
     fn view(&self) -> Element<'_, Message> {
         let content = responsive(move |size| {
             let bucket = layout_bucket_for_width(size.width);
-            let (padding, layout): (f32, Element<'_, Message>) = match bucket {
-                LayoutBucket::Narrow => (SPACE_16, self.view_narrow()),
-                LayoutBucket::Medium => (SPACE_24, self.view_medium()),
-                LayoutBucket::Wide => (SPACE_24, self.view_wide()),
-            };
-
-            container(layout)
-                .padding(padding)
-                .width(Length::Fixed(crate::ui::tokens::WINDOW_MAX_CONTENT_WIDTH))
-                .center_x(Length::Fill)
-                .into()
+            match bucket {
+                LayoutBucket::Narrow => container(self.view_narrow())
+                    .padding(SPACE_16)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into(),
+                LayoutBucket::Medium => container(self.view_medium())
+                    .padding(SPACE_24)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into(),
+                LayoutBucket::Wide => self.view_wide(),
+            }
         });
 
-        let main_view = container(scrollable(content))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .into();
+        let main_view = column![
+            container(views::header::view_header(self))
+                .padding([SPACE_8, SPACE_16]),
+            views::status_banner::view_status_banner(self),
+            content,
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into();
 
         self.with_modal_overlay(main_view)
     }

@@ -1,11 +1,12 @@
 use crate::models::Device;
 use crate::ui::messages::Message;
-use crate::ui::state::{ConnectionStatus, DisconnectReason, MainWindow};
-use crate::ui::theme::{self, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_FG, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_SUCCESS, TOKYO_NIGHT_WARNING, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_YELLOW};
-use crate::ui::tokens::{SPACE_16, SPACE_4, SPACE_8, SPACE_12, TYPE_BODY, TYPE_CAPTION, TYPE_DISPLAY, TYPE_LABEL};
+use crate::ui::state::{ConnectionStatus, MainWindow};
+use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY};
+use crate::ui::tokens::{SPACE_16, SPACE_4, SPACE_8, SPACE_12, SPACE_2, SPACE_6, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, TYPE_TINY};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, row, text};
-use iced::{Element, Length};
+use iced::{Element, Font, Length};
+use iced::font::Weight;
 
 pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling
@@ -13,115 +14,110 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         || state.operation_lock.is_connecting
         || state.operation_lock.is_disconnecting;
 
-    let status_text = match &state.connection_status {
-        ConnectionStatus::Disconnected => match state.disconnect_reason {
-            DisconnectReason::None => text("Disconnected").color(TOKYO_NIGHT_MUTED),
-            DisconnectReason::Manual => text("Disconnected (by user)").color(TOKYO_NIGHT_MUTED),
-            DisconnectReason::DeviceLost => {
-                text("Disconnected (device unplugged)").color(TOKYO_NIGHT_WARNING)
-            }
-            DisconnectReason::Error(ref e) => {
-                text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR)
-            }
-        },
-        ConnectionStatus::Connecting => text("Connecting...").color(TOKYO_NIGHT_YELLOW),
-        ConnectionStatus::Connected => text("Connected").color(TOKYO_NIGHT_SUCCESS),
-        ConnectionStatus::Error(e) => text(format!("Error: {}", e)).color(TOKYO_NIGHT_ERROR),
-    };
+    let is_connected = state.connection_status == ConnectionStatus::Connected;
 
-    let device_info_text = if let Some(ref dev) = state.connected_device {
-        let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
-        let name = device_type.name();
-        let vid_pid = format!("VID:{:04X} PID:{:04X}", dev.vendor_id, dev.product_id);
-        let mfr = dev
-            .manufacturer
-            .as_deref()
-            .map(|m| format!(" ({})", m))
-            .unwrap_or_default();
-        let row_el: Element<'_, Message> = column![
-            text(format!("Device: {}", name))
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_PRIMARY),
-            text(format!("{}{}", vid_pid, mfr))
-                .size(TYPE_CAPTION)
-                .color(TOKYO_NIGHT_MUTED),
-        ]
-        .spacing(SPACE_4)
-        .into();
-        row_el
-    } else {
-        text("No device connected")
-            .size(TYPE_LABEL)
-            .color(TOKYO_NIGHT_MUTED)
-            .into()
-    };
-
-    let btn_row = row![
-        if !is_busy
-            && (state.connection_status == ConnectionStatus::Disconnected
-                || matches!(&state.connection_status, ConnectionStatus::Error(_)))
-        {
+    let sync_buttons = row![
+        if !is_busy && !is_connected {
             action_button("Connect")
                 .on_press(Message::ConnectPressed)
                 .style(theme::pill_primary_button)
         } else {
             action_button("Connect").style(theme::pill_primary_button)
         },
-        if !is_busy && state.connection_status == ConnectionStatus::Connected {
-            action_button("Disconnect")
+        if !is_busy && is_connected {
+            action_button("Read")
+                .on_press(Message::PullPressed)
+                .style(theme::pill_secondary_button)
+        } else {
+            action_button("Read").style(theme::pill_secondary_button)
+        },
+        if !is_busy && is_connected {
+            action_button("Write")
+                .on_press(Message::PushPressed)
+                .style(|theme, status| {
+                    let mut s = theme::pill_primary_button(theme, status);
+                    if matches!(status, iced::widget::button::Status::Active) {
+                        s.background = Some(iced::Background::Color(theme::ACCENT_VIBRANT));
+                        s.text_color = theme::TOKYO_NIGHT_BG_DARK;
+                    }
+                    s
+                })
+        } else {
+            action_button("Write").style(theme::pill_primary_button)
+        },
+        if !is_busy && is_connected {
+             action_button("Disconnect")
                 .on_press(Message::DisconnectPressed)
                 .style(theme::pill_secondary_button)
         } else {
             action_button("Disconnect").style(theme::pill_secondary_button)
         },
-        if !is_busy && state.connection_status == ConnectionStatus::Connected {
-            action_button("Read Device")
-                .on_press(Message::PullPressed)
-                .style(theme::pill_secondary_button)
-        } else {
-            action_button("Read Device").style(theme::pill_secondary_button)
-        },
-        if !is_busy && state.connection_status == ConnectionStatus::Connected {
-            action_button("Write Device")
-                .on_press(Message::PushPressed)
-                .style(theme::pill_primary_button)
-        } else {
-            action_button("Write Device").style(theme::pill_primary_button)
-        },
     ]
     .spacing(SPACE_8);
 
-    let loading_indicator = if is_busy {
+    let status_indicator = match &state.connection_status {
+        ConnectionStatus::Connected => container(text("SYNCED").size(TYPE_TINY).color(theme::TOKYO_NIGHT_BG_DARK))
+            .padding([SPACE_2, SPACE_6])
+            .style(|_theme| container::Style {
+                background: Some(theme::TOKYO_NIGHT_SUCCESS.into()),
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..Default::default()
+            }),
+        ConnectionStatus::Connecting => container(text("CONNECTING").size(TYPE_TINY).color(theme::TOKYO_NIGHT_BG_DARK))
+            .padding([SPACE_2, SPACE_6])
+            .style(|_theme| container::Style {
+                background: Some(theme::TOKYO_NIGHT_YELLOW.into()),
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..Default::default()
+            }),
+        _ => container(text("OFFLINE").size(TYPE_TINY).color(theme::TOKYO_NIGHT_FG_DARK))
+            .padding([SPACE_2, SPACE_6])
+            .style(|_theme| container::Style {
+                background: Some(theme::TOKYO_NIGHT_TERMINAL_BLACK.into()),
+                border: iced::Border { radius: 4.0.into(), ..Default::default() },
+                ..Default::default()
+            }),
+    };
+
+    let device_info = if let Some(ref dev) = state.connected_device {
+        let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
         row![
-            text("Processing...")
+            text(device_type.name())
+                .size(TYPE_BODY)
+                .color(TOKYO_NIGHT_PRIMARY)
+                .font(Font { weight: Weight::Bold, ..Default::default() }),
+            text(format!(" (VID:{:04X} PID:{:04X})", dev.vendor_id, dev.product_id))
                 .size(TYPE_CAPTION)
-                .color(TOKYO_NIGHT_BLUE),
-        ]
-        .spacing(SPACE_8)
-        .align_y(iced::Alignment::Center)
+                .color(TOKYO_NIGHT_MUTED),
+        ].align_y(iced::Alignment::Center).spacing(SPACE_4)
     } else {
-        row![]
+        row![text("No device detected").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED)]
     };
 
     container(
         row![
             column![
-                text("Frost-Tune")
-                    .size(TYPE_DISPLAY)
-                    .color(TOKYO_NIGHT_PRIMARY),
-                device_info_text,
-                text("Workflow: Connect → Read Device → Edit → Write Device")
-                    .size(TYPE_LABEL)
-                    .color(TOKYO_NIGHT_FG),
-                row![status_text.size(TYPE_BODY), loading_indicator].spacing(SPACE_16),
-            ]
-            .spacing(SPACE_4),
+                row![
+                    text("Frost-Tune")
+                        .size(TYPE_TITLE)
+                        .color(TOKYO_NIGHT_PRIMARY)
+                        .font(Font { weight: Weight::Bold, ..Default::default() }),
+                    status_indicator,
+                ].spacing(SPACE_12).align_y(iced::Alignment::Center),
+                device_info,
+            ].spacing(SPACE_2),
             container(text("")).width(Length::Fill),
-            btn_row,
+            if is_busy {
+                 text("Device busy...").size(TYPE_CAPTION).color(theme::TOKYO_NIGHT_BLUE)
+            } else {
+                text("").size(TYPE_CAPTION)
+            },
+            sync_buttons,
         ]
+        .padding(SPACE_16)
         .align_y(iced::Alignment::Center),
     )
-    .padding(SPACE_12)
     .style(theme::header_card_style)
+    .width(Length::Fill)
     .into()
 }

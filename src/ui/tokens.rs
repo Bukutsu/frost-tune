@@ -20,24 +20,32 @@ pub const M3_COLOR_ERROR: Color = TOKYO_NIGHT_RED;
 pub const WINDOW_NARROW_MAX: f32 = 999.0;
 pub const WINDOW_MEDIUM_MAX: f32 = 1279.0;
 pub const WINDOW_MAX_CONTENT_WIDTH: f32 = 1280.0;
-
+pub const SIDEBAR_WIDTH: f32 = 320.0;
 
 // Spacing scale.
+pub const SPACE_1: f32 = 1.0;
 pub const SPACE_2: f32 = 2.0;
 pub const SPACE_4: f32 = 4.0;
+pub const SPACE_6: f32 = 6.0;
 pub const SPACE_8: f32 = 8.0;
+pub const SPACE_10: f32 = 10.0;
 pub const SPACE_12: f32 = 12.0;
 pub const SPACE_16: f32 = 16.0;
+pub const SPACE_20: f32 = 20.0;
 pub const SPACE_24: f32 = 24.0;
 pub const SPACE_32: f32 = 32.0;
+pub const SPACE_40: f32 = 40.0;
 
 // Typography scale.
-pub const TYPE_DISPLAY: f32 = 28.0;
-pub const TYPE_TITLE: f32 = 20.0;
+pub const TYPE_DISPLAY: f32 = 32.0;
+pub const TYPE_TITLE: f32 = 22.0;
+pub const TYPE_SUBTITLE: f32 = 18.0;
 pub const TYPE_BODY: f32 = 16.0;
-pub const TYPE_LABEL: f32 = 14.0;
-pub const TYPE_CAPTION: f32 = 12.0;
+pub const TYPE_LABEL: f32 = 13.0;
+pub const TYPE_CAPTION: f32 = 11.0;
+pub const TYPE_TINY: f32 = 9.0;
 
 // Control metrics.
 pub const BUTTON_VERTICAL_PADDING: f32 = 10.0;
 pub const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
+pub const INPUT_HEIGHT: f32 = 36.0;

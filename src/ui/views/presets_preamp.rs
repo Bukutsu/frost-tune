@@ -2,10 +2,11 @@ use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY};
-use crate::ui::tokens::{SPACE_12, SPACE_16, TYPE_BODY};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_BODY, TYPE_TINY};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, pick_list, row, slider, text, text_input};
-use iced::{Element, Length};
+use iced::{Element, Font, Length};
+use iced::font::Weight;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresetsLayout {
@@ -64,10 +65,10 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
 
     let preset_section: Element<'_, Message> = if is_narrow {
         column![
-            text("Presets:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
+            text("PRESET").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
             select_preset.width(Length::Fill),
             profile_name_input.width(Length::Fill),
-            actions_row,
+            actions_row.width(Length::Fill),
         ]
         .spacing(SPACE_12)
         .into()
@@ -101,7 +102,7 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
 
     let preamp_section: Element<'_, Message> = if is_narrow {
         column![
-            text("Preamp:").size(TYPE_BODY).color(TOKYO_NIGHT_MUTED),
+            text("PREAMP").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
             row![
                 slider(
                     MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
@@ -111,13 +112,14 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
                 .width(Length::Fill),
                 text(format!("{} dB", state.editor_state.global_gain))
                     .size(TYPE_BODY)
-                    .width(Length::Fixed(56.0))
-                    .color(TOKYO_NIGHT_PRIMARY),
+                    .width(Length::Fixed(64.0))
+                    .color(theme::ACCENT_VIBRANT)
+                    .font(Font { weight: Weight::Bold, ..Default::default() }),
             ]
             .spacing(SPACE_12)
             .align_y(iced::Alignment::Center),
         ]
-        .spacing(SPACE_12)
+        .spacing(SPACE_8)
         .into()
     } else {
         row![

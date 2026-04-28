@@ -2,13 +2,15 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use crate::hardware::hid::{delay_ms, find_device_info, pull_peq_internal};
+use crate::hardware::hid::{delay_ms, device_info_from_hid, find_device_info};
+use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain, WriteTiming,
 };
 use crate::hardware::protocol::DeviceProtocol;
+use crate::error::{AppError, ErrorKind, Result as AppResult};
 use crate::models::{
-    ConnectionResult, Device, DeviceInfo, Filter, OperationResult, PEQData, PushPayload,
+    ConnectionResult, Device, DeviceInfo, OperationResult, PEQData, PushPayload,
 };
 
 #[cfg(target_os = "linux")]
@@ -23,14 +25,6 @@ pub struct WorkerStatus {
     pub device: Option<DeviceInfo>,
 }
 
-fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
-    DeviceInfo {
-        vendor_id: device_info.vendor_id(),
-        product_id: device_info.product_id(),
-        path: device_info.path().to_string_lossy().into(),
-        manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BackendKind {
@@ -352,13 +346,13 @@ fn worker_connect(
                 return ConnectionResult {
                     success: false,
                     device: None,
-                    error: Some("Device not found. Is it plugged in?".into()),
+                    error: Some(AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?")),
                 };
             }
             Err(local_err) => {
                 #[cfg(target_os = "linux")]
                 {
-                    if is_permission_denied_error(&local_err) {
+                    if local_err.kind == ErrorKind::PermissionDenied {
                         match try_connect_elevated() {
                             Ok(connected) => {
                                 *preferred_backend = BackendKind::Elevated;
@@ -374,7 +368,7 @@ fn worker_connect(
                                 return ConnectionResult {
                                     success: false,
                                     device: None,
-                                    error: Some(format!("POLKIT_AUTH_REQUIRED: {}", elevated_err)),
+                                    error: Some(elevated_err),
                                 };
                             }
                         }
@@ -420,17 +414,14 @@ fn worker_connect(
                         return ConnectionResult {
                             success: false,
                             device: None,
-                            error: Some("Device not found. Is it plugged in?".into()),
+                            error: Some(AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?")),
                         };
                     }
-                    Err(local_err) => {
+                    Err(_local_err) => {
                         return ConnectionResult {
                             success: false,
                             device: None,
-                            error: Some(format!(
-                                "POLKIT_AUTH_REQUIRED: {} | local open failed: {}",
-                                elevated_err, local_err
-                            )),
+                            error: Some(elevated_err),
                         };
                     }
                 }
@@ -442,11 +433,11 @@ fn worker_connect(
     ConnectionResult {
         success: false,
         device: None,
-        error: Some("Connect failed".into()),
+        error: Some(AppError::new(ErrorKind::Unknown, "Connect failed")),
     }
 }
 
-fn try_connect_local(api: &hidapi::HidApi) -> Result<Option<TransportBackend>, String> {
+fn try_connect_local(api: &hidapi::HidApi) -> AppResult<Option<TransportBackend>> {
     let device_info = match find_device_info(api) {
         Some(d) => d,
         None => return Ok(None),
@@ -463,20 +454,20 @@ fn try_connect_local(api: &hidapi::HidApi) -> Result<Option<TransportBackend>, S
                 info,
             }))
         }
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(AppError::new(ErrorKind::PermissionDenied, e.to_string())),
     }
 }
 
 #[cfg(target_os = "linux")]
-fn try_connect_elevated() -> Result<TransportBackend, String> {
+fn try_connect_elevated() -> AppResult<TransportBackend> {
     let mut transport = ElevatedTransport::spawn()?;
     match transport.round_trip(&HelperRequest::Connect)? {
         HelperResponse::Connected { device } => {
-            let info = device.ok_or_else(|| "Helper connected without device info".to_string())?;
+            let info = device.ok_or_else(|| AppError::general("Helper connected without device info"))?;
             Ok(TransportBackend::Elevated { transport, info })
         }
-        HelperResponse::Error { message } => Err(message),
-        _ => Err("Unexpected response from elevated helper during connect".to_string()),
+        HelperResponse::Error { error } => Err(error),
+        _ => Err(AppError::general("Unexpected response from elevated helper during connect")),
     }
 }
 
@@ -487,26 +478,37 @@ fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResult {
             device_type,
             info: _,
         }) => {
-            let proto = device_type.protocol();
-            worker_pull_peq_local(device, proto.as_ref())
+            if let Some(proto) = device_type.protocol() {
+                worker_pull_peq_local(device, proto.as_ref())
+            } else {
+                OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::HardwareError, "Unsupported device protocol")),
+                }
+            }
         }
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info: _ }) => {
             match transport.round_trip(&HelperRequest::PullPeq { strict: false }) {
-                Ok(HelperResponse::Pulled { data }) => OperationResult {
-                    success: true,
-                    data: Some(data),
-                    error: None,
-                },
-                Ok(HelperResponse::Error { message }) => OperationResult {
+                Ok(HelperResponse::Pulled { data }) => {
+                    let peq = serde_json::from_value::<PEQData>(data).ok();
+                    let success = peq.is_some();
+                    OperationResult {
+                        success,
+                        error: if !success { Some(AppError::new(ErrorKind::ParseError, "Failed to parse data from helper")) } else { None },
+                        data: peq,
+                    }
+                }
+                Ok(HelperResponse::Error { error }) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(message),
+                    error: Some(error),
                 },
                 Ok(_) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some("Unexpected helper response for pull".to_string()),
+                    error: Some(AppError::new(ErrorKind::HardwareError, "Unexpected helper response for pull")),
                 },
                 Err(e) => {
                     *backend = None;
@@ -521,7 +523,7 @@ fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResult {
         None => OperationResult {
             success: false,
             data: None,
-            error: Some("Not connected".into()),
+            error: Some(AppError::new(ErrorKind::NotConnected, "Not connected")),
         },
     }
 }
@@ -536,8 +538,15 @@ fn worker_push_peq(
             device_type,
             info: _,
         }) => {
-            let proto = device_type.protocol();
-            worker_push_peq_local(device, proto.as_ref(), payload)
+            if let Some(proto) = device_type.protocol() {
+                worker_push_peq_local(device, proto.as_ref(), payload)
+            } else {
+                OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::HardwareError, "Unsupported device protocol")),
+                }
+            }
         }
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info: _ }) => {
@@ -545,20 +554,24 @@ fn worker_push_peq(
                 filters: payload.filters,
                 global_gain: payload.global_gain,
             }) {
-                Ok(HelperResponse::Pushed { data }) => OperationResult {
-                    success: true,
-                    data: Some(data),
-                    error: None,
-                },
-                Ok(HelperResponse::Error { message }) => OperationResult {
+                Ok(HelperResponse::Pushed { data }) => {
+                    let peq = serde_json::from_value::<PEQData>(data).ok();
+                    let success = peq.is_some();
+                    OperationResult {
+                        success,
+                        error: if !success { Some(AppError::new(ErrorKind::ParseError, "Failed to parse data from helper")) } else { None },
+                        data: peq,
+                    }
+                }
+                Ok(HelperResponse::Error { error }) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(message),
+                    error: Some(error),
                 },
                 Ok(_) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some("Unexpected helper response for push".to_string()),
+                    error: Some(AppError::new(ErrorKind::HardwareError, "Unexpected helper response for push")),
                 },
                 Err(e) => {
                     *backend = None;
@@ -573,30 +586,11 @@ fn worker_push_peq(
         None => OperationResult {
             success: false,
             data: None,
-            error: Some("Not connected".into()),
+            error: Some(AppError::new(ErrorKind::NotConnected, "Not connected")),
         },
     }
 }
 
-fn pull_peq_data(
-    d: &hidapi::HidDevice,
-    proto: &dyn DeviceProtocol,
-    strict: bool,
-) -> Result<PEQData, String> {
-    let mut last_err = "Timeout".to_string();
-    for attempt in 0..3 {
-        match pull_peq_internal(d, proto, strict) {
-            Ok(data) => return Ok(data),
-            Err(e) => {
-                last_err = e;
-            }
-        }
-        if attempt < 2 {
-            delay_ms(200);
-        }
-    }
-    Err(last_err)
-}
 
 fn worker_pull_peq_local(
     device: &hidapi::HidDevice,
@@ -622,17 +616,10 @@ fn worker_pull_peq_local(
     };
 
     match final_result {
-        Ok(peq_data) => match serde_json::to_value(peq_data) {
-            Ok(val) => OperationResult {
-                success: true,
-                data: Some(val),
-                error: None,
-            },
-            Err(e) => OperationResult {
-                success: false,
-                data: None,
-                error: Some(format!("Serialization failed: {}", e)),
-            },
+        Ok(peq) => OperationResult {
+            success: true,
+            data: Some(peq),
+            error: None,
         },
         Err(e) => OperationResult {
             success: false,
@@ -642,38 +629,6 @@ fn worker_pull_peq_local(
     }
 }
 
-pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<(), String> {
-    if actual.global_gain != gain {
-        return Err(format!(
-            "Global gain mismatch: expected {}, got {}",
-            gain, actual.global_gain
-        ));
-    }
-    for (a, f) in actual.filters.iter().zip(filters.iter()) {
-        if (a.gain - f.gain).abs() > 0.15 {
-            return Err(format!(
-                "Band {} gain mismatch: expected {:.2}, got {:.2}",
-                f.index, f.gain, a.gain
-            ));
-        }
-        if (a.freq as i32 - f.freq as i32).abs() > 0 {
-            return Err(format!(
-                "Band {} freq mismatch: expected {}, got {}",
-                f.index, f.freq, a.freq
-            ));
-        }
-        if (a.q - f.q).abs() > 0.05 {
-            return Err(format!(
-                "Band {} Q mismatch: expected {:.2}, got {:.2}",
-                f.index, f.q, a.q
-            ));
-        }
-        if f.filter_type != a.filter_type {
-            return Err(format!("Band {} filter type mismatch", f.index));
-        }
-    }
-    Ok(())
-}
 
 fn worker_push_peq_local(
     device: &hidapi::HidDevice,
@@ -686,7 +641,7 @@ fn worker_push_peq_local(
         return OperationResult {
             success: false,
             data: None,
-            error: Some(e),
+            error: Some(AppError::new(ErrorKind::ParseError, e)),
         };
     }
 
@@ -702,7 +657,7 @@ fn worker_push_peq_local(
     };
 
     let timing = WriteTiming::default();
-    if let Err(e) = (|| -> Result<(), String> {
+    let write_res = (|| -> crate::error::Result<()> {
         init_device_session(device, proto)?;
         write_filters_and_gain(
             device,
@@ -713,27 +668,29 @@ fn worker_push_peq_local(
         )?;
         commit_changes(device, proto, &timing)?;
         Ok(())
-    })() {
+    })();
+
+    if let Err(e) = write_res {
         if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
             return OperationResult {
                 success: false,
                 data: None,
-                error: Some(format!(
-                    "Write failed: {} | rollback failed: {}",
-                    e, rollback_error
+                error: Some(AppError::new(
+                    ErrorKind::RollbackFailed,
+                    format!("Write failed: {} | rollback failed: {}", e.message, rollback_error.message),
                 )),
             };
         }
         return OperationResult {
             success: false,
             data: None,
-            error: Some(format!("Write failed: {}", e)),
+            error: Some(e),
         };
     }
 
     for attempt in 0..3 {
-        let backoff_ms = 300 + (attempt * 200);
-        delay_ms(backoff_ms);
+        let backoff_ms = 200 * (2u64.pow(attempt as u32));
+        delay_ms(backoff_ms as u64);
         match pull_peq_data(device, proto, true) {
             Ok(read_back) => {
                 if compare_peq(
@@ -743,22 +700,11 @@ fn worker_push_peq_local(
                 )
                 .is_ok()
                 {
-                    match serde_json::to_value(read_back) {
-                        Ok(val) => {
-                            return OperationResult {
-                                success: true,
-                                data: Some(val),
-                                error: None,
-                            };
-                        }
-                        Err(e) => {
-                            return OperationResult {
-                                success: false,
-                                data: None,
-                                error: Some(format!("Serialization error: {}", e)),
-                            };
-                        }
-                    }
+                    return OperationResult {
+                        success: true,
+                        data: Some(read_back),
+                        error: None,
+                    };
                 }
             }
             Err(e) => {
@@ -766,60 +712,39 @@ fn worker_push_peq_local(
                     return OperationResult {
                         success: false,
                         data: None,
-                        error: Some(format!(
-                            "Verify read error: {} | rollback failed: {}",
-                            e, rollback_error
+                        error: Some(AppError::new(
+                            ErrorKind::RollbackFailed,
+                            format!("Verify read error: {} | rollback failed: {}", e.message, rollback_error.message),
                         )),
                     };
                 }
                 return OperationResult {
                     success: false,
                     data: None,
-                    error: Some(format!("Verify read error: {}", e)),
+                    error: Some(e),
                 };
             }
         }
     }
+
     if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
         return OperationResult {
             success: false,
             data: None,
-            error: Some(format!(
-                "Verification failed: settings did not match | rollback failed: {}",
-                rollback_error
+            error: Some(AppError::new(
+                ErrorKind::RollbackFailed,
+                format!("Verification failed: settings did not match | rollback failed: {}", rollback_error.message),
             )),
         };
     }
+
     OperationResult {
         success: false,
         data: None,
-        error: Some("Verification failed: settings did not match".into()),
+        error: Some(AppError::new(ErrorKind::VerifyFailed, "Verification failed: settings did not match")),
     }
 }
 
-fn rollback_and_verify(
-    d: &hidapi::HidDevice,
-    proto: &dyn DeviceProtocol,
-    snapshot: &PEQData,
-) -> Result<(), String> {
-    rollback_state(d, proto, snapshot).map_err(|e| format!("rollback write failed: {}", e))?;
-
-    let restored =
-        pull_peq_data(d, proto, true).map_err(|e| format!("rollback verify read failed: {}", e))?;
-
-    compare_peq(&restored, &snapshot.filters, snapshot.global_gain)
-        .map_err(|e| format!("rollback verify mismatch: {}", e))
-}
-
-fn rollback_state(
-    d: &hidapi::HidDevice,
-    proto: &dyn DeviceProtocol,
-    state: &PEQData,
-) -> Result<(), String> {
-    let timing = WriteTiming::default();
-    write_filters_and_gain(d, proto, &state.filters, state.global_gain, &timing)?;
-    commit_changes(d, proto, &timing)
-}
 
 #[cfg(target_os = "linux")]
 fn is_permission_denied_error(message: &str) -> bool {

@@ -25,7 +25,15 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
             .height(Length::Fixed(height)),
         )
         .padding(SPACE_12)
-        .style(theme::card_style)
+        .style(|_theme| container::Style {
+            background: Some(theme::GRAPH_BG.into()),
+            border: iced::Border {
+                color: iced::Color { a: 0.2, ..theme::TOKYO_NIGHT_TERMINAL_BLACK },
+                width: 1.0,
+                radius: theme::CARD_RADIUS.into(),
+            },
+            ..Default::default()
+        })
         .width(Length::Fill)
         .into()
     })

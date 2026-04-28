@@ -6,6 +6,7 @@ pub mod helper_ipc;
 #[cfg(target_os = "linux")]
 pub mod helper_server;
 pub mod hid;
+pub mod operations;
 pub mod packet_builder;
 pub mod protocol;
 pub mod worker;

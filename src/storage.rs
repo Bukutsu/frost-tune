@@ -25,10 +25,21 @@ impl Default for UiPreferences {
     }
 }
 
+fn get_base_dir() -> Result<PathBuf, String> {
+    let base_dir = dirs::data_dir()
+        .ok_or("Failed to get standard data directory")?
+        .join("frost-tune");
+
+    if !base_dir.exists() {
+        fs::create_dir_all(&base_dir)
+            .map_err(|e| format!("Failed to create application data directory: {}", e))?;
+    }
+
+    Ok(base_dir)
+}
+
 fn get_profiles_dir() -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
-    let exe_dir = exe_path.parent().ok_or("Failed to get exe directory")?;
-    let profiles_dir = exe_dir.join("profiles");
+    let profiles_dir = get_base_dir()?.join("profiles");
 
     if !profiles_dir.exists() {
         fs::create_dir_all(&profiles_dir)
@@ -39,9 +50,7 @@ fn get_profiles_dir() -> Result<PathBuf, String> {
 }
 
 fn get_ui_preferences_path() -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
-    let exe_dir = exe_path.parent().ok_or("Failed to get exe directory")?;
-    Ok(exe_dir.join("ui_preferences.json"))
+    Ok(get_base_dir()?.join("ui_preferences.json"))
 }
 
 pub fn load_ui_preferences() -> Result<UiPreferences, String> {
@@ -100,14 +109,16 @@ pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
     Ok(profiles)
 }
 
+fn sanitize_name(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == ' ')
+        .collect()
+}
+
 pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     let dir = get_profiles_dir()?;
 
-    // Sanitize name - simple version for portability
-    let sanitized_name: String = name
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-' || *c == ' ')
-        .collect();
+    let sanitized_name = sanitize_name(name);
 
     if sanitized_name.is_empty() {
         return Err("Invalid profile name".into());
@@ -124,7 +135,8 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
 
 pub fn delete_profile(name: &str) -> Result<(), String> {
     let dir = get_profiles_dir()?;
-    let filename = format!("{}.txt", name);
+    let sanitized_name = sanitize_name(name);
+    let filename = format!("{}.txt", sanitized_name);
     let path = dir.join(filename);
 
     if path.exists() {

@@ -33,6 +33,9 @@ pub const OFFSET_SLOT: usize = 35; // Slot byte in write packet
 // Global Gain offsets
 pub const OFFSET_GAIN_VALUE: usize = 4;
 
+use crate::hardware::hid::ReadTiming;
+use crate::hardware::packet_builder::WriteTiming;
+
 /// Trait defining hardware-specific packet layouts and constants.
 pub trait DeviceProtocol: Send + Sync {
     fn report_id(&self) -> u8;
@@ -42,8 +45,18 @@ pub trait DeviceProtocol: Send + Sync {
     fn cmd_temp_write(&self) -> u8;
     fn cmd_flash_eq(&self) -> u8;
 
+    /// Default timings for reading from this device.
+    fn read_timing(&self) -> ReadTiming {
+        ReadTiming::default()
+    }
+
+    /// Default timings for writing to this device.
+    fn write_timing(&self) -> WriteTiming {
+        WriteTiming::default()
+    }
+
     /// Build a request for a single filter index.
-    fn build_filter_request(&self, index: u8, nonce: u8) -> Vec<u8>;
+    fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8>;
 
     /// Build a request for global gain.
     fn build_global_gain_request(&self, nonce: u8) -> Vec<u8>;
@@ -94,7 +107,7 @@ impl DeviceProtocol for TP35ProProtocol {
         CMD_FLASH_EQ
     }
 
-    fn build_filter_request(&self, index: u8, nonce: u8) -> Vec<u8> {
+    fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8> {
         vec![READ, CMD_PEQ_VALUES, nonce, 0x00, index, END]
     }
 

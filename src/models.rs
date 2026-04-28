@@ -53,10 +53,10 @@ pub enum Device {
 use crate::hardware::protocol::{DeviceProtocol, TP35ProProtocol};
 
 impl Device {
-    pub fn protocol(&self) -> Box<dyn DeviceProtocol> {
+    pub fn protocol(&self) -> Option<Box<dyn DeviceProtocol>> {
         match self {
-            Device::TP35Pro => Box::new(TP35ProProtocol),
-            Device::Unknown => Box::new(TP35ProProtocol), // Fallback
+            Device::TP35Pro => Some(Box::new(TP35ProProtocol)),
+            Device::Unknown => None,
         }
     }
 
@@ -81,7 +81,7 @@ impl Device {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'static str {
         match self {
             Device::TP35Pro => "EPZ TP35 Pro",
             Device::Unknown => "Unknown Device",
@@ -152,18 +152,20 @@ pub struct PEQData {
     pub global_gain: i8,
 }
 
+use crate::error::AppError;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionResult {
     pub success: bool,
     pub device: Option<DeviceInfo>,
-    pub error: Option<String>,
+    pub error: Option<AppError>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationResult {
     pub success: bool,
-    pub data: Option<serde_json::Value>,
-    pub error: Option<String>,
+    pub data: Option<PEQData>,
+    pub error: Option<AppError>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

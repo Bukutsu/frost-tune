@@ -1,3 +1,4 @@
+use crate::error::Result;
 use crate::hardware::hid::{delay_ms, send_report};
 use crate::hardware::protocol::{DeviceProtocol, END, READ};
 use crate::models::Filter;
@@ -24,7 +25,7 @@ impl Default for WriteTiming {
     }
 }
 
-pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<(), String> {
+pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<()> {
     send_report(device, &[READ, proto.cmd_version(), END][..])?;
     delay_ms(50);
     let mut drain = [0u8; 64];
@@ -42,7 +43,7 @@ pub fn write_filters_and_gain(
     filters: &[Filter],
     global_gain: i8,
     timing: &WriteTiming,
-) -> Result<(), String> {
+) -> Result<()> {
     for i in 0u8..NUM_FILTERS {
         let filter = &filters[i as usize];
         let packet = proto.build_filter_write_packet(
@@ -70,7 +71,7 @@ pub fn commit_changes(
     device: &HidDevice,
     proto: &dyn DeviceProtocol,
     timing: &WriteTiming,
-) -> Result<(), String> {
+) -> Result<()> {
     let temp_packet = proto.build_temp_write_packet();
     send_report(device, &temp_packet[..])?;
     delay_ms(timing.commit_ms);

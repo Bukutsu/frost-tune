@@ -1,5 +1,7 @@
+use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::protocol::{DeviceProtocol, READ, REPORT_ID};
-use crate::models::{Device, Filter, PEQData};
+use crate::hardware::packet_builder::{init_device_session, NUM_FILTERS};
+use crate::models::{Device, DeviceInfo, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};
 
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
@@ -19,6 +21,15 @@ fn get_next_nonce() -> u8 {
 
 pub fn delay_ms(ms: u64) {
     std::thread::sleep(std::time::Duration::from_millis(ms));
+}
+
+pub fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
+    DeviceInfo {
+        vendor_id: device_info.vendor_id(),
+        product_id: device_info.product_id(),
+        path: device_info.path().to_string_lossy().into(),
+        manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
+    }
 }
 
 pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
@@ -41,22 +52,15 @@ pub fn detect_device(api: &hidapi::HidApi) -> Device {
     Device::Unknown
 }
 
-pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<(), String> {
-    let mut buffer = vec![REPORT_ID];
-    buffer.extend_from_slice(data);
+pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<()> {
+    let mut buf = [0u8; 65];
+    buf[0] = REPORT_ID;
+    let len = data.len().min(64);
+    buf[1..1 + len].copy_from_slice(&data[..len]);
 
-    let mut attempts = 0;
-    loop {
-        match device.write(&buffer) {
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                attempts += 1;
-                if attempts >= MAX_WRITE_RETRIES {
-                    return Err(e.to_string());
-                }
-                delay_ms(DEFAULT_RETRY_DELAY_MS);
-            }
-        }
+    match device.write(&buf[..]) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::new(ErrorKind::WriteError, format!("HID Write failed: {}", e))),
     }
 }
 
@@ -101,54 +105,30 @@ pub fn pull_peq_internal(
     device: &hidapi::HidDevice,
     proto: &dyn DeviceProtocol,
     strict: bool,
-) -> Result<PEQData, String> {
-    pull_peq_internal_with_timing(device, proto, &ReadTiming::default(), strict)
-}
+) -> Result<PEQData> {
+    let cfg = ReadTiming::default();
+    init_device_session(device, proto)?;
 
-pub fn pull_peq_internal_with_timing(
-    device: &hidapi::HidDevice,
-    proto: &dyn DeviceProtocol,
-    cfg: &ReadTiming,
-    strict: bool,
-) -> Result<PEQData, String> {
-    flush_hid_buffer(device);
+    let mut filter_responses = vec![None; NUM_FILTERS as usize];
 
-    // Version request
-    send_report(device, &[READ, proto.cmd_version(), 0x00][..])?; // Changed to use proto
-    delay_ms(cfg.post_version_ms);
-
-    // Drain version response
-    let mut drain = [0u8; 64];
-    while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
-        if count == 0 {
-            break;
-        }
-    }
-
-    let mut filter_responses: Vec<Option<Vec<u8>>> = vec![None; 10];
-
-    for i in 0u8..10 {
-        if i > 0 {
-            delay_ms(cfg.inter_filter_ms);
-        }
-
+    for i in 0u8..NUM_FILTERS {
         let filter_nonce = get_next_nonce();
-        let request = proto.build_filter_request(i, filter_nonce);
+        let request = proto.build_filter_read_request(i, filter_nonce);
         send_report(device, &request[..])?;
-        delay_ms(cfg.filter_request_ms);
+        delay_ms(cfg.inter_filter_ms as u64);
 
-        let response = read_single_filter_with_nonce(device, proto, cfg, i, filter_nonce);
+        let response = read_single_filter_with_nonce(device, proto, &cfg, i, filter_nonce);
         if strict && response.is_none() {
-            return Err(format!(
-                "Failed to read filter {} (nonce: {})",
-                i, filter_nonce
+            return Err(AppError::new(
+                ErrorKind::ReadTimeout,
+                format!("Failed to read filter {} (nonce: {})", i, filter_nonce),
             ));
         }
         filter_responses[i as usize] = response;
     }
 
     let global_nonce = get_next_nonce();
-    let global_gain = read_global_gain(device, proto, cfg, global_nonce)?;
+    let global_gain = read_global_gain(device, proto, &cfg, global_nonce)?;
     let filters = assemble_filters(proto, filter_responses);
 
     Ok(PEQData {
@@ -200,7 +180,7 @@ fn read_global_gain(
     proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     nonce: u8,
-) -> Result<u8, String> {
+) -> Result<u8> {
     delay_ms(cfg.post_filter_read_ms);
     let request = proto.build_global_gain_request(nonce);
     send_report(device, &request[..])?;
@@ -224,7 +204,7 @@ fn read_global_gain(
         }
         attempts += 1;
     }
-    Err("Global gain read timeout".into())
+    Err(AppError::new(ErrorKind::ReadTimeout, "Global gain read timeout"))
 }
 
 fn assemble_filters(proto: &dyn DeviceProtocol, responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {

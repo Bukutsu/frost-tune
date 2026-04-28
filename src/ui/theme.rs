@@ -40,6 +40,10 @@ pub const TOKYO_NIGHT_TEXT: Color = TOKYO_NIGHT_FG;
 pub const TOKYO_NIGHT_MUTED: Color = TOKYO_NIGHT_COMMENT;
 pub const TOKYO_NIGHT_WARNING: Color = TOKYO_NIGHT_YELLOW;
 
+pub const GRAPH_BG: Color = TOKYO_NIGHT_BG_DARK;
+pub const ACCENT_VIBRANT: Color = TOKYO_NIGHT_CYAN;
+pub const SURFACE_DARK: Color = color!(0x1f2335);
+
 pub fn theme() -> Theme {
     Theme::custom(
         "Tokyo Night".to_string(),
@@ -56,16 +60,13 @@ pub fn theme() -> Theme {
 
 pub fn card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(Color {
-            a: 0.98,
-            ..TOKYO_NIGHT_SURFACE
-        })),
+        background: Some(Background::Color(SURFACE_DARK)),
         border: Border {
             color: Color {
-                a: 0.12,
-                ..TOKYO_NIGHT_FG_DARK
+                a: 0.15,
+                ..TOKYO_NIGHT_TERMINAL_BLACK
             },
-            width: 0.5,
+            width: 1.0,
             radius: CARD_RADIUS.into(),
         },
         ..Default::default()
@@ -74,17 +75,14 @@ pub fn card_style(_theme: &Theme) -> container::Style {
 
 pub fn header_card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(Color {
-            a: 0.96,
-            ..TOKYO_NIGHT_BG_DARK
-        })),
+        background: Some(Background::Color(TOKYO_NIGHT_BG_DARK)),
         border: Border {
             color: Color {
-                a: 0.2,
+                a: 0.3,
                 ..TOKYO_NIGHT_TERMINAL_BLACK
             },
-            width: 0.5,
-            radius: HEADER_CARD_RADIUS.into(),
+            width: 1.0,
+            radius: 0.0.into(), // Header spans top
         },
         ..Default::default()
     }

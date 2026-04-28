@@ -1,26 +1,14 @@
-use crate::models::{MAX_BAND_GAIN, MIN_BAND_GAIN};
+
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::theme::{self, TOKYO_NIGHT_ERROR, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_WARNING};
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_4, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_LABEL, TYPE_TITLE};
+use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_WARNING};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL, TYPE_TITLE, TYPE_TINY};
 use crate::ui::views::action_button;
-use iced::widget::{column, container, pick_list, row, scrollable, slider, text, text_input};
-use iced::{Element, Length};
+use iced::widget::{column, container, pick_list, row, scrollable, text, text_input};
+use iced::{Background, Element, Length, Padding};
 
 pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
-
-    let busy_notice: Element<Message> = if is_busy {
-        container(
-            text("Device sync in progress... controls temporarily locked")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_WARNING),
-        )
-        .padding(SPACE_12)
-        .into()
-    } else {
-        text("").into()
-    };
 
     let band_list: Vec<Element<Message>> = state
         .editor_state
@@ -32,40 +20,31 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
             let gain_error = state.editor_state.input_buffer.get_gain_error(i);
             let q_error = state.editor_state.input_buffer.get_q_error(i);
 
-            let freq_error_display = if let Some(err) = freq_error {
-                text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-            } else {
-                text("")
-            };
-            let gain_error_display = if let Some(err) = gain_error {
-                text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-            } else {
-                text("")
-            };
-            let q_error_display = if let Some(err) = q_error {
-                text(err).size(TYPE_CAPTION).color(TOKYO_NIGHT_ERROR)
-            } else {
-                text("")
-            };
+            let is_active = band.enabled;
+            let accent_color = if is_active { TOKYO_NIGHT_PRIMARY } else { TOKYO_NIGHT_MUTED };
 
-            column![
-                row![
-                    text(format!("{}", i + 1))
-                        .size(TYPE_BODY)
-                        .width(Length::Fixed(20.0)),
-                    pick_list(
-                        &[
-                            crate::models::FilterType::LowShelf,
-                            crate::models::FilterType::Peak,
-                            crate::models::FilterType::HighShelf
-                        ][..],
-                        Some(band.filter_type),
-                        move |t| Message::BandTypeChanged(i, t),
-                    )
-                    .width(Length::Fixed(110.0))
-                    .style(theme::m3_input_pick_list)
-                    .text_size(12),
-                    row![text_input(
+            let band_content = column![
+                text(format!("BAND {}", i + 1))
+                    .size(TYPE_TINY)
+                    .color(accent_color)
+                    .width(Length::Fill)
+                    .center(),
+                pick_list(
+                    &[
+                        crate::models::FilterType::LowShelf,
+                        crate::models::FilterType::Peak,
+                        crate::models::FilterType::HighShelf
+                    ][..],
+                    Some(band.filter_type),
+                    move |t| Message::BandTypeChanged(i, t),
+                )
+                .width(Length::Fill)
+                .style(theme::m3_input_pick_list)
+                .text_size(10),
+                
+                column![
+                    text("FREQ").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+                    text_input(
                         "",
                         state.editor_state
                             .input_buffer
@@ -76,35 +55,38 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                     .on_input(move |s| Message::BandFreqInput(i, s))
                     .on_submit(Message::BandFreqInputCommit(i))
                     .style(theme::m3_outlined_input)
-                    .width(Length::Fixed(80.0))
-                    .size(TYPE_LABEL),]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(2)),
-                    row![
-                        slider(MIN_BAND_GAIN..=MAX_BAND_GAIN, band.gain, move |v| {
-                            Message::BandGainChanged(i, v)
-                        })
-                        .step(0.1)
-                        .width(Length::Fill),
-                        text_input(
-                            "",
-                            state.editor_state
-                                .input_buffer
-                                .get_gain(i)
-                                .as_deref()
-                                .unwrap_or(&format!("{:.2}", band.gain))
-                        )
-                        .on_input(move |s| Message::BandGainInput(i, s))
-                        .on_submit(Message::BandGainInputCommit(i))
-                        .style(theme::m3_outlined_input)
-                        .width(Length::Fixed(60.0))
-                        .size(TYPE_LABEL),
-                    ]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(4)),
-                    row![text_input(
+                    .size(TYPE_LABEL),
+                    if let Some(err) = freq_error {
+                        text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
+                    } else {
+                        text("").size(TYPE_TINY)
+                    }
+                ].spacing(SPACE_2),
+
+                column![
+                    text("GAIN").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+                    text_input(
+                        "",
+                        state.editor_state
+                            .input_buffer
+                            .get_gain(i)
+                            .as_deref()
+                            .unwrap_or(&format!("{:.1}", band.gain))
+                    )
+                    .on_input(move |s| Message::BandGainInput(i, s))
+                    .on_submit(Message::BandGainInputCommit(i))
+                    .style(theme::m3_outlined_input)
+                    .size(TYPE_LABEL),
+                     if let Some(err) = gain_error {
+                        text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
+                    } else {
+                        text("").size(TYPE_TINY)
+                    }
+                ].spacing(SPACE_2),
+
+                column![
+                    text("Q").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+                    text_input(
                         "",
                         state.editor_state
                             .input_buffer
@@ -115,63 +97,49 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                     .on_input(move |s| Message::BandQInput(i, s))
                     .on_submit(Message::BandQInputCommit(i))
                     .style(theme::m3_outlined_input)
-                    .width(Length::Fixed(60.0))
-                    .size(TYPE_LABEL),]
-                    .spacing(SPACE_4)
-                    .align_y(iced::Alignment::Center)
-                    .width(Length::FillPortion(1)),
-                ]
-                .spacing(SPACE_4)
-                .align_y(iced::Alignment::Center),
-                row![
-                    text("").width(Length::Fixed(20.0)),
-                    text("").width(Length::Fixed(110.0)),
-                    freq_error_display.width(Length::FillPortion(2)),
-                    gain_error_display.width(Length::FillPortion(4)),
-                    q_error_display.width(Length::FillPortion(1)),
-                ]
-                .spacing(SPACE_4),
+                    .size(TYPE_LABEL),
+                    if let Some(err) = q_error {
+                        text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
+                    } else {
+                        text("").size(TYPE_TINY)
+                    }
+                ].spacing(SPACE_2),
             ]
-            .spacing(SPACE_2)
-            .into()
+            .spacing(SPACE_8)
+            .padding(SPACE_8);
+
+            container(band_content)
+                .width(Length::Fixed(100.0))
+                .style(move |_theme| container::Style {
+                    background: Some(Background::Color(if is_active { theme::TOKYO_NIGHT_BG_HIGHLIGHT } else { theme::TOKYO_NIGHT_BG_DARK })),
+                    border: iced::Border {
+                        color: if is_active { TOKYO_NIGHT_PRIMARY } else { theme::TOKYO_NIGHT_TERMINAL_BLACK },
+                        width: 1.0,
+                        radius: 8.0.into(),
+                    },
+                    ..Default::default()
+                })
+                .into()
         })
         .collect();
 
-    let header = row![
-        text("#")
-            .size(TYPE_LABEL)
-            .color(TOKYO_NIGHT_MUTED)
-            .width(Length::Fixed(20.0)),
-        text("Type")
-            .size(TYPE_LABEL)
-            .color(TOKYO_NIGHT_MUTED)
-            .width(Length::Fixed(110.0)),
-        text("Frequency (Hz)")
-            .size(TYPE_LABEL)
-            .color(TOKYO_NIGHT_MUTED)
-            .width(Length::FillPortion(2)),
-        row![
-            container(text("Gain (dB)").size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED))
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-            container(text("")).width(Length::Fixed(60.0)),
-        ]
-        .width(Length::FillPortion(4)),
-        text("Q")
-            .size(TYPE_LABEL)
-            .color(TOKYO_NIGHT_MUTED)
-            .width(Length::FillPortion(1)),
-    ]
-    .spacing(SPACE_4)
-    .align_y(iced::Alignment::Center);
+    let bands_row = scrollable(
+        row(band_list).spacing(SPACE_8)
+    )
+    .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()));
 
     container(column![
-        busy_notice,
-        header,
-        scrollable(column(band_list).spacing(SPACE_8))
+        if is_busy {
+            Element::from(
+                container(text("Device sync in progress...").size(TYPE_CAPTION).color(TOKYO_NIGHT_WARNING))
+                    .padding(Padding { top: 0.0, right: 0.0, bottom: SPACE_8, left: 0.0 })
+            )
+        } else {
+            text("").into()
+        },
+        bands_row
     ])
-    .padding([SPACE_12, SPACE_8])
-    .style(theme::card_style)
+    .padding(SPACE_12)
     .width(Length::Fill)
     .into()
 }
