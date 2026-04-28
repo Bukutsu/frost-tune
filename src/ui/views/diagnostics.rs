@@ -2,7 +2,7 @@ use crate::diagnostics::LogLevel;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_RED, TOKYO_NIGHT_WARNING};
-use crate::ui::tokens::{SPACE_4, SPACE_8, SPACE_16, TYPE_CAPTION, TYPE_TINY};
+use crate::ui::tokens::{SPACE_4, SPACE_8, SPACE_12, TYPE_CAPTION, TYPE_TINY};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length};
@@ -29,11 +29,14 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
         })
         .collect();
 
+    let log_content = scrollable(column(diag_events).spacing(2))
+        .height(Length::Shrink);
+
     container(
         column![
-            text("DIAGNOSTICS").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
-            container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(80.0))),
             row![
+                text("DIAGNOSTICS").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
+                container(text("")).width(Length::Fill),
                 action_button("Copy")
                     .on_press(Message::CopyDiagnostics)
                     .style(theme::pill_text_button),
@@ -41,17 +44,18 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
                     .on_press(Message::ClearDiagnostics)
                     .style(theme::pill_text_button),
             ]
-            .spacing(SPACE_8),
+            .spacing(SPACE_8)
+            .align_y(iced::Alignment::Center),
+            log_content,
         ]
         .spacing(SPACE_4),
     )
-    .padding(SPACE_16)
+    .padding(SPACE_12)
     .style(theme::card_style)
     .width(Length::Fill)
     .into()
 }
 
 pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
-    // In the new layout, we just show the diagnostics directly or simplified
     view_diagnostics(state)
 }
