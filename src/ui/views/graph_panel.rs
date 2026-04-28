@@ -2,9 +2,9 @@ use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::SPACE_12;
+use crate::ui::tokens::{SPACE_12, SPACE_16};
 use iced::widget::{canvas, container, responsive};
-use iced::{Element, Length};
+use iced::{Element, Length, Padding};
 
 pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
     responsive(move |size| {
@@ -24,7 +24,7 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
             .width(Length::Fill)
             .height(Length::Fixed(height)),
         )
-        .padding(SPACE_12)
+        .padding(Padding { top: SPACE_16, right: SPACE_12, bottom: SPACE_12, left: SPACE_12 })
         .style(|_theme| container::Style {
             background: Some(theme::GRAPH_BG.into()),
             border: iced::Border {

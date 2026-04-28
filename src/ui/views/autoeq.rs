@@ -1,7 +1,7 @@
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED};
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_TINY};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_CAPTION};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
@@ -11,7 +11,7 @@ pub fn view_autoeq(state: &MainWindow) -> Element<'_, Message> {
 
     container(
         column![
-            text("AUTO-EQ").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+            text("AUTO-EQ").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
             column![
                 row![
                     action_button("Import Clipboard")

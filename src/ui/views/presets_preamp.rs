@@ -2,7 +2,7 @@ use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY};
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_BODY, TYPE_TINY};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_BODY, TYPE_CAPTION};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, pick_list, row, slider, text, text_input};
 use iced::{Element, Font, Length};
@@ -65,7 +65,7 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
 
     let preset_section: Element<'_, Message> = if is_narrow {
         column![
-            text("PRESET").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+            text("PRESET").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
             select_preset.width(Length::Fill),
             profile_name_input.width(Length::Fill),
             actions_row.width(Length::Fill),
@@ -102,7 +102,7 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
 
     let preamp_section: Element<'_, Message> = if is_narrow {
         column![
-            text("PREAMP").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
+            text("PREAMP").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
             row![
                 slider(
                     MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,

@@ -109,7 +109,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
             .padding(Padding { top: SPACE_8, right: SPACE_8, bottom: SPACE_4, left: SPACE_8 });
 
             container(band_content)
-                .width(Length::Fixed(120.0))
+                .width(Length::Fixed(128.0))
                 .style(move |_theme| container::Style {
                     background: Some(Background::Color(if is_active { theme::TOKYO_NIGHT_BG_HIGHLIGHT } else { theme::TOKYO_NIGHT_BG_DARK })),
                     border: iced::Border {
