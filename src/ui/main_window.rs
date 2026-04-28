@@ -1175,7 +1175,7 @@ impl MainWindow {
                 views::graph_panel::view_graph(self),
                 views::bands::view_bands(self),
             ]
-            .spacing(SPACE_16)
+            .spacing(SPACE_8)
             .width(Length::Fill)
             .padding(Padding { top: 0.0, right: SPACE_16, bottom: 0.0, left: SPACE_16 })
         )
@@ -1258,8 +1258,7 @@ impl MainWindow {
         });
 
         let main_view = column![
-            container(views::header::view_header(self))
-                .padding([SPACE_8, SPACE_16]),
+            views::header::view_header(self),
             views::status_banner::view_status_banner(self),
             content,
         ]

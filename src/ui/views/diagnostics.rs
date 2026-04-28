@@ -32,7 +32,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     container(
         column![
             text("DIAGNOSTICS").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
-            container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(120.0))),
+            container(scrollable(column(diag_events).spacing(2)).height(Length::Fixed(100.0))),
             row![
                 action_button("Copy")
                     .on_press(Message::CopyDiagnostics)

@@ -1,9 +1,7 @@
-
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_RED, TOKYO_NIGHT_WARNING};
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL, TYPE_TITLE, TYPE_TINY};
-use crate::ui::views::action_button;
+use crate::ui::tokens::{SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL, TYPE_TINY};
 use iced::widget::{column, container, pick_list, row, scrollable, text, text_input};
 use iced::{Background, Element, Length, Padding};
 
@@ -24,11 +22,13 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
             let accent_color = if is_active { TOKYO_NIGHT_PRIMARY } else { TOKYO_NIGHT_MUTED };
 
             let band_content = column![
+                // Band title
                 text(format!("BAND {}", i + 1))
                     .size(TYPE_TINY)
                     .color(accent_color)
                     .width(Length::Fill)
                     .center(),
+                // Filter type picker
                 pick_list(
                     &[
                         crate::models::FilterType::LowShelf,
@@ -41,7 +41,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 .width(Length::Fill)
                 .style(theme::m3_input_pick_list)
                 .text_size(10),
-                
+                // Freq field
                 column![
                     text("FREQ").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
                     text_input(
@@ -59,10 +59,10 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                     if let Some(err) = freq_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {
-                        text("").size(TYPE_TINY)
+                        text("").size(1)
                     }
                 ].spacing(SPACE_2),
-
+                // Gain field
                 column![
                     text("GAIN").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
                     text_input(
@@ -80,10 +80,10 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                      if let Some(err) = gain_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {
-                        text("").size(TYPE_TINY)
+                        text("").size(1)
                     }
                 ].spacing(SPACE_2),
-
+                // Q field
                 column![
                     text("Q").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
                     text_input(
@@ -101,15 +101,15 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                     if let Some(err) = q_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {
-                        text("").size(TYPE_TINY)
+                        text("").size(1)
                     }
                 ].spacing(SPACE_2),
             ]
-            .spacing(SPACE_8)
-            .padding(SPACE_8);
+            .spacing(SPACE_4)
+            .padding(Padding { top: SPACE_8, right: SPACE_8, bottom: SPACE_4, left: SPACE_8 });
 
             container(band_content)
-                .width(Length::Fixed(100.0))
+                .width(Length::Fixed(120.0))
                 .style(move |_theme| container::Style {
                     background: Some(Background::Color(if is_active { theme::TOKYO_NIGHT_BG_HIGHLIGHT } else { theme::TOKYO_NIGHT_BG_DARK })),
                     border: iced::Border {
@@ -128,62 +128,18 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     )
     .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()));
 
-    container(column![
-        if is_busy {
-            Element::from(
-                container(text("Device sync in progress...").size(TYPE_CAPTION).color(TOKYO_NIGHT_WARNING))
-                    .padding(Padding { top: 0.0, right: 0.0, bottom: SPACE_8, left: 0.0 })
-            )
-        } else {
-            text("").into()
-        },
-        bands_row
-    ])
-    .padding(SPACE_12)
-    .width(Length::Fill)
-    .into()
-}
+    let mut content = column![].spacing(SPACE_8);
 
-pub fn view_advanced_filters_section(state: &MainWindow) -> Element<'_, Message> {
-    let expanded = state.editor_state.advanced_filters_expanded;
-    let toggle_text = if expanded {
-        "Hide advanced filters"
-    } else {
-        "Show advanced filters"
-    };
+    if is_busy {
+        content = content.push(
+            text("Device sync in progress...").size(TYPE_CAPTION).color(TOKYO_NIGHT_WARNING)
+        );
+    }
 
-    let heading = row![
-        column![
-            text("Advanced filter controls")
-                .size(TYPE_TITLE)
-                .color(TOKYO_NIGHT_PRIMARY),
-            text("Manual PEQ editing for advanced users")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED),
-        ]
-        .spacing(SPACE_4),
-        container(text("")).width(Length::Fill),
-        action_button(toggle_text)
-            .on_press(Message::ToggleAdvancedFilters(!expanded))
-            .style(theme::pill_secondary_button),
-    ]
-    .align_y(iced::Alignment::Center)
-    .spacing(SPACE_12);
+    content = content.push(bands_row);
 
-    let body: Element<Message> = if expanded {
-        view_bands(state)
-    } else {
-        container(
-            text("AutoEQ import/export is recommended for most users.")
-                .size(TYPE_LABEL)
-                .color(TOKYO_NIGHT_MUTED),
-        )
-        .padding([SPACE_12, SPACE_8])
-        .into()
-    };
-
-    container(column![heading, body].spacing(SPACE_12))
-        .padding(SPACE_16)
+    container(content)
+        .padding(SPACE_12)
         .style(theme::card_style)
         .width(Length::Fill)
         .into()
