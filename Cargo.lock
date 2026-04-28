@@ -1082,7 +1082,7 @@ dependencies = [
 
 [[package]]
 name = "frost-tune"
-version = "0.3.11"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "dirs",
