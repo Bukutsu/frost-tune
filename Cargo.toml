@@ -1,39 +1,36 @@
 [package]
 name = "frost-tune"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Bukutsu"]
 description = "Native cross-platform parametric EQ editor for USB DACs. Built with Rust and Iced."
+repository = "https://github.com/Bukutsu/frost-tune"
 license = "MIT"
-default-run = "frost-tune"
 
 [dependencies]
-iced = { version = "0.14", features = ["tokio", "canvas"] }
+iced = { version = "0.14", features = ["canvas", "advanced", "tokio", "image"] }
+hidapi = "2.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 log = "0.4"
 env_logger = "0.11"
-thiserror = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+rfd = { version = "0.15", features = ["tokio"] }
 chrono = "0.4"
-rfd = "0.14"
-dirs = "6.0"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1.0", features = ["full"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-hidapi = { version = "2.6", default-features = false, features = ["linux-static-hidraw"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-hidapi = { version = "2.6", default-features = false, features = ["windows-native"] }
-
-[target.'cfg(not(target_os = "windows"))'.dependencies]
+zbus = "4.0"
+zvariant = "4.0"
+nix = { version = "0.27", features = ["fs", "uio"] }
 libc = "0.2"
 
-[[bin]]
-name = "frost-tune-hid-helper"
-path = "src/bin/frost-tune-hid-helper.rs"
+[build-dependencies]
+winresource = "0.1"
 
 [profile.release]
-strip = true
+opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
+panic = 'abort'
+strip = true
