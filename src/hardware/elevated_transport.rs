@@ -55,13 +55,13 @@ impl ElevatedTransport {
 
         self.child_stdin
             .write_all(payload.as_bytes())
-            .map_err(|e| AppError::new(ErrorKind::StorageError, format!("Failed to write request to helper: {}", e)))?;
+            .map_err(|e| AppError::new(ErrorKind::HardwareError, format!("Failed to write request to helper: {}", e)))?;
         self.child_stdin
             .write_all(b"\n")
-            .map_err(|e| AppError::new(ErrorKind::StorageError, format!("Failed to write request delimiter to helper: {}", e)))?;
+            .map_err(|e| AppError::new(ErrorKind::HardwareError, format!("Failed to write request delimiter to helper: {}", e)))?;
         self.child_stdin
             .flush()
-            .map_err(|e| AppError::new(ErrorKind::StorageError, format!("Failed to flush helper stdin: {}", e)))?;
+            .map_err(|e| AppError::new(ErrorKind::HardwareError, format!("Failed to flush helper stdin: {}", e)))?;
 
         let mut line = String::new();
         let bytes = self

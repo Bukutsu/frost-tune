@@ -3,7 +3,10 @@ use crate::models::Filter;
 use iced::widget::canvas::{Frame, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
 
-use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
+use crate::ui::theme::{
+    TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_CYAN,
+    TOKYO_NIGHT_GREEN, TOKYO_NIGHT_MAGENTA, TOKYO_NIGHT_ORANGE, TOKYO_NIGHT_YELLOW, TOKYO_NIGHT_RED,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GraphLabelLayout {
@@ -126,8 +129,18 @@ impl<Message> Program<Message> for EqGraph {
 
         let responses = calculate_total_response(&self.filters, self.global_gain, &test_freqs);
 
+        let band_colors = [
+            TOKYO_NIGHT_BLUE,
+            TOKYO_NIGHT_CYAN,
+            TOKYO_NIGHT_GREEN,
+            TOKYO_NIGHT_YELLOW,
+            TOKYO_NIGHT_ORANGE,
+            TOKYO_NIGHT_RED,
+            TOKYO_NIGHT_MAGENTA,
+        ];
+
         // Draw faint individual bands first
-        for filter in &self.filters {
+        for (idx, filter) in self.filters.iter().enumerate() {
             let band_path = Path::new(|builder| {
                 for (i, &f) in test_freqs.iter().enumerate() {
                     let db = get_magnitude_response(filter, f);
@@ -142,11 +155,14 @@ impl<Message> Program<Message> for EqGraph {
                 }
             });
 
+            let base_color = band_colors[idx % band_colors.len()];
+            let color = Color::from_rgba(base_color.r, base_color.g, base_color.b, 0.4);
+
             frame.stroke(
                 &band_path,
                 Stroke::default()
-                    .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
-                    .with_width(1.0),
+                    .with_color(color)
+                    .with_width(1.5),
             );
         }
 

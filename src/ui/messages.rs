@@ -1,6 +1,6 @@
 use crate::hardware::worker::WorkerStatus;
 use crate::models::{ConnectionResult, OperationResult};
-use crate::storage::{Profile, UiPreferences};
+use crate::storage::Profile;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StatusSeverity {
@@ -57,7 +57,7 @@ pub enum Message {
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
     ProfilesLoaded(Vec<Profile>),
-    UiPreferencesLoaded(UiPreferences),
+
     ProfileSelected(String),
     ProfileNameInput(String),
     SaveProfilePressed,
@@ -67,8 +67,7 @@ pub enum Message {
     ExportToFilePressed,
     FileImported(Result<String, String>),
     FileExported(Result<String, String>),
-    ToggleAdvancedFilters(bool),
-    ToggleDiagnosticsExpanded(bool),
+
     ClearStatusMessage,
     DismissConfirmDialog,
 }

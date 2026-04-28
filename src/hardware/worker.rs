@@ -745,9 +745,3 @@ fn worker_push_peq_local(
     }
 }
 
-
-#[cfg(target_os = "linux")]
-fn is_permission_denied_error(message: &str) -> bool {
-    let lowered = message.to_lowercase();
-    lowered.contains("permission denied") || lowered.contains("access denied")
-}

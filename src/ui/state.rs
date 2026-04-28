@@ -123,8 +123,6 @@ pub struct EditorState {
     pub selected_profile_name: Option<String>,
     pub new_profile_name: String,
     pub input_buffer: InputBuffer,
-    pub advanced_filters_expanded: bool,
-    pub diagnostics_expanded: bool,
     pub pending_confirm: ConfirmAction,
 }
 

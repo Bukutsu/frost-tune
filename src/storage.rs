@@ -1,6 +1,6 @@
 use crate::autoeq;
 use crate::models::PEQData;
-use serde::{Deserialize, Serialize};
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -10,20 +10,7 @@ pub struct Profile {
     pub data: PEQData,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UiPreferences {
-    pub advanced_filters_expanded: bool,
-    pub diagnostics_expanded: bool,
-}
 
-impl Default for UiPreferences {
-    fn default() -> Self {
-        Self {
-            advanced_filters_expanded: false,
-            diagnostics_expanded: false,
-        }
-    }
-}
 
 fn get_base_dir() -> Result<PathBuf, String> {
     let base_dir = dirs::data_dir()
@@ -49,29 +36,7 @@ fn get_profiles_dir() -> Result<PathBuf, String> {
     Ok(profiles_dir)
 }
 
-fn get_ui_preferences_path() -> Result<PathBuf, String> {
-    Ok(get_base_dir()?.join("ui_preferences.json"))
-}
 
-pub fn load_ui_preferences() -> Result<UiPreferences, String> {
-    let path = get_ui_preferences_path()?;
-    if !path.exists() {
-        return Ok(UiPreferences::default());
-    }
-
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read UI preferences: {}", e))?;
-
-    serde_json::from_str::<UiPreferences>(&content)
-        .map_err(|e| format!("Failed to parse UI preferences: {}", e))
-}
-
-pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
-    let path = get_ui_preferences_path()?;
-    let content = serde_json::to_string_pretty(prefs)
-        .map_err(|e| format!("Failed to serialize UI preferences: {}", e))?;
-    fs::write(path, content).map_err(|e| format!("Failed to save UI preferences: {}", e))
-}
 
 pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
     let dir = get_profiles_dir()?;
@@ -144,4 +109,18 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_name() {
+        assert_eq!(sanitize_name("Valid Profile 1"), "Valid Profile 1");
+        assert_eq!(sanitize_name("My_Profile-2"), "My_Profile-2");
+        assert_eq!(sanitize_name("Bad/Profile\\Name"), "BadProfileName");
+        assert_eq!(sanitize_name("Profile (V1)"), "Profile V1");
+        assert_eq!(sanitize_name(""), "");
+    }
 }

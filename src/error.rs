@@ -77,6 +77,8 @@ impl ErrorKind {
         }
     }
 
+    /// Heuristic-based error classification from string messages.
+    /// This matches substrings and is potentially fragile if upstream errors change wording.
     pub fn from_string(s: &str) -> Self {
         if s.contains("Not connected") || s.contains("not found") || s.contains("No such") {
             ErrorKind::NotConnected
@@ -104,10 +106,20 @@ impl ErrorKind {
     }
 }
 
-pub const DEVICE_NOT_FOUND: &str = "Device not found. Is it plugged in?";
-pub const PERMISSION_DENIED: &str = "Access denied. Check USB permissions.";
-pub const DEVICE_BUSY: &str = "Device is busy.";
-pub const READ_TIMEOUT: &str = "USB read timeout.";
-pub const WRITE_ERROR: &str = "USB write failed.";
-pub const PARSE_ERROR: &str = "Failed to parse filter data.";
-pub const VERIFY_FAILED: &str = "Verification failed. Changes not applied.";
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_kind_from_string() {
+        assert_eq!(ErrorKind::from_string("Device not found on USB bus"), ErrorKind::NotConnected);
+        assert_eq!(ErrorKind::from_string("POLKIT_AUTH_REQUIRED"), ErrorKind::PolkitAuthRequired);
+        assert_eq!(ErrorKind::from_string("Permission denied (os error 13)"), ErrorKind::PermissionDenied);
+        assert_eq!(ErrorKind::from_string("Device is busy"), ErrorKind::DeviceBusy);
+        assert_eq!(ErrorKind::from_string("USB timeout reading from endpoint"), ErrorKind::ReadTimeout);
+        assert_eq!(ErrorKind::from_string("Verification mismatch at byte 5"), ErrorKind::VerifyFailed);
+        assert_eq!(ErrorKind::from_string("Failed to parse filter packet"), ErrorKind::ParseError);
+        assert_eq!(ErrorKind::from_string("Failed to load profiles"), ErrorKind::StorageError);
+        assert_eq!(ErrorKind::from_string("Some unknown error occurred"), ErrorKind::Unknown);
+    }
+}
