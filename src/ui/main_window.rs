@@ -1149,8 +1149,11 @@ impl MainWindow {
                 self,
                 views::presets_preamp::PresetsLayout::Medium,
             ))
-            .width(Length::FillPortion(1)),
-            container(views::autoeq::view_autoeq(self)).width(Length::FillPortion(1)),
+            .width(Length::FillPortion(1))
+            .height(Length::Fill),
+            container(views::autoeq::view_autoeq(self))
+                .width(Length::FillPortion(1))
+                .height(Length::Fill),
         ]
         .spacing(SPACE_16)
         .align_y(iced::Alignment::Start)
@@ -1170,16 +1173,14 @@ impl MainWindow {
     }
 
     fn view_wide(&self) -> Element<'_, Message> {
-        let left_content = scrollable(
-            column![
-                views::graph_panel::view_graph(self),
-                views::bands::view_bands(self),
-            ]
-            .spacing(SPACE_8)
-            .width(Length::Fill)
-            .padding(Padding { top: 0.0, right: SPACE_16, bottom: 0.0, left: SPACE_16 })
-        )
-        .height(Length::Fill);
+        let left_content = column![
+            views::graph_panel::view_graph_fill(self),
+            views::bands::view_bands(self),
+        ]
+        .spacing(SPACE_8)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(Padding { top: 0.0, right: SPACE_16, bottom: SPACE_8, left: SPACE_16 });
 
         let right_sidebar = container(
             scrollable(
