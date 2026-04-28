@@ -42,6 +42,17 @@ pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
     None
 }
 
+pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
+    let mut devices = Vec::new();
+    for device in api.device_list() {
+        let device_type = Device::from_vid_pid(device.vendor_id(), device.product_id());
+        if device_type != Device::Unknown {
+            devices.push(device_info_from_hid(device));
+        }
+    }
+    devices
+}
+
 pub fn detect_device(api: &hidapi::HidApi) -> Device {
     for device in api.device_list() {
         let device_type = Device::from_vid_pid(device.vendor_id(), device.product_id());

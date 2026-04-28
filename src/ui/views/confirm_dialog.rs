@@ -6,9 +6,9 @@ use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 
 pub fn view_confirm_dialog<'a>(
-    title: &'a str,
-    message: &'a str,
-    confirm_label: &'a str,
+    title: String,
+    message: String,
+    confirm_label: &'static str,
     confirm_msg: Message,
 ) -> Element<'a, Message> {
     container(

@@ -111,6 +111,7 @@ pub enum ConfirmAction {
     None,
     ResetFilters,
     DeleteProfile,
+    ElevatedConnect(DeviceInfo),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -123,8 +124,6 @@ pub struct EditorState {
     pub selected_profile_name: Option<String>,
     pub new_profile_name: String,
     pub input_buffer: InputBuffer,
-    pub advanced_filters_expanded: bool,
-    pub diagnostics_expanded: bool,
     pub pending_confirm: ConfirmAction,
 }
 
@@ -145,4 +144,6 @@ pub struct MainWindow {
     pub worker: Option<Arc<UsbWorker>>,
     pub diagnostics: DiagnosticsStore,
     pub connected_device: Option<DeviceInfo>,
+    pub available_devices: Vec<DeviceInfo>,
+    pub selected_device_index: Option<usize>,
 }

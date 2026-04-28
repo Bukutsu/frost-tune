@@ -44,6 +44,15 @@ pub fn snap_gain_step(gain: f64) -> f64 {
     (gain / GAIN_STEP).round() * GAIN_STEP
 }
 
+/// Represents a supported hardware device.
+/// 
+/// **Contributor Guide: Adding a New Device**
+/// To add support for a new hardware device:
+/// 1. Define its Vendor ID (VID) and Product ID (PID) as constants above.
+/// 2. Add a new variant to this `Device` enum.
+/// 3. Implement the `DeviceProtocol` trait for the new device in `src/hardware/protocol.rs`.
+/// 4. Update the `protocol()`, `from_vid_pid()`, `vendor_id()`, `product_id()`, and `name()` 
+///    match statements below to include the new variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Device {
     TP35Pro,
@@ -137,7 +146,7 @@ pub struct Filter {
     pub filter_type: FilterType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DeviceInfo {
     pub vendor_id: u16,
     pub product_id: u16,

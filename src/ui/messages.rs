@@ -1,6 +1,6 @@
 use crate::hardware::worker::WorkerStatus;
-use crate::models::{ConnectionResult, OperationResult};
-use crate::storage::{Profile, UiPreferences};
+use crate::models::{DeviceInfo, ConnectionResult, OperationResult};
+use crate::storage::Profile;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StatusSeverity {
@@ -19,7 +19,9 @@ pub struct StatusMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ConnectPressed,
+    DeviceSelected(usize),
+    ConnectPressed(DeviceInfo),
+    ConfirmElevatedConnect(DeviceInfo),
     DisconnectPressed,
     PullPressed,
     PushPressed,
@@ -57,7 +59,7 @@ pub enum Message {
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
     ProfilesLoaded(Vec<Profile>),
-    UiPreferencesLoaded(UiPreferences),
+
     ProfileSelected(String),
     ProfileNameInput(String),
     SaveProfilePressed,
@@ -67,8 +69,7 @@ pub enum Message {
     ExportToFilePressed,
     FileImported(Result<String, String>),
     FileExported(Result<String, String>),
-    ToggleAdvancedFilters(bool),
-    ToggleDiagnosticsExpanded(bool),
+
     ClearStatusMessage,
     DismissConfirmDialog,
 }
