@@ -7,8 +7,9 @@ use crate::ui::state::{
     OperationLock,
 };
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_8, SPACE_16, SPACE_24, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
+use crate::ui::tokens::{SPACE_8, SPACE_16, SPACE_24, SPACE_4, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
 use crate::ui::views;
+use iced::widget::text;
 use iced::{
     widget::{column, container, responsive, row, scrollable},
     Element, Length, Padding, Subscription, Task,
@@ -83,6 +84,8 @@ impl MainWindow {
             operation_lock: OperationLock::default(),
             worker: Some(worker),
             connected_device: None,
+            available_devices: Vec::new(),
+            selected_device_index: None,
             diagnostics: DiagnosticsStore::default(),
         };
         let load_profiles_task = Task::perform(
@@ -365,16 +368,22 @@ impl MainWindow {
     fn with_modal_overlay<'a>(&self, main_view: Element<'a, Message>) -> Element<'a, Message> {
         if let Some(dialog) = match self.editor_state.pending_confirm {
             ConfirmAction::ResetFilters => Some(views::confirm_dialog::view_confirm_dialog(
-                "Reset Filters?",
-                "This will reset all 10 bands to default values and set global gain to 0.",
+                "Reset Filters?".to_string(),
+                "This will reset all 10 bands to default values and set global gain to 0.".to_string(),
                 "Reset",
                 Message::ConfirmResetFilters,
             )),
             ConfirmAction::DeleteProfile => Some(views::confirm_dialog::view_confirm_dialog(
-                "Delete Profile?",
-                "Are you sure you want to delete this profile? This cannot be undone.",
+                "Delete Profile?".to_string(),
+                "Are you sure you want to delete this profile? This cannot be undone.".to_string(),
                 "Delete",
                 Message::ConfirmDeleteProfile,
+            )),
+            ConfirmAction::ElevatedConnect(ref device) => Some(views::confirm_dialog::view_confirm_dialog(
+                "Temporary Root Access Required".to_string(),
+                format!("Connecting to {}.\n\nOn Linux, temporary root access is required to communicate with USB devices. You will be prompted for your password.", device.manufacturer.as_deref().unwrap_or("Unknown Device")),
+                "Continue",
+                Message::ConfirmElevatedConnect(device.clone()),
             )),
             ConfirmAction::None => None,
         } {
@@ -396,23 +405,114 @@ impl MainWindow {
         }
     }
 
-    fn view(&self) -> Element<'_, Message> {
-        let content = responsive(move |size| {
-            let bucket = layout_bucket_for_width(size.width);
-            match bucket {
-                LayoutBucket::Narrow => container(self.view_narrow())
-                    .padding(SPACE_16)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                LayoutBucket::Medium => container(self.view_medium())
-                    .padding(SPACE_24)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                LayoutBucket::Wide => self.view_wide(),
+    fn view_disconnected(&self) -> Element<'_, Message> {
+        let mut devices_col = column![
+            text("Available Devices")
+                .size(TYPE_TITLE)
+                .color(crate::ui::theme::TOKYO_NIGHT_FG),
+        ].spacing(SPACE_16);
+
+        if self.available_devices.is_empty() {
+            devices_col = devices_col.push(
+                text("No devices found. Is your DAC plugged in?")
+                    .size(TYPE_BODY)
+                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+            );
+        } else {
+            for (i, dev) in self.available_devices.iter().enumerate() {
+                let is_selected = self.selected_device_index == Some(i);
+                
+                let bg_color = if is_selected {
+                    crate::ui::theme::TOKYO_NIGHT_BG_HIGHLIGHT
+                } else {
+                    crate::ui::theme::TOKYO_NIGHT_BG_DARK
+                };
+                
+                let border_color = if is_selected {
+                    crate::ui::theme::TOKYO_NIGHT_PRIMARY
+                } else {
+                    iced::Color::TRANSPARENT
+                };
+
+                let dev_type = crate::models::Device::from_vid_pid(dev.vendor_id, dev.product_id);
+                
+                let dev_row = row![
+                    column![
+                        text(dev_type.name())
+                            .size(TYPE_BODY)
+                            .color(crate::ui::theme::TOKYO_NIGHT_FG),
+                        text(format!("VID: {:04X}  PID: {:04X}  Path: {}", dev.vendor_id, dev.product_id, dev.path))
+                            .size(TYPE_CAPTION)
+                            .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+                    ].spacing(SPACE_4)
+                ];
+
+                let dev_btn = iced::widget::button(
+                    container(dev_row)
+                        .padding(SPACE_16)
+                        .width(Length::Fill)
+                )
+                .style(move |_theme, _status| iced::widget::button::Style {
+                    background: Some(bg_color.into()),
+                    border: iced::Border {
+                        radius: 8.0.into(),
+                        width: 1.0,
+                        color: border_color,
+                    },
+                    text_color: crate::ui::theme::TOKYO_NIGHT_FG,
+                    ..Default::default()
+                })
+                .on_press(Message::DeviceSelected(i))
+                .width(Length::Fill);
+
+                devices_col = devices_col.push(dev_btn);
             }
-        });
+        }
+        
+        let mut connect_col = column![devices_col].spacing(SPACE_24);
+        
+        if let Some(idx) = self.selected_device_index {
+            if let Some(dev) = self.available_devices.get(idx) {
+                let connect_btn = crate::ui::views::action_button("Connect")
+                    .style(crate::ui::theme::pill_primary_button)
+                    .on_press(Message::ConnectPressed(dev.clone()));
+                connect_col = connect_col.push(connect_btn);
+            }
+        }
+
+        container(
+            scrollable(connect_col)
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+
+    fn view(&self) -> Element<'_, Message> {
+        let content: Element<'_, Message> = if self.connection_status == ConnectionStatus::Disconnected {
+            container(self.view_disconnected())
+                .padding(SPACE_24)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            responsive(move |size| {
+                let bucket = layout_bucket_for_width(size.width);
+                match bucket {
+                    LayoutBucket::Narrow => container(self.view_narrow())
+                        .padding(SPACE_16)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .into(),
+                    LayoutBucket::Medium => container(self.view_medium())
+                        .padding(SPACE_24)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .into(),
+                    LayoutBucket::Wide => self.view_wide(),
+                }
+            }).into()
+        };
 
         let main_view = column![
             views::header::view_header(self),

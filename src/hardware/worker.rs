@@ -23,11 +23,12 @@ pub struct WorkerStatus {
     pub connected: bool,
     pub physically_present: bool,
     pub device: Option<DeviceInfo>,
+    pub available_devices: Vec<DeviceInfo>,
 }
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BackendKind {
+pub enum BackendKind {
     Local,
     #[cfg(target_os = "linux")]
     Elevated,
@@ -57,7 +58,7 @@ impl TransportBackend {
 }
 
 pub enum UsbCommand {
-    Connect(mpsc::Sender<ConnectionResult>),
+    Connect(Option<DeviceInfo>, Option<BackendKind>, mpsc::Sender<ConnectionResult>),
     Disconnect(mpsc::Sender<OperationResult>),
     Status(mpsc::Sender<WorkerStatus>),
     PullPEQ(mpsc::Sender<OperationResult>),
@@ -148,36 +149,23 @@ impl UsbWorker {
                         manual_disconnect = false;
                         has_logical_connection = false;
                     }
-
-                    if !has_logical_connection && is_physically_connected && !manual_disconnect {
-                        log::info!("DAC detected, auto-connecting...");
-                        let preferred = preferred_backend;
-                        let res = worker_connect(
-                            &mut backend,
-                            &mut preferred_backend,
-                            &api,
-                            Some(preferred),
-                        );
-                        if res.success {
-                            log::info!("Auto-reconnect successful");
-                        } else {
-                            log::warn!("Auto-reconnect failed: {:?}", res.error);
-                        }
-                    } else if !has_logical_connection && !is_physically_connected {
+                    
+                    if !has_logical_connection && !is_physically_connected {
                         manual_disconnect = false;
                     }
                 }
 
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(cmd) => match cmd {
-                        UsbCommand::Connect(resp) => {
+                        UsbCommand::Connect(target_device, target_backend, resp) => {
                             manual_disconnect = false;
-                            let preferred = preferred_backend;
+                            let preferred = target_backend.unwrap_or(preferred_backend);
                             let result = worker_connect(
                                 &mut backend,
                                 &mut preferred_backend,
                                 &api,
                                 Some(preferred),
+                                target_device,
                             );
                             let _ = resp.send(result);
                         }
@@ -218,9 +206,9 @@ impl UsbWorker {
         UsbWorker { tx }
     }
 
-    pub fn connect(&self) -> mpsc::Receiver<ConnectionResult> {
+    pub fn connect(&self, device: Option<DeviceInfo>, backend: Option<BackendKind>) -> mpsc::Receiver<ConnectionResult> {
         let (tx, rx) = mpsc::channel();
-        let _ = self.tx.send(UsbCommand::Connect(tx));
+        let _ = self.tx.send(UsbCommand::Connect(device, backend, tx));
         rx
     }
 
@@ -257,8 +245,8 @@ impl Default for UsbWorker {
 
 fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidApi) -> WorkerStatus {
     let _ = api.refresh_devices();
-    let physical_device = find_device_info(api);
-    let physically_present = physical_device.is_some();
+    let available_devices = crate::hardware::hid::list_devices(api);
+    let physically_present = !available_devices.is_empty();
 
     let mut should_clear_backend = false;
 
@@ -267,6 +255,7 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
             connected: true,
             physically_present,
             device: Some(info.clone()),
+            available_devices: available_devices.clone(),
         },
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info }) => {
@@ -283,6 +272,7 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
                         connected,
                         physically_present,
                         device: device.or_else(|| Some(info.clone())),
+                        available_devices: available_devices.clone(),
                     }
                 }
                 Ok(_) | Err(_) => {
@@ -290,7 +280,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
                     WorkerStatus {
                         connected: false,
                         physically_present,
-                        device: physical_device.as_ref().map(device_info_from_hid),
+                        device: available_devices.first().cloned(),
+                        available_devices: available_devices.clone(),
                     }
                 }
             }
@@ -298,7 +289,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
         None => WorkerStatus {
             connected: false,
             physically_present,
-            device: physical_device.as_ref().map(device_info_from_hid),
+            device: available_devices.first().cloned(),
+            available_devices: available_devices.clone(),
         },
     };
 
@@ -314,6 +306,7 @@ fn worker_connect(
     preferred_backend: &mut BackendKind,
     api: &hidapi::HidApi,
     preferred: Option<BackendKind>,
+    target_device: Option<DeviceInfo>,
 ) -> ConnectionResult {
     if let Some(current_backend) = backend.as_ref() {
         return ConnectionResult {
@@ -330,7 +323,7 @@ fn worker_connect(
     let local_first = true;
 
     if local_first {
-        let local = try_connect_local(api);
+        let local = try_connect_local(api, target_device.clone());
         match local {
             Ok(Some(connected)) => {
                 *preferred_backend = BackendKind::Local;
@@ -353,25 +346,11 @@ fn worker_connect(
                 #[cfg(target_os = "linux")]
                 {
                     if local_err.kind == ErrorKind::PermissionDenied {
-                        match try_connect_elevated() {
-                            Ok(connected) => {
-                                *preferred_backend = BackendKind::Elevated;
-                                let info = connected.device_info();
-                                *backend = Some(connected);
-                                return ConnectionResult {
-                                    success: true,
-                                    device: Some(info),
-                                    error: None,
-                                };
-                            }
-                            Err(elevated_err) => {
-                                return ConnectionResult {
-                                    success: false,
-                                    device: None,
-                                    error: Some(elevated_err),
-                                };
-                            }
-                        }
+                        return ConnectionResult {
+                            success: false,
+                            device: target_device,
+                            error: Some(AppError::new(ErrorKind::PolkitAuthRequired, "Authentication required to access USB DAC on Linux.")),
+                        };
                     }
                 }
 
@@ -398,7 +377,7 @@ fn worker_connect(
                 };
             }
             Err(elevated_err) => {
-                let local = try_connect_local(api);
+                let local = try_connect_local(api, target_device.clone());
                 match local {
                     Ok(Some(connected)) => {
                         *preferred_backend = BackendKind::Local;
@@ -437,10 +416,19 @@ fn worker_connect(
     }
 }
 
-fn try_connect_local(api: &hidapi::HidApi) -> AppResult<Option<TransportBackend>> {
-    let device_info = match find_device_info(api) {
-        Some(d) => d,
-        None => return Ok(None),
+fn try_connect_local(api: &hidapi::HidApi, target_device: Option<DeviceInfo>) -> AppResult<Option<TransportBackend>> {
+    let device_info = match target_device {
+        Some(info) => {
+            // Find the matching hidapi::DeviceInfo
+            match api.device_list().find(|d| d.path().to_string_lossy() == info.path) {
+                Some(d) => d.clone(),
+                None => return Ok(None),
+            }
+        }
+        None => match crate::hardware::hid::find_device_info(api) {
+            Some(d) => d,
+            None => return Ok(None),
+        }
     };
 
     let info = device_info_from_hid(&device_info);

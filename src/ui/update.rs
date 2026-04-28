@@ -15,7 +15,9 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         // handle_connection
         Message::ClearStatusMessage |
         Message::DismissConfirmDialog |
-        Message::ConnectPressed |
+        Message::DeviceSelected(_) |
+        Message::ConnectPressed(_) |
+        Message::ConfirmElevatedConnect(_) |
         Message::DisconnectPressed |
         Message::WorkerConnected(..) |
         Message::WorkerDisconnected(..) |
@@ -83,7 +85,11 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.pending_confirm = ConfirmAction::None;
                 Task::none()
             }
-                    Message::ConnectPressed => {
+            Message::DeviceSelected(index) => {
+                window.selected_device_index = Some(index);
+                Task::none()
+            }
+                    Message::ConnectPressed(device) => {
                 if window.worker.is_none() {
                     return Task::none();
                 }
@@ -92,12 +98,43 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,
-                    "Connect pressed",
+                    format!("Connect pressed for {}", device.path),
                 ));
                 let worker = Arc::clone(window.worker.as_ref().unwrap());
                 let connect_task = Task::perform(
                     async move {
-                        let rx = worker.connect();
+                        let rx = worker.connect(Some(device), Some(crate::hardware::worker::BackendKind::Local));
+                        rx.recv().unwrap_or_else(|_| ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(AppError::new(ErrorKind::NotConnected, "Channel closed")),
+                        })
+                    },
+                    Message::WorkerConnected,
+                );
+                connect_task
+            }
+            Message::ConfirmElevatedConnect(device) => {
+                window.editor_state.pending_confirm = ConfirmAction::None;
+                if window.worker.is_none() {
+                    return Task::none();
+                }
+                window.connection_status = ConnectionStatus::Connecting;
+                window.operation_lock.is_connecting = true;
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::UI,
+                    format!("Elevated connect confirmed for {}", device.path),
+                ));
+                let worker = Arc::clone(window.worker.as_ref().unwrap());
+                let connect_task = Task::perform(
+                    async move {
+                        #[cfg(target_os = "linux")]
+                        let backend = Some(crate::hardware::worker::BackendKind::Elevated);
+                        #[cfg(not(target_os = "linux"))]
+                        let backend = None;
+                        
+                        let rx = worker.connect(Some(device), backend);
                         rx.recv().unwrap_or(ConnectionResult {
                             success: false,
                             device: None,
@@ -159,6 +196,13 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
                     )
                 } else {
                     let err = result.error.unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
+                    if err.kind == ErrorKind::PolkitAuthRequired || err.kind == ErrorKind::PermissionDenied {
+                        if let Some(device) = result.device {
+                            window.editor_state.pending_confirm = ConfirmAction::ElevatedConnect(device);
+                            window.connection_status = ConnectionStatus::Disconnected;
+                            return Task::none();
+                        }
+                    }
                     let user_error = match err.kind {
                         ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
                         _ => err.message.clone(),
@@ -188,6 +232,7 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.set_status("Disconnected", StatusSeverity::Info)
             }
                     Message::WorkerStatus(status) => {
+                window.available_devices = status.available_devices.clone();
                 window.connected_device = if status.connected {
                     status.device.clone()
                 } else {
@@ -229,6 +274,7 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
                             connected: false,
                             physically_present: false,
                             device: None,
+                            available_devices: Vec::new(),
                         })
                     },
                     Message::WorkerStatus,

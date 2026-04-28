@@ -1,5 +1,5 @@
 use crate::hardware::worker::WorkerStatus;
-use crate::models::{ConnectionResult, OperationResult};
+use crate::models::{DeviceInfo, ConnectionResult, OperationResult};
 use crate::storage::Profile;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,7 +19,9 @@ pub struct StatusMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ConnectPressed,
+    DeviceSelected(usize),
+    ConnectPressed(DeviceInfo),
+    ConfirmElevatedConnect(DeviceInfo),
     DisconnectPressed,
     PullPressed,
     PushPressed,

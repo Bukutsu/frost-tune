@@ -17,13 +17,6 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     let is_connected = state.connection_status == ConnectionStatus::Connected;
 
     let sync_buttons = row![
-        if !is_busy && !is_connected {
-            action_button("Connect")
-                .on_press(Message::ConnectPressed)
-                .style(theme::pill_primary_button)
-        } else {
-            action_button("Connect").style(theme::pill_primary_button)
-        },
         if !is_busy && is_connected {
             action_button("Read")
                 .on_press(Message::PullPressed)

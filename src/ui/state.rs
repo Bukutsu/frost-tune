@@ -111,6 +111,7 @@ pub enum ConfirmAction {
     None,
     ResetFilters,
     DeleteProfile,
+    ElevatedConnect(DeviceInfo),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -143,4 +144,6 @@ pub struct MainWindow {
     pub worker: Option<Arc<UsbWorker>>,
     pub diagnostics: DiagnosticsStore,
     pub connected_device: Option<DeviceInfo>,
+    pub available_devices: Vec<DeviceInfo>,
+    pub selected_device_index: Option<usize>,
 }
