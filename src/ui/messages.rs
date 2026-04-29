@@ -67,8 +67,8 @@ pub enum Message {
     DeleteProfilePressed,
     ImportFromFilePressed,
     ExportToFilePressed,
-    FileImported(Result<String, String>),
-    FileExported(Result<String, String>),
+    FileImported(Option<std::path::PathBuf>),
+    FileExported(Option<std::path::PathBuf>, crate::models::PEQData),
 
     ClearStatusMessage,
     DismissConfirmDialog,

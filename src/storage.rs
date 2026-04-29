@@ -158,3 +158,21 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read profile file: {}", e))?;
+    let data = autoeq::parse_autoeq_text(&content)
+        .map_err(|e| format!("Failed to parse profile: {}", e))?;
+    let name = path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Imported Profile")
+        .to_string();
+    Ok(Profile { name, data })
+}
+
+pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<(), String> {
+    let content = autoeq::peq_to_autoeq(data);
+    fs::write(path, content)
+        .map_err(|e| format!("Failed to write profile file: {}", e))
+}
