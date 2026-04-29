@@ -233,6 +233,11 @@ fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message>
             }
                     Message::WorkerStatus(status) => {
                 window.available_devices = status.available_devices.clone();
+                if let Some(idx) = window.selected_device_index {
+                    if idx >= window.available_devices.len() {
+                        window.selected_device_index = None;
+                    }
+                }
                 window.connected_device = if status.connected {
                     status.device.clone()
                 } else {
@@ -304,10 +309,10 @@ fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Message> {
                 let pull_task = Task::perform(
                     async move {
                         let rx = worker.pull_peq();
-                        rx.recv().unwrap_or(OperationResult {
+                        rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap_or(OperationResult {
                             success: false,
                             data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed or timed out")),
                         })
                     },
                     Message::WorkerPulled,
@@ -340,10 +345,10 @@ fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Message> {
                             global_gain: Some(global_gain),
                         };
                         let rx = worker.push_peq(payload);
-                        rx.recv().unwrap_or(OperationResult {
+                        rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap_or(OperationResult {
                             success: false,
                             data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Worker closed or timed out")),
                         })
                     },
                     Message::WorkerPushed,
@@ -692,9 +697,12 @@ fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message> {
                 );
                 let now = chrono::Local::now();
                 let filename = format!("frost_tune_diag_{}.txt", now.format("%Y%m%d_%H%M%S"));
-                let path = std::path::PathBuf::from(&filename);
+                let path = dirs::document_dir()
+                    .or_else(dirs::data_dir)
+                    .unwrap_or_else(std::env::temp_dir)
+                    .join(&filename);
                 match std::fs::write(&path, output) {
-                    Ok(_) => Task::done(Message::DiagnosticsExported(filename)),
+                    Ok(_) => Task::done(Message::DiagnosticsExported(path.display().to_string())),
                     Err(e) => {
                         window.set_status(format!("Export failed: {}", e), StatusSeverity::Error)
                     }
@@ -709,8 +717,20 @@ fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message> {
 
 fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-                    Message::ProfilesLoaded(profiles) => {
-                window.editor_state.profiles = profiles;
+                    Message::ProfilesLoaded(result) => {
+                match result {
+                    Ok(profiles) => {
+                        window.editor_state.profiles = profiles;
+                    }
+                    Err(e) => {
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Error,
+                            Source::UI,
+                            format!("Failed to load profiles: {}", e),
+                        ));
+                        window.set_status(format!("Failed to load profiles: {}", e), StatusSeverity::Error);
+                    }
+                }
                 Task::none()
             }
 
@@ -763,7 +783,7 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                             format!("Saved profile: {}", name),
                         ));
                         let reload_task = Task::perform(
-                            async move { crate::storage::load_all_profiles().unwrap_or_default() },
+                            async move { crate::storage::load_all_profiles() },
                             Message::ProfilesLoaded,
                         );
                         let status_task = window.set_status(
@@ -805,7 +825,7 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                                 format!("Deleted profile: {}", name),
                             ));
                             let reload_task = Task::perform(
-                                async move { crate::storage::load_all_profiles().unwrap_or_default() },
+                                async move { crate::storage::load_all_profiles() },
                                 Message::ProfilesLoaded,
                             );
                             let status_task = window.set_status(

@@ -58,7 +58,7 @@ pub enum Message {
     ToggleDiagnosticsErrorsOnly(bool),
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
-    ProfilesLoaded(Vec<Profile>),
+    ProfilesLoaded(Result<Vec<Profile>, String>),
 
     ProfileSelected(String),
     ProfileNameInput(String),

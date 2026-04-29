@@ -70,7 +70,15 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
     let path = get_ui_preferences_path()?;
     let content = serde_json::to_string_pretty(prefs)
         .map_err(|e| format!("Failed to serialize UI preferences: {}", e))?;
-    fs::write(path, content).map_err(|e| format!("Failed to save UI preferences: {}", e))
+    
+    let base_dir = get_base_dir()?;
+    let tmp_path = base_dir.join(".ui_preferences.json.tmp");
+    
+    fs::write(&tmp_path, content).map_err(|e| format!("Failed to write temp UI preferences: {}", e))?;
+    fs::rename(&tmp_path, &path).map_err(|e| {
+        let _ = fs::remove_file(&tmp_path);
+        format!("Failed to finalize UI preferences save: {}", e)
+    })
 }
 
 pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
@@ -125,10 +133,15 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     }
 
     let filename = format!("{}.txt", sanitized_name);
-    let path = dir.join(filename);
+    let path = dir.join(&filename);
+    let tmp_path = dir.join(format!(".{}.tmp", sanitized_name));
 
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(path, content).map_err(|e| format!("Failed to save profile: {}", e))?;
+    fs::write(&tmp_path, &content).map_err(|e| format!("Failed to write temp profile: {}", e))?;
+    fs::rename(&tmp_path, &path).map_err(|e| {
+        let _ = fs::remove_file(&tmp_path);
+        format!("Failed to finalize profile save: {}", e)
+    })?;
 
     Ok(())
 }
