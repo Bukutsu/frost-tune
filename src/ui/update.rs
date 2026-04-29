@@ -721,6 +721,7 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                 match result {
                     Ok(profiles) => {
                         window.editor_state.profiles = profiles;
+                        Task::none()
                     }
                     Err(e) => {
                         window.diagnostics.push(DiagnosticEvent::new(
@@ -728,10 +729,9 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                             Source::UI,
                             format!("Failed to load profiles: {}", e),
                         ));
-                        window.set_status(format!("Failed to load profiles: {}", e), StatusSeverity::Error);
+                        window.set_status(format!("Failed to load profiles: {}", e), StatusSeverity::Error)
                     }
                 }
-                Task::none()
             }
 
                     Message::ProfileSelected(name) => {
@@ -784,7 +784,7 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                         ));
                         let reload_task = Task::perform(
                             async move { crate::storage::load_all_profiles() },
-                            Message::ProfilesLoaded,
+                            |res| Message::ProfilesLoaded(res),
                         );
                         let status_task = window.set_status(
                             format!("Saved profile: {}", name),
@@ -798,139 +798,128 @@ fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
                             Source::UI,
                             format!("Save failed: {}", e),
                         ));
-                        window.set_status(format!("Failed to save: {}", e), StatusSeverity::Error)
+                        window.set_status(format!("Save failed: {}", e), StatusSeverity::Error)
                     }
                 }
             }
-                    Message::DeleteProfilePressed => {
-                window.editor_state.pending_confirm = ConfirmAction::DeleteProfile;
-                Task::none()
-            }
                     Message::ConfirmDeleteProfile => {
-                if matches!(
-                    window.editor_state.pending_confirm,
-                    ConfirmAction::DeleteProfile
-                ) {
-                    let name = match &window.editor_state.selected_profile_name {
-                        Some(n) => n.clone(),
-                        None => return Task::none(),
-                    };
-                    match crate::storage::delete_profile(&name) {
-                        Ok(_) => {
-                            window.editor_state.selected_profile_name = None;
-                            window.editor_state.new_profile_name = String::new();
-                            window.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Info,
-                                Source::UI,
-                                format!("Deleted profile: {}", name),
-                            ));
-                            let reload_task = Task::perform(
-                                async move { crate::storage::load_all_profiles() },
-                                Message::ProfilesLoaded,
-                            );
-                            let status_task = window.set_status(
-                                format!("Deleted profile: {}", name),
-                                StatusSeverity::Success,
-                            );
-                            window.editor_state.pending_confirm = ConfirmAction::None;
-                            Task::batch(vec![reload_task, status_task])
+                if let ConfirmAction::DeleteProfile = window.editor_state.pending_confirm {
+                    if let Some(name) = &window.editor_state.selected_profile_name {
+                        match crate::storage::delete_profile(name) {
+                            Ok(_) => {
+                                window.diagnostics.push(DiagnosticEvent::new(
+                                    LogLevel::Info,
+                                    Source::UI,
+                                    format!("Deleted profile: {}", name),
+                                ));
+                                window.editor_state.selected_profile_name = None;
+                                window.editor_state.new_profile_name = String::new();
+                                let reload_task = Task::perform(
+                                    async move { crate::storage::load_all_profiles() },
+                                    |res| Message::ProfilesLoaded(res),
+                                );
+                                let status_task = window.set_status(
+                                    format!("Deleted profile: {}", name),
+                                    StatusSeverity::Success,
+                                );
+                                window.editor_state.pending_confirm = ConfirmAction::None;
+                                Task::batch(vec![reload_task, status_task])
+                            }
+                            Err(e) => {
+                                window.diagnostics.push(DiagnosticEvent::new(
+                                    LogLevel::Error,
+                                    Source::UI,
+                                    format!("Delete failed: {}", e),
+                                ));
+                                window.set_status(
+                                    format!("Delete failed: {}", e),
+                                    StatusSeverity::Error,
+                                )
+                            }
                         }
-                        Err(e) => {
-                            window.diagnostics.push(DiagnosticEvent::new(
-                                LogLevel::Error,
-                                Source::UI,
-                                format!("Delete failed: {}", e),
-                            ));
-                            window.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error)
-                        }
+                    } else {
+                        Task::none()
                     }
                 } else {
                     Task::none()
                 }
             }
+                    Message::DeleteProfilePressed => {
+                if window.editor_state.selected_profile_name.is_some() {
+                    window.editor_state.pending_confirm = ConfirmAction::DeleteProfile;
+                }
+                Task::none()
+            }
                     Message::ImportFromFilePressed => {
-                Task::perform(
-                    async move {
-                        let path = rfd::AsyncFileDialog::new()
+                let task = Task::perform(
+                    async {
+                        use rfd::AsyncFileDialog;
+                        AsyncFileDialog::new()
                             .add_filter("Frost-Tune Profile", &["json"])
                             .pick_file()
-                            .await;
-
-                        match path {
-                            Some(handle) => {
-                                let content = handle.read().await;
-                                match String::from_utf8(content) {
-                                    Ok(s) => Ok(s),
-                                    Err(_) => Err("Invalid UTF-8 content".to_string()),
-                                }
-                            }
-                            None => Err("No file selected".to_string()),
-                        }
+                            .await
                     },
                     Message::FileImported,
-                )
+                );
+                Task::batch(vec![
+                    task,
+                    window.set_status("Select profile to import...", StatusSeverity::Info),
+                ])
             }
-                    Message::FileImported(result) => match result {
-                Ok(content) => match serde_json::from_str::<PEQData>(&content) {
-                    Ok(peq) => {
-                        window.editor_state.filters = peq
-                            .filters
-                            .into_iter()
-                            .map(|mut f| {
-                                f.enabled = true;
-                                f
-                            })
-                            .collect();
-                        window.editor_state.global_gain = peq.global_gain;
-                        window.editor_state.selected_profile_name = None;
-                        window.editor_state.new_profile_name = String::new();
-                        window.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Info,
-                            Source::UI,
-                            "Imported profile from file",
-                        ));
-                        window.set_status("Imported profile from file", StatusSeverity::Success)
-                    }
-                    Err(e) => {
-                        window.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Error,
-                            Source::UI,
-                            format!("Import failed: {}", e),
-                        ));
-                        window.set_status(format!("Failed to parse file: {}", e), StatusSeverity::Error)
-                    }
-                },
-                Err(_) => Task::none(),
-            },
                     Message::ExportToFilePressed => {
+                let name = window.editor_state.new_profile_name.trim().to_string();
                 let peq = PEQData {
                     filters: window.editor_state.filters.clone(),
                     global_gain: window.editor_state.global_gain,
                 };
-                let content = serde_json::to_string_pretty(&peq).unwrap_or_default();
-                Task::perform(
+                let task = Task::perform(
                     async move {
-                        let path = rfd::AsyncFileDialog::new()
+                        use rfd::AsyncFileDialog;
+                        AsyncFileDialog::new()
                             .add_filter("Frost-Tune Profile", &["json"])
-                            .set_file_name("profile.json")
+                            .set_file_name(&format!("{}.json", name))
                             .save_file()
-                            .await;
-
-                        match path {
-                            Some(handle) => match handle.write(content.as_bytes()).await {
-                                Ok(_) => Ok("Saved".to_string()),
-                                Err(e) => Err(e.to_string()),
-                            },
-                            None => Err("No file selected".to_string()),
-                        }
+                            .await
                     },
-                    Message::FileExported,
-                )
+                    |handle| Message::FileExported(handle, peq),
+                );
+                Task::batch(vec![
+                    task,
+                    window.set_status("Select export location...", StatusSeverity::Info),
+                ])
             }
-                    Message::FileExported(result) => match result {
-                Ok(_) => window.set_status("Profile exported to file", StatusSeverity::Success),
-                Err(_) => Task::none(),
-            },
+                    Message::FileImported(handle) => {
+                if let Some(file) = handle {
+                    let path = file.path();
+                    match crate::storage::import_profile(path) {
+                        Ok(profile) => {
+                            window.editor_state.profiles.push(profile.clone());
+                            window.editor_state.selected_profile_name = Some(profile.name.clone());
+                            window.editor_state.new_profile_name = profile.name.clone();
+                            window.editor_state.filters = profile.data.filters.clone();
+                            window.editor_state.global_gain = profile.data.global_gain;
+                            window.set_status(
+                                format!("Imported profile: {}", profile.name),
+                                StatusSeverity::Success,
+                            )
+                        }
+                        Err(e) => window.set_status(format!("Import failed: {}", e), StatusSeverity::Error),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
+                    Message::FileExported(handle, peq) => {
+                if let Some(file) = handle {
+                    let path = file.path();
+                    match crate::storage::export_profile(path, &peq) {
+                        Ok(_) => window.set_status("Profile exported", StatusSeverity::Success),
+                        Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
         _ => Task::none(),
     }
 }

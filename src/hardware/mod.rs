@@ -21,6 +21,7 @@ pub mod hid;
 pub mod operations;
 pub mod packet_builder;
 pub mod protocol;
+pub mod pipeline;
 pub mod worker;
 
 pub use dsp::*;

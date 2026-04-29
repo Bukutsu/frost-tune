@@ -89,7 +89,7 @@ impl MainWindow {
             diagnostics: DiagnosticsStore::default(),
         };
         let load_profiles_task = Task::perform(
-            async move { crate::storage::load_all_profiles().unwrap_or_default() },
+            async move { crate::storage::load_all_profiles() },
             Message::ProfilesLoaded,
         );
         (

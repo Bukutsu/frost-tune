@@ -93,7 +93,7 @@ pub fn run() -> crate::error::Result<()> {
             let _ = write_response(
                 &mut stdout_lock,
                 &HelperResponse::Error {
-                    error: AppError::general("Request payload too large".into()),
+                    error: AppError::general("Request payload too large"),
                 },
             );
             let mut buf = vec![];
