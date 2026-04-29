@@ -2,11 +2,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use crate::hardware::hid::{delay_ms, device_info_from_hid, find_device_info};
-use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
-use crate::hardware::packet_builder::{
-    commit_changes, init_device_session, write_filters_and_gain, WriteTiming,
-};
+use crate::hardware::hid::{device_info_from_hid, find_device_info};
 use crate::hardware::protocol::DeviceProtocol;
 use crate::error::{AppError, ErrorKind, Result as AppResult};
 use crate::models::{
@@ -104,7 +100,6 @@ impl UsbWorker {
                     let is_physically_connected = local_physical_device.is_some();
 
                     let mut clear_backend = false;
-                    let mut has_logical_connection = backend.is_some();
 
                     if let Some(current_backend) = backend.as_mut() {
                         match current_backend {
@@ -145,7 +140,6 @@ impl UsbWorker {
 
                     if clear_backend {
                         backend = None;
-                        has_logical_connection = false;
                     }
                     
 
@@ -578,26 +572,7 @@ fn worker_pull_peq_local(
     device: &hidapi::HidDevice,
     proto: &dyn DeviceProtocol,
 ) -> OperationResult {
-    let first_result = pull_peq_data(device, proto, false);
-
-    let needs_retry = match &first_result {
-        Ok(peq) => {
-            let all_disabled = peq.filters.iter().all(|f| !f.enabled);
-            let has_default_gain = peq.global_gain == 0;
-            let all_default_freq = peq.filters.iter().all(|f| f.freq == 100);
-            all_disabled && has_default_gain && all_default_freq
-        }
-        Err(_) => true,
-    };
-
-    let final_result = if needs_retry {
-        delay_ms(100);
-        pull_peq_data(device, proto, false)
-    } else {
-        first_result
-    };
-
-    match final_result {
+    match crate::hardware::pipeline::pull_with_retry(device, proto, false) {
         Ok(peq) => OperationResult {
             success: true,
             data: Some(peq),
@@ -617,112 +592,16 @@ fn worker_push_peq_local(
     proto: &dyn DeviceProtocol,
     payload: PushPayload,
 ) -> OperationResult {
-    let mut payload = payload;
-    payload.clamp();
-    if let Err(e) = payload.is_valid() {
-        return OperationResult {
-            success: false,
-            data: None,
-            error: Some(AppError::new(ErrorKind::ParseError, e)),
-        };
-    }
-
-    let snapshot = match pull_peq_data(device, proto, true) {
-        Ok(s) => s,
-        Err(e) => {
-            return OperationResult {
-                success: false,
-                data: None,
-                error: Some(e),
-            }
-        }
-    };
-
-    let timing = WriteTiming::default();
-    let write_res = (|| -> crate::error::Result<()> {
-        init_device_session(device, proto)?;
-        write_filters_and_gain(
-            device,
-            proto,
-            &payload.filters,
-            payload.global_gain.unwrap_or(0),
-            &timing,
-        )?;
-        commit_changes(device, proto, &timing)?;
-        Ok(())
-    })();
-
-    if let Err(e) = write_res {
-        if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-            return OperationResult {
-                success: false,
-                data: None,
-                error: Some(AppError::new(
-                    ErrorKind::RollbackFailed,
-                    format!("Write failed: {} | rollback failed: {}", e.message, rollback_error.message),
-                )),
-            };
-        }
-        return OperationResult {
+    match crate::hardware::pipeline::push_with_verify(device, proto, payload) {
+        Ok(peq) => OperationResult {
+            success: true,
+            data: Some(peq),
+            error: None,
+        },
+        Err(e) => OperationResult {
             success: false,
             data: None,
             error: Some(e),
-        };
-    }
-
-    for attempt in 0..3 {
-        let backoff_ms = 200 * (2u64.pow(attempt as u32));
-        delay_ms(backoff_ms as u64);
-        match pull_peq_data(device, proto, true) {
-            Ok(read_back) => {
-                if compare_peq(
-                    &read_back,
-                    &payload.filters,
-                    payload.global_gain.unwrap_or(0),
-                )
-                .is_ok()
-                {
-                    return OperationResult {
-                        success: true,
-                        data: Some(read_back),
-                        error: None,
-                    };
-                }
-            }
-            Err(e) => {
-                if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-                    return OperationResult {
-                        success: false,
-                        data: None,
-                        error: Some(AppError::new(
-                            ErrorKind::RollbackFailed,
-                            format!("Verify read error: {} | rollback failed: {}", e.message, rollback_error.message),
-                        )),
-                    };
-                }
-                return OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(e),
-                };
-            }
-        }
-    }
-
-    if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-        return OperationResult {
-            success: false,
-            data: None,
-            error: Some(AppError::new(
-                ErrorKind::RollbackFailed,
-                format!("Verification failed: settings did not match | rollback failed: {}", rollback_error.message),
-            )),
-        };
-    }
-
-    OperationResult {
-        success: false,
-        data: None,
-        error: Some(AppError::new(ErrorKind::VerifyFailed, "Verification failed: settings did not match")),
+        },
     }
 }
