@@ -1,11 +1,5 @@
 #[cfg(target_os = "linux")]
-use crate::hardware::hid::{delay_ms, device_info_from_hid, find_device_info};
-#[cfg(target_os = "linux")]
-use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
-#[cfg(target_os = "linux")]
-use crate::hardware::packet_builder::{
-    commit_changes, init_device_session, write_filters_and_gain, WriteTiming,
-};
+use crate::hardware::hid::{device_info_from_hid, find_device_info};
 #[cfg(target_os = "linux")]
 use crate::models::{Device, DeviceInfo, Filter, PEQData, PushPayload};
 
@@ -14,7 +8,7 @@ use crate::error::{AppError, ErrorKind};
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
 #[cfg(target_os = "linux")]
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 
 
 
@@ -27,24 +21,7 @@ fn pull_logic(
     strict: bool,
 ) -> crate::error::Result<PEQData> {
     let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
-    let first_result = pull_peq_data(device, proto.as_ref(), strict);
-
-    let needs_retry = match &first_result {
-        Ok(peq) => {
-            let all_disabled = peq.filters.iter().all(|f| !f.enabled);
-            let has_default_gain = peq.global_gain == 0;
-            let all_default_freq = peq.filters.iter().all(|f| f.freq == 100);
-            all_disabled && has_default_gain && all_default_freq
-        }
-        Err(_) => true,
-    };
-
-    if needs_retry {
-        delay_ms(100);
-        pull_peq_data(device, proto.as_ref(), strict)
-    } else {
-        first_result
-    }
+    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict)
 }
 
 #[cfg(target_os = "linux")]
@@ -55,75 +32,11 @@ fn push_logic(
     global_gain: Option<i8>,
 ) -> crate::error::Result<PEQData> {
     let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
-
-    let mut payload = PushPayload {
+    let payload = PushPayload {
         filters,
         global_gain,
     };
-    payload.clamp();
-    payload.is_valid().map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
-
-    let snapshot = pull_peq_data(device, proto.as_ref(), true)?;
-
-    let timing = WriteTiming::default();
-    let write_res = (|| -> crate::error::Result<()> {
-        init_device_session(device, proto.as_ref())?;
-        write_filters_and_gain(
-            device,
-            proto.as_ref(),
-            &payload.filters,
-            payload.global_gain.unwrap_or(0),
-            &timing,
-        )?;
-        commit_changes(device, proto.as_ref(), &timing)?;
-        Ok(())
-    })();
-
-    if let Err(e) = write_res {
-        if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
-            return Err(AppError::new(
-                ErrorKind::RollbackFailed,
-                format!("Write failed: {} | rollback failed: {}", e.message, rollback_error.message),
-            ));
-        }
-        return Err(e);
-    }
-
-    for attempt in 0..3 {
-        let backoff_ms = 200 * (2u64.pow(attempt as u32));
-        delay_ms(backoff_ms as u64);
-        match pull_peq_data(device, proto.as_ref(), true) {
-            Ok(read_back) => {
-                if compare_peq(
-                    &read_back,
-                    &payload.filters,
-                    payload.global_gain.unwrap_or(0),
-                )
-                .is_ok()
-                {
-                    return Ok(read_back);
-                }
-            }
-            Err(e) => {
-                if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
-                    return Err(AppError::new(
-                        ErrorKind::RollbackFailed,
-                        format!("Verify read error: {} | rollback failed: {}", e.message, rollback_error.message),
-                    ));
-                }
-                return Err(e);
-            }
-        }
-    }
-
-    if let Err(rollback_error) = rollback_and_verify(device, proto.as_ref(), &snapshot) {
-        return Err(AppError::new(
-            ErrorKind::RollbackFailed,
-            format!("Verification failed | rollback failed: {}", rollback_error.message),
-        ));
-    }
-
-    Err(AppError::new(ErrorKind::VerifyFailed, "Verification failed: settings did not match"))
+    crate::hardware::pipeline::push_with_verify(device, proto.as_ref(), payload)
 }
 
 #[cfg(target_os = "linux")]
@@ -154,12 +67,13 @@ pub fn run() -> crate::error::Result<()> {
 
     let stdin = io::stdin();
     let stdout = io::stdout();
-    let lines = stdin.lock().lines();
+    let mut stdin_lock = stdin.lock();
     let mut stdout_lock = stdout.lock();
 
-    for line_result in lines {
-        let line = match line_result {
-            Ok(l) => l,
+    loop {
+        let mut line = String::new();
+        let bytes_read = match stdin_lock.by_ref().take(65536).read_line(&mut line) {
+            Ok(n) => n,
             Err(e) => {
                 let _ = write_response(
                     &mut stdout_lock,
@@ -171,11 +85,28 @@ pub fn run() -> crate::error::Result<()> {
             }
         };
 
-        if line.trim().is_empty() {
+        if bytes_read == 0 {
+            break;
+        }
+
+        if bytes_read == 65536 && !line.ends_with('\n') {
+            let _ = write_response(
+                &mut stdout_lock,
+                &HelperResponse::Error {
+                    error: AppError::general("Request payload too large".into()),
+                },
+            );
+            let mut buf = vec![];
+            let _ = stdin_lock.read_until(b'\n', &mut buf);
             continue;
         }
 
-        let request = match serde_json::from_str::<HelperRequest>(&line) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let request = match serde_json::from_str::<HelperRequest>(line) {
             Ok(r) => r,
             Err(e) => {
                 let _ = write_response(

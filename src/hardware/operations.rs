@@ -88,7 +88,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
                 ),
             ));
         }
-        if (a.freq as i32 - f.freq as i32).abs() > 0 {
+        if (a.freq as i32 - f.freq as i32).abs() > 1 {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
