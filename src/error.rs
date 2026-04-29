@@ -53,6 +53,7 @@ pub enum ErrorKind {
     HardwareError,
     ParseError,
     StorageError,
+    IpcError,
     Unknown,
 }
 
@@ -73,6 +74,7 @@ impl ErrorKind {
             ErrorKind::HardwareError => "Hardware protocol error.",
             ErrorKind::ParseError => "Failed to parse data.",
             ErrorKind::StorageError => "Profile storage error.",
+            ErrorKind::IpcError => "IPC communication error with background helper.",
             ErrorKind::Unknown => "Unknown error.",
         }
     }
@@ -96,6 +98,8 @@ impl ErrorKind {
             ErrorKind::ParseError
         } else if s.contains("storage") || s.contains("Storage") || s.contains("profile") {
             ErrorKind::StorageError
+        } else if s.contains("ipc") || s.contains("IPC") || s.contains("helper") {
+            ErrorKind::IpcError
         } else if s.contains("failed") || s.contains("error") {
             ErrorKind::Unknown
         } else {
