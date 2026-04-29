@@ -75,7 +75,6 @@ impl UsbWorker {
 
         thread::spawn(move || {
             let mut backend: Option<TransportBackend> = None;
-            let mut manual_disconnect: bool = false;
             let mut preferred_backend: BackendKind = BackendKind::Local;
 
             let mut api = match hidapi::HidApi::new() {
@@ -146,19 +145,15 @@ impl UsbWorker {
 
                     if clear_backend {
                         backend = None;
-                        manual_disconnect = false;
                         has_logical_connection = false;
                     }
                     
-                    if !has_logical_connection && !is_physically_connected {
-                        manual_disconnect = false;
-                    }
+
                 }
 
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(cmd) => match cmd {
                         UsbCommand::Connect(target_device, target_backend, resp) => {
-                            manual_disconnect = false;
                             let preferred = target_backend.unwrap_or(preferred_backend);
                             let result = worker_connect(
                                 &mut backend,
@@ -170,7 +165,6 @@ impl UsbWorker {
                             let _ = resp.send(result);
                         }
                         UsbCommand::Disconnect(resp) => {
-                            manual_disconnect = true;
                             if let Some(current) = backend.as_mut() {
                                 #[cfg(target_os = "linux")]
                                 if let TransportBackend::Elevated { transport, .. } = current {

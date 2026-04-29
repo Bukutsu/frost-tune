@@ -308,11 +308,9 @@ impl MainWindow {
                 self,
                 views::presets_preamp::PresetsLayout::Medium,
             ))
-            .width(Length::FillPortion(1))
-            .height(Length::Fill),
+            .width(Length::FillPortion(1)),
             container(views::autoeq::view_autoeq(self))
-                .width(Length::FillPortion(1))
-                .height(Length::Fill),
+                .width(Length::FillPortion(1)),
         ]
         .spacing(SPACE_16)
         .align_y(iced::Alignment::Start)
