@@ -31,10 +31,6 @@ hidapi = { version = "2.6", default-features = false, features = ["windows-nativ
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libc = "0.2"
 
-[[bin]]
-name = "frost-tune-hid-helper"
-path = "src/bin/frost-tune-hid-helper.rs"
-
 [profile.release]
 strip = true
 lto = true

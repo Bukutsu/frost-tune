@@ -12,20 +12,14 @@ pub struct ElevatedTransport {
 
 impl ElevatedTransport {
     pub fn spawn() -> Result<Self> {
-        let mut transport = if let Some(installed_helper) = discover_installed_helper_path() {
-            spawn_via_pkexec(CommandSpec {
-                program: installed_helper,
-                args: vec![],
-            })?
-        } else {
-            let current_exe = std::env::current_exe()
-                .map_err(|e| AppError::general(format!("Failed to resolve current executable path: {}", e)))?;
+        let current_exe = std::env::current_exe().map_err(|e| {
+            AppError::general(format!("Failed to resolve current executable path: {}", e))
+        })?;
 
-            spawn_via_pkexec(CommandSpec {
-                program: current_exe,
-                args: vec!["--hid-helper".to_string()],
-            })?
-        };
+        let mut transport = spawn_via_pkexec(CommandSpec {
+            program: current_exe,
+            args: vec!["--hid-helper".to_string()],
+        })?;
 
         // Version check
         use crate::hardware::helper_ipc::IPC_VERSION;
@@ -163,11 +157,3 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
     })
 }
 
-fn discover_installed_helper_path() -> Option<PathBuf> {
-    let helper_path = PathBuf::from("/usr/libexec/frost-tune/frost-tune-hid-helper");
-    if Path::new(&helper_path).exists() {
-        Some(helper_path)
-    } else {
-        None
-    }
-}

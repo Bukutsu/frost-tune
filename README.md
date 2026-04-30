@@ -47,19 +47,12 @@ cargo run --release
 
 ## Linux permissions
 
-Frost-Tune uses a polkit helper to handle elevated HID access when needed. No system-wide install required for development — the app will prompt via `pkexec` automatically.
-
-For a system install:
-
-```bash
-cargo build --release
-sudo make install
-```
-
-This places the helper binary in `/usr/libexec/frost-tune/` and the polkit policy in `/usr/share/polkit-1/actions/`.
+Frost-Tune is self-contained and handles elevated HID access automatically. If direct hardware access is denied, it will prompt for elevation via `pkexec` (using the binary itself as a temporary helper). No system-wide installation or complex configuration is required.
 
 <details>
-<summary>Alternative: udev rules (no polkit)</summary>
+<summary>Alternative: udev rules (to avoid password prompts)</summary>
+
+If you prefer not to enter a password every time you connect a device:
 
 ```bash
 echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", \
