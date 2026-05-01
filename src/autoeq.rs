@@ -52,12 +52,24 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
 }
 
 fn extract_number(s: &str) -> Option<f64> {
-    s.chars()
-        .skip_while(|c| !(*c == '-' || *c == '+' || c.is_ascii_digit()))
-        .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-' || *c == '+')
-        .collect::<String>()
-        .parse()
-        .ok()
+    let start = s.find(|c: char| c == '-' || c == '+' || c.is_ascii_digit())?;
+    
+    let mut end = start;
+    let mut has_decimal = false;
+    for c in s[start..].chars() {
+        if c.is_ascii_digit() {
+            end += c.len_utf8();
+        } else if c == '.' && !has_decimal {
+            has_decimal = true;
+            end += c.len_utf8();
+        } else if (c == '-' || c == '+') && end == start {
+            end += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    
+    s[start..end].parse().ok()
 }
 
 fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f64)> {

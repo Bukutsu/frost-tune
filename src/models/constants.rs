@@ -1,8 +1,3 @@
-pub const TP35_VENDOR_ID: u16 = 0x3302;
-pub const TP35_PRODUCT_ID: u16 = 0x43E6;
-
-pub const VENDOR_ID: u16 = TP35_VENDOR_ID;
-pub const PRODUCT_ID: u16 = TP35_PRODUCT_ID;
 
 pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;

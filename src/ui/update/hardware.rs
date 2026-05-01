@@ -22,15 +22,26 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 Source::UI,
                 "Pull pressed",
             ));
-            let worker = Arc::clone(window.worker.as_ref().unwrap());
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return Task::none(),
+            };
             let pull_task = Task::perform(
                 async move {
                     let rx = worker.pull_peq();
-                    rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap_or(OperationResult {
-                        success: false,
-                        data: None,
-                        error: Some(AppError::new(ErrorKind::Unknown, "Worker closed or timed out")),
-                    })
+                    match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                        Ok(res) => res,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 30 seconds")),
+                        },
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
+                        },
+                    }
                 },
                 Message::WorkerPulled,
             );
@@ -51,7 +62,10 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 Source::UI,
                 "Push pressed",
             ));
-            let worker = Arc::clone(window.worker.as_ref().unwrap());
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return Task::none(),
+            };
             let filters = window.editor_state.filters.clone();
             let global_gain = window.editor_state.global_gain;
             let push_task = Task::perform(
@@ -61,11 +75,19 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         global_gain: Some(global_gain),
                     };
                     let rx = worker.push_peq(payload);
-                    rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap_or(OperationResult {
-                        success: false,
-                        data: None,
-                        error: Some(AppError::new(ErrorKind::Unknown, "Worker closed or timed out")),
-                    })
+                    match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                        Ok(res) => res,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 30 seconds")),
+                        },
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
+                        },
+                    }
                 },
                 Message::WorkerPushed,
             );

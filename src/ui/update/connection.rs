@@ -32,7 +32,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Source::UI,
                 format!("Connect pressed for {}", device.path),
             ));
-            let worker = Arc::clone(window.worker.as_ref().unwrap());
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return Task::none(),
+            };
             Task::perform(
                 async move {
                     let rx = worker.connect(Some(device), Some(BackendKind::Local));
@@ -57,7 +60,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Source::UI,
                 format!("Elevated connect confirmed for {}", device.path),
             ));
-            let worker = Arc::clone(window.worker.as_ref().unwrap());
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return Task::none(),
+            };
             let connect_task = Task::perform(
                 async move {
                     #[cfg(target_os = "linux")]
@@ -88,7 +94,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Source::UI,
                 "Disconnect pressed",
             ));
-            let worker = Arc::clone(window.worker.as_ref().unwrap());
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return Task::none(),
+            };
             let disconnect_task = Task::perform(
                 async move {
                     let rx = worker.disconnect();
