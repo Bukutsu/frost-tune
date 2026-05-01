@@ -117,17 +117,19 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 }
                 Task::none()
             } else if let Some(err) = result.error {
-                if err.kind == ErrorKind::NotConnected || err.kind == ErrorKind::PolkitAuthRequired {
-                    window.connection_status = ConnectionStatus::Disconnected;
+                let msg = if err.kind == ErrorKind::NotConnected || err.kind == ErrorKind::PolkitAuthRequired {
+                    window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
+                    "Device lost during operation".to_string()
                 } else {
                     window.connection_status = ConnectionStatus::Error(err.message.clone());
-                }
+                    err.kind.user_message().to_string()
+                };
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Error,
                     Source::Worker,
-                    format!("Connection failed: {}", err.message),
+                    format!("Pull failed: {}", err.message),
                 ));
-                window.set_status(format!("Connection failed: {}", err.message), StatusSeverity::Error)
+                window.set_status(format!("Pull failed: {}", msg), StatusSeverity::Error)
             } else {
                 Task::none()
             }
@@ -157,17 +159,22 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 }
                 Task::none()
             } else if let Some(err) = result.error {
-                if err.kind == ErrorKind::NotConnected {
-                    window.connection_status = ConnectionStatus::Disconnected;
+                let base_msg = if err.kind == ErrorKind::NotConnected {
+                    window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
+                    "Device lost during operation".to_string()
                 } else {
                     window.connection_status = ConnectionStatus::Error(err.message.clone());
-                }
+                    err.kind.user_message().to_string()
+                };
+                
+                let full_msg = format!("Push failed: {}. Try reading from device to resync.", base_msg);
+                
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Error,
                     Source::Worker,
                     format!("Push failed: {}", err.message),
                 ));
-                window.set_status(format!("Push failed: {}", err.message), StatusSeverity::Error)
+                window.set_status(full_msg, StatusSeverity::Error)
             } else {
                 Task::none()
             }

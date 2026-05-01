@@ -23,14 +23,17 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
         }
         Message::BandFreqInput(index, s) => {
             window.editor_state.input_buffer.editing_freq = Some((index, s));
+            window.editor_state.input_buffer.clear_error(index);
             Task::none()
         }
         Message::BandGainInput(index, s) => {
             window.editor_state.input_buffer.editing_gain = Some((index, s));
+            window.editor_state.input_buffer.clear_error(index);
             Task::none()
         }
         Message::BandQInput(index, s) => {
             window.editor_state.input_buffer.editing_q = Some((index, s));
+            window.editor_state.input_buffer.clear_error(index);
             Task::none()
         }
         Message::BandFreqInputCommit(index) => {
@@ -139,7 +142,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::GlobalGainChanged(gain) => {
-            window.editor_state.global_gain = gain;
+            window.editor_state.global_gain = gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN);
             Task::none()
         }
         Message::ResetFiltersPressed => {

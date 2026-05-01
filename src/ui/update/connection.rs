@@ -178,6 +178,12 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     window.selected_device_index = None;
                 }
             }
+            
+            // Ignore contradictory status updates during manual transition
+            if window.operation_lock.is_connecting || window.operation_lock.is_disconnecting {
+                return Task::none();
+            }
+
             window.connected_device = if status.connected {
                 status.device.clone()
             } else {
@@ -212,7 +218,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 None => return Task::none(),
             };
             let worker = Arc::clone(worker);
-            Task::perform(
+            let status_task = Task::perform(
                 async move {
                     let rx = worker.status();
                     rx.recv().unwrap_or(WorkerStatus {
@@ -223,7 +229,19 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     })
                 },
                 Message::WorkerStatus,
-            )
+            );
+
+            // Lightweight profiles directory polling
+            let current_mtime = crate::storage::get_profiles_dir_mtime();
+            if current_mtime != window.editor_state.profiles_dir_mtime {
+                let reload_task = Task::perform(
+                    async move { crate::storage::load_all_profiles() },
+                    Message::ProfilesLoaded,
+                );
+                return Task::batch(vec![status_task, reload_task]);
+            }
+
+            status_task
         }
         _ => Task::none(),
     }

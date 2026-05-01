@@ -54,6 +54,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::ConfirmResetFilters => handle_editor(window, message),
 
         // handle_autoeq
+        Message::ConfirmImportAutoEQ |
         Message::ImportFromClipboard |
         Message::ImportClipboardReceived(..) |
         Message::ImportClipboardFailed(..) |
@@ -66,6 +67,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::DiagnosticsExported(..) => handle_autoeq(window, message),
 
         // handle_profiles
+        Message::ReloadProfilesPressed |
         Message::ProfilesLoaded(..) |
         Message::ProfileSelected(..) |
         Message::ProfileNameInput(..) |

@@ -24,7 +24,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         } else {
             action_button("Read").style(theme::pill_secondary_button)
         },
-        if !is_busy && is_connected {
+        if !is_busy && is_connected && !state.editor_state.input_buffer.has_errors() {
             action_button("Write")
                 .on_press(Message::PushPressed)
                 .style(|theme, status| {

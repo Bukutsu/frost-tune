@@ -81,9 +81,16 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
     })
 }
 
-pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
+pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
+    get_profiles_dir().ok().and_then(|dir| {
+        fs::metadata(dir).ok().and_then(|m| m.modified().ok())
+    })
+}
+
+pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
     let dir = get_profiles_dir()?;
     let mut profiles = Vec::new();
+    let mut errors = Vec::new();
 
     let entries =
         fs::read_dir(dir).map_err(|e| format!("Failed to read profiles directory: {}", e))?;
@@ -104,6 +111,7 @@ pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
                         }
                         Err(e) => {
                             log::warn!("Failed to parse profile {}: {}", name, e);
+                            errors.push(format!("Profile '{}' failed to parse: {}", name, e));
                         }
                     }
                 }
@@ -114,7 +122,7 @@ pub fn load_all_profiles() -> Result<Vec<Profile>, String> {
     // Sort profiles by name
     profiles.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
-    Ok(profiles)
+    Ok((profiles, errors))
 }
 
 fn sanitize_name(name: &str) -> String {

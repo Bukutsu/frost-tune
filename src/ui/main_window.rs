@@ -80,6 +80,7 @@ impl MainWindow {
                 input_buffer: InputBuffer::default(),
 
                 pending_confirm: ConfirmAction::None,
+                profiles_dir_mtime: None,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -227,6 +228,8 @@ impl MainWindow {
                     || self.connection_status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device...".to_string())
+                } else if self.editor_state.input_buffer.has_errors() {
+                    Some("Resolve input errors first".to_string())
                 } else if self.operation_lock.is_pushing {
                     Some("Operation in progress: Writing".to_string())
                 } else if self.operation_lock.is_pulling {
@@ -383,6 +386,15 @@ impl MainWindow {
                 "Continue",
                 Message::ConfirmElevatedConnect(device.clone()),
             )),
+            ConfirmAction::ImportAutoEQ(ref peq) => {
+                let count = peq.filters.iter().filter(|f| f.enabled).count();
+                Some(views::confirm_dialog::view_confirm_dialog(
+                    "Import AutoEQ?".to_string(),
+                    format!("This will import {} filters and set global gain to {:.1}dB. Current editor settings will be overwritten.", count, peq.global_gain),
+                    "Import",
+                    Message::ConfirmImportAutoEQ,
+                ))
+            },
             ConfirmAction::None => None,
         } {
             iced::widget::stack![

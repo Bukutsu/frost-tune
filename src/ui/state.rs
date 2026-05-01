@@ -103,6 +103,10 @@ impl InputBuffer {
             }
         }
     }
+
+    pub fn has_errors(&self) -> bool {
+        self.freq_error.is_some() || self.gain_error.is_some() || self.q_error.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -112,6 +116,7 @@ pub enum ConfirmAction {
     ResetFilters,
     DeleteProfile,
     ElevatedConnect(DeviceInfo),
+    ImportAutoEQ(crate::models::PEQData),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -125,6 +130,7 @@ pub struct EditorState {
     pub new_profile_name: String,
     pub input_buffer: InputBuffer,
     pub pending_confirm: ConfirmAction,
+    pub profiles_dir_mtime: Option<std::time::SystemTime>,
 }
 
 #[derive(Debug, Clone, Default)]

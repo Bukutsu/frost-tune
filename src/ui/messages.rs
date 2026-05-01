@@ -48,6 +48,7 @@ pub enum Message {
     GlobalGainChanged(i8),
     ResetFiltersPressed,
     ConfirmResetFilters,
+    ConfirmImportAutoEQ,
     ImportFromClipboard,
     ImportClipboardReceived(String),
     ImportClipboardFailed(String),
@@ -58,7 +59,8 @@ pub enum Message {
     ToggleDiagnosticsErrorsOnly(bool),
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
-    ProfilesLoaded(Result<Vec<Profile>, String>),
+    ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), String>),
+    ReloadProfilesPressed,
 
     ProfileSelected(String),
     ProfileNameInput(String),

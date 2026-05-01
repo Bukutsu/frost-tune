@@ -29,13 +29,22 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
 
     let preset_placeholder: &str = if is_narrow { "Select" } else { "Select Preset" };
 
-    let select_preset = pick_list(
-        preset_names,
-        state.editor_state.selected_profile_name.clone(),
-        Message::ProfileSelected,
-    )
-    .placeholder(preset_placeholder)
-    .style(theme::m3_input_pick_list);
+    let select_preset = row![
+        pick_list(
+            preset_names,
+            state.editor_state.selected_profile_name.clone(),
+            Message::ProfileSelected,
+        )
+        .placeholder(preset_placeholder)
+        .style(theme::m3_input_pick_list)
+        .width(Length::Fill),
+        action_button("⟳")
+            .on_press(Message::ReloadProfilesPressed)
+            .style(theme::pill_text_button)
+            .width(Length::Fixed(32.0)),
+    ]
+    .spacing(SPACE_8)
+    .align_y(iced::Alignment::Center);
 
     let profile_name_input = text_input("New Name...", &state.editor_state.new_profile_name)
         .on_input(Message::ProfileNameInput)

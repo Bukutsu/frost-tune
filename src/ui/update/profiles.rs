@@ -6,11 +6,40 @@ use iced::Task;
 
 pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
+        Message::ReloadProfilesPressed => {
+            Task::perform(
+                async move { crate::storage::load_all_profiles() },
+                Message::ProfilesLoaded,
+            )
+        }
         Message::ProfilesLoaded(result) => {
+            window.editor_state.profiles_dir_mtime = crate::storage::get_profiles_dir_mtime();
             match result {
-                Ok(profiles) => {
+                Ok((profiles, errors)) => {
+                    let prev_count = window.editor_state.profiles.len();
                     window.editor_state.profiles = profiles;
-                    Task::none()
+                    
+                    for err in &errors {
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Error,
+                            Source::UI,
+                            err.clone(),
+                        ));
+                    }
+
+                    if !errors.is_empty() {
+                        window.set_status(
+                            format!("Loaded {} profiles ({} failed to parse)", window.editor_state.profiles.len(), errors.len()),
+                            StatusSeverity::Warning
+                        )
+                    } else if window.editor_state.profiles.len() != prev_count {
+                         window.set_status(
+                            format!("Profiles updated ({} total)", window.editor_state.profiles.len()),
+                            StatusSeverity::Info
+                        )
+                    } else {
+                        Task::none()
+                    }
                 }
                 Err(e) => {
                     window.diagnostics.push(DiagnosticEvent::new(

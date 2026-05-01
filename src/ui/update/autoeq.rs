@@ -32,25 +32,8 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
         }
         Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(&text) {
             Ok(peq) => {
-                let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
-                window.editor_state.filters = peq
-                    .filters
-                    .into_iter()
-                    .map(|mut f| {
-                        f.enabled = true;
-                        f
-                    })
-                    .collect();
-                window.editor_state.global_gain = peq.global_gain;
-                window.diagnostics.push(DiagnosticEvent::new(
-                    LogLevel::Info,
-                    Source::AutoEQ,
-                    format!("Import successful: {} filters", enabled_count),
-                ));
-                window.set_status(
-                    format!("Imported {} filters", enabled_count),
-                    StatusSeverity::Success,
-                )
+                window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::ImportAutoEQ(peq);
+                Task::none()
             }
             Err(e) => {
                 window.diagnostics.push(DiagnosticEvent::new(
@@ -61,6 +44,32 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
             }
         },
+        Message::ConfirmImportAutoEQ => {
+            if let crate::ui::state::ConfirmAction::ImportAutoEQ(peq) = window.editor_state.pending_confirm.clone() {
+                let enabled_count = peq.filters.iter().filter(|f| f.enabled).count();
+                window.editor_state.filters = peq
+                    .filters
+                    .into_iter()
+                    .map(|mut f| {
+                        f.enabled = true;
+                        f
+                    })
+                    .collect();
+                window.editor_state.global_gain = peq.global_gain;
+                window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::None;
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::AutoEQ,
+                    format!("Import successful: {} filters", enabled_count),
+                ));
+                window.set_status(
+                    format!("Imported {} filters", enabled_count),
+                    StatusSeverity::Success,
+                )
+            } else {
+                Task::none()
+            }
+        }
         Message::ImportClipboardFailed(msg) => {
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Error,
