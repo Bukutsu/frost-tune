@@ -19,7 +19,7 @@ Frost-Tune talks to your DAC over USB HID and lets you tweak a 10-band parametri
 |--------|-----------|--------|
 | EPZ TP35 Pro | `0x3302` / `0x43E6` | ✓ Supported |
 
-More devices can be added by implementing the `DeviceProtocol` trait. See `src/hardware/protocol.rs`.
+More devices can be added by implementing the `DeviceProtocol` trait (see `src/hardware/protocol.rs`) and registering the new device in `src/models/device.rs`. Follow the inline **Contributor Guide** at the bottom of `device.rs` for a quick setup.
 
 ## Hardware safety
 
