@@ -12,6 +12,7 @@ pub enum StatusSeverity {
 
 #[derive(Debug, Clone)]
 pub struct StatusMessage {
+    pub id: u64,
     pub content: String,
     pub severity: StatusSeverity,
     pub created_at: String,
@@ -19,11 +20,13 @@ pub struct StatusMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    None,
     DeviceSelected(usize),
     ConnectPressed(DeviceInfo),
     ConfirmElevatedConnect(DeviceInfo),
     DisconnectPressed,
     PullPressed,
+    ConfirmPullPressed,
     PushPressed,
     WorkerConnected(ConnectionResult),
     WorkerDisconnected(OperationResult),
@@ -61,6 +64,7 @@ pub enum Message {
     DiagnosticsExported(String),
     ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), String>),
     ReloadProfilesPressed,
+    OpenProfilesDirPressed,
 
     ProfileSelected(String),
     ProfileNameInput(String),
@@ -72,6 +76,6 @@ pub enum Message {
     FileImported(Option<std::path::PathBuf>),
     FileExported(Option<std::path::PathBuf>, crate::models::PEQData),
 
-    ClearStatusMessage,
+    ClearStatusMessage(u64),
     DismissConfirmDialog,
 }

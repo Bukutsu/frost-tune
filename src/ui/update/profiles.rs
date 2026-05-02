@@ -12,6 +12,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 Message::ProfilesLoaded,
             )
         }
+        Message::OpenProfilesDirPressed => {
+            if let Err(e) = crate::storage::open_profiles_dir() {
+                window.set_status(format!("Failed to open folder: {}", e), StatusSeverity::Error)
+            } else {
+                Task::none()
+            }
+        }
         Message::ProfilesLoaded(result) => {
             window.editor_state.profiles_dir_mtime = crate::storage::get_profiles_dir_mtime();
             match result {

@@ -12,12 +12,14 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 band.freq = freq;
                 band.enabled = true;
                 band.clamp();
+                window.editor_state.is_dirty = true;
             }
             Task::none()
         }
         Message::BandTypeChanged(index, t) => {
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.filter_type = t;
+                window.editor_state.is_dirty = true;
             }
             Task::none()
         }
@@ -44,6 +46,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                             band.freq = v.clamp(MIN_FREQ, MAX_FREQ);
                             band.enabled = true;
                             window.editor_state.input_buffer.freq_error = None;
+                            window.editor_state.is_dirty = true;
                         } else {
                             window.editor_state.input_buffer.freq_error =
                                 Some((index, "Freq: 20-20000 Hz".to_string()));
@@ -62,6 +65,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                                 band.gain = v;
                                 band.enabled = true;
                                 window.editor_state.input_buffer.gain_error = None;
+                                window.editor_state.is_dirty = true;
                             } else {
                                 window.editor_state.input_buffer.gain_error = Some((
                                     index,
@@ -89,6 +93,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                                 band.q = v;
                                 band.enabled = true;
                                 window.editor_state.input_buffer.q_error = None;
+                                window.editor_state.is_dirty = true;
                             } else {
                                 window.editor_state.input_buffer.q_error =
                                     Some((index, format!("Q: {:.1} to {:.1}", MIN_Q, MAX_Q)));
@@ -124,6 +129,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 let hz = 10f64.powf(v).round() as u16;
                 band.freq = snap_freq_to_iso(hz);
+                window.editor_state.is_dirty = true;
             }
             Task::none()
         }
@@ -131,6 +137,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.gain = v.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
                 band.enabled = true;
+                window.editor_state.is_dirty = true;
             }
             Task::none()
         }
@@ -138,11 +145,13 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 let q_val = 10f64.powf(v);
                 band.q = snap_q_to_iso(q_val);
+                window.editor_state.is_dirty = true;
             }
             Task::none()
         }
         Message::GlobalGainChanged(gain) => {
             window.editor_state.global_gain = gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN);
+            window.editor_state.is_dirty = true;
             Task::none()
         }
         Message::ResetFiltersPressed => {
@@ -158,6 +167,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                     (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
                 window.editor_state.filters = default_filters;
                 window.editor_state.global_gain = 0;
+                window.editor_state.is_dirty = true;
                 window.editor_state.input_buffer = InputBuffer::default();
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,

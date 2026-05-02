@@ -16,37 +16,17 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             {
                 return Task::none();
             }
-            window.operation_lock.is_pulling = true;
-            window.diagnostics.push(DiagnosticEvent::new(
-                LogLevel::Info,
-                Source::UI,
-                "Pull pressed",
-            ));
-            let worker = match window.worker.as_ref() {
-                Some(w) => Arc::clone(w),
-                None => return Task::none(),
-            };
-            let pull_task = Task::perform(
-                async move {
-                    let rx = worker.pull_peq();
-                    match rx.recv_timeout(std::time::Duration::from_secs(30)) {
-                        Ok(res) => res,
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
-                            success: false,
-                            data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 30 seconds")),
-                        },
-                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
-                            success: false,
-                            data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
-                        },
-                    }
-                },
-                Message::WorkerPulled,
-            );
-            let status_task = window.set_status("Reading from device...", StatusSeverity::Info);
-            Task::batch(vec![pull_task, status_task])
+
+            if window.editor_state.is_dirty {
+                window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::PullDevice;
+                return Task::none();
+            }
+
+            perform_pull(window)
+        }
+        Message::ConfirmPullPressed => {
+            window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::None;
+            perform_pull(window)
         }
         Message::PushPressed => {
             if window.worker.is_none()
@@ -75,12 +55,12 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         global_gain: Some(global_gain),
                     };
                     let rx = worker.push_peq(payload);
-                    match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                    match rx.recv_timeout(std::time::Duration::from_secs(5)) {
                         Ok(res) => res,
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
                             success: false,
                             data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 30 seconds")),
+                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 5 seconds")),
                         },
                         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
                             success: false,
@@ -97,6 +77,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
         Message::WorkerPulled(result) => {
             window.operation_lock.is_pulling = false;
             if result.success {
+                window.editor_state.is_dirty = false;
                 if let Some(peq) = result.data {
                     window.editor_state.filters = peq
                         .filters
@@ -137,6 +118,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
         Message::WorkerPushed(result) => {
             window.operation_lock.is_pushing = false;
             if result.success {
+                window.editor_state.is_dirty = false;
                 if let Some(peq) = result.data {
                     window.editor_state.filters = peq
                         .filters
@@ -181,4 +163,38 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
         }
         _ => Task::none(),
     }
+}
+
+fn perform_pull(window: &mut MainWindow) -> Task<Message> {
+    window.operation_lock.is_pulling = true;
+    window.diagnostics.push(DiagnosticEvent::new(
+        LogLevel::Info,
+        Source::UI,
+        "Pulling from device",
+    ));
+    let worker = match window.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
+    let pull_task = Task::perform(
+        async move {
+            let rx = worker.pull_peq();
+            match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+                Ok(res) => res,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 5 seconds")),
+                },
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
+                },
+            }
+        },
+        Message::WorkerPulled,
+    );
+    let status_task = window.set_status("Reading from device...", StatusSeverity::Info);
+    Task::batch(vec![pull_task, status_task])
 }

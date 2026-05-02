@@ -16,8 +16,9 @@ use self::profiles::handle_profiles;
 
 pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
+        Message::None => Task::none(),
         // handle_connection
-        Message::ClearStatusMessage |
+        Message::ClearStatusMessage(_) |
         Message::DismissConfirmDialog |
         Message::DeviceSelected(_) |
         Message::ConnectPressed(_) |
@@ -30,6 +31,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
 
         // handle_hardware
         Message::PullPressed |
+        Message::ConfirmPullPressed |
         Message::PushPressed |
         Message::WorkerPulled(..) |
         Message::WorkerPushed(..) => handle_hardware(window, message),
@@ -68,6 +70,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
 
         // handle_profiles
         Message::ReloadProfilesPressed |
+        Message::OpenProfilesDirPressed |
         Message::ProfilesLoaded(..) |
         Message::ProfileSelected(..) |
         Message::ProfileNameInput(..) |

@@ -33,22 +33,39 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
         pick_list(
             preset_names,
             state.editor_state.selected_profile_name.clone(),
-            Message::ProfileSelected,
+            move |p| {
+                if is_busy {
+                    Message::None
+                } else {
+                    Message::ProfileSelected(p)
+                }
+            },
         )
         .placeholder(preset_placeholder)
         .style(theme::m3_input_pick_list)
         .width(Length::Fill),
         action_button("⟳")
-            .on_press(Message::ReloadProfilesPressed)
+            .on_press_maybe(if is_busy { None } else { Some(Message::ReloadProfilesPressed) })
+            .style(theme::pill_text_button)
+            .width(Length::Fixed(32.0)),
+        action_button("📁")
+            .on_press_maybe(if is_busy { None } else { Some(Message::OpenProfilesDirPressed) })
             .style(theme::pill_text_button)
             .width(Length::Fixed(32.0)),
     ]
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
-    let profile_name_input = text_input("New Name...", &state.editor_state.new_profile_name)
-        .on_input(Message::ProfileNameInput)
-        .style(theme::m3_filled_input);
+    let profile_name_input = {
+        let input = text_input("New Name...", &state.editor_state.new_profile_name)
+            .style(theme::m3_filled_input);
+        
+        if is_busy {
+            input
+        } else {
+            input.on_input(Message::ProfileNameInput)
+        }
+    };
 
     let actions_row = row![
         action_button("Reset")
@@ -59,7 +76,7 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
             })
             .style(theme::pill_secondary_button),
         action_button("Save")
-            .on_press(Message::SaveProfilePressed)
+            .on_press_maybe(if is_busy { None } else { Some(Message::SaveProfilePressed) })
             .style(theme::pill_primary_button),
         if !is_busy && state.editor_state.selected_profile_name.is_some() {
             action_button("Delete")
@@ -116,7 +133,13 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
                 slider(
                     MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
                     state.editor_state.global_gain as f64,
-                    |v| Message::GlobalGainChanged(v as i8)
+                    move |v| {
+                        if is_busy {
+                            Message::None
+                        } else {
+                            Message::GlobalGainChanged(v as i8)
+                        }
+                    }
                 )
                 .width(Length::Fill),
                 text(format!("{} dB", state.editor_state.global_gain))
@@ -136,7 +159,13 @@ pub fn view_presets_and_preamp(state: &MainWindow, layout: PresetsLayout) -> Ele
             slider(
                 MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
                 state.editor_state.global_gain as f64,
-                |v| Message::GlobalGainChanged(v as i8)
+                move |v| {
+                    if is_busy {
+                        Message::None
+                    } else {
+                        Message::GlobalGainChanged(v as i8)
+                    }
+                }
             )
             .width(Length::Fill),
             text(format!("{} dB", state.editor_state.global_gain))

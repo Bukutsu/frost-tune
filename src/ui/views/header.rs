@@ -4,7 +4,7 @@ use crate::ui::state::{ConnectionStatus, MainWindow};
 use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY};
 use crate::ui::tokens::{SPACE_16, SPACE_4, SPACE_8, SPACE_12, SPACE_2, SPACE_6, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, TYPE_TINY};
 use crate::ui::views::action_button;
-use iced::widget::{column, container, row, text};
+use iced::widget::{column, container, row, text, tooltip};
 use iced::{Element, Font, Length};
 use iced::font::Weight;
 
@@ -18,14 +18,20 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let sync_buttons = row![
         if !is_busy && is_connected {
-            action_button("Read")
+            Element::from(action_button("Read")
                 .on_press(Message::PullPressed)
-                .style(theme::pill_secondary_button)
+                .style(theme::pill_secondary_button))
         } else {
-            action_button("Read").style(theme::pill_secondary_button)
+            let btn = action_button("Read").style(theme::pill_secondary_button);
+            if let Some(reason) = state.disabled_reason_for_action("read") {
+                Element::from(tooltip(btn, text(reason), tooltip::Position::Bottom)
+                    .style(theme::tooltip_style))
+            } else {
+                Element::from(btn)
+            }
         },
         if !is_busy && is_connected && !state.editor_state.input_buffer.has_errors() {
-            action_button("Write")
+            Element::from(action_button("Write")
                 .on_press(Message::PushPressed)
                 .style(|theme, status| {
                     let mut s = theme::pill_primary_button(theme, status);
@@ -34,16 +40,28 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                         s.text_color = theme::TOKYO_NIGHT_BG_DARK;
                     }
                     s
-                })
+                }))
         } else {
-            action_button("Write").style(theme::pill_primary_button)
+            let btn = action_button("Write").style(theme::pill_primary_button);
+            if let Some(reason) = state.disabled_reason_for_action("write") {
+                Element::from(tooltip(btn, text(reason), tooltip::Position::Bottom)
+                    .style(theme::tooltip_style))
+            } else {
+                Element::from(btn)
+            }
         },
         if !is_busy && is_connected {
-             action_button("Disconnect")
+             Element::from(action_button("Disconnect")
                 .on_press(Message::DisconnectPressed)
-                .style(theme::pill_secondary_button)
+                .style(theme::pill_secondary_button))
         } else {
-            action_button("Disconnect").style(theme::pill_secondary_button)
+            let btn = action_button("Disconnect").style(theme::pill_secondary_button);
+            if let Some(reason) = state.disabled_reason_for_action("disconnect") {
+                Element::from(tooltip(btn, text(reason), tooltip::Position::Bottom)
+                    .style(theme::tooltip_style))
+            } else {
+                Element::from(btn)
+            }
         },
     ]
     .spacing(SPACE_8);

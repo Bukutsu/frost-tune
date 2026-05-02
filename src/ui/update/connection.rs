@@ -9,8 +9,12 @@ use std::sync::Arc;
 
 pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::ClearStatusMessage => {
-            window.editor_state.status_message = None;
+        Message::ClearStatusMessage(id) => {
+            if let Some(ref status) = window.editor_state.status_message {
+                if status.id == id {
+                    window.editor_state.status_message = None;
+                }
+            }
             Task::none()
         }
         Message::DismissConfirmDialog => {

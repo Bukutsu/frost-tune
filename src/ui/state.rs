@@ -117,6 +117,7 @@ pub enum ConfirmAction {
     DeleteProfile,
     ElevatedConnect(DeviceInfo),
     ImportAutoEQ(crate::models::PEQData),
+    PullDevice,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -131,6 +132,7 @@ pub struct EditorState {
     pub input_buffer: InputBuffer,
     pub pending_confirm: ConfirmAction,
     pub profiles_dir_mtime: Option<std::time::SystemTime>,
+    pub is_dirty: bool,
 }
 
 #[derive(Debug, Clone, Default)]

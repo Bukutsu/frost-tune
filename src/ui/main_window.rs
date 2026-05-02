@@ -81,6 +81,7 @@ impl MainWindow {
 
                 pending_confirm: ConfirmAction::None,
                 profiles_dir_mtime: None,
+                is_dirty: false,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -130,7 +131,13 @@ impl MainWindow {
             ));
         }
         let should_auto_clear = self.status_should_auto_clear(severity);
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
         self.editor_state.status_message = Some(StatusMessage {
+            id,
             content,
             severity,
             created_at: chrono::Local::now().to_rfc3339(),
@@ -138,7 +145,7 @@ impl MainWindow {
         if should_auto_clear {
             Task::perform(
                 async { tokio::time::sleep(Self::status_auto_clear_duration()).await },
-                |_| Message::ClearStatusMessage,
+                move |_| Message::ClearStatusMessage(id),
             )
         } else {
             Task::none()
@@ -395,6 +402,12 @@ impl MainWindow {
                     Message::ConfirmImportAutoEQ,
                 ))
             },
+            ConfirmAction::PullDevice => Some(views::confirm_dialog::view_confirm_dialog(
+                "Overwrite with Device Settings?".to_string(),
+                "You have unsaved changes in the editor. Reading from the device will overwrite your current settings. Continue?".to_string(),
+                "Overwrite",
+                Message::ConfirmPullPressed,
+            )),
             ConfirmAction::None => None,
         } {
             iced::widget::stack![

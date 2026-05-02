@@ -36,7 +36,13 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                         crate::models::FilterType::HighShelf
                     ][..],
                     Some(band.filter_type),
-                    move |t| Message::BandTypeChanged(i, t),
+                    move |t| {
+                        if is_busy {
+                            Message::None
+                        } else {
+                            Message::BandTypeChanged(i, t)
+                        }
+                    },
                 )
                 .width(Length::Fill)
                 .style(theme::m3_input_pick_list)
@@ -44,18 +50,25 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 // Freq field
                 column![
                     text("FREQ").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
-                    text_input(
-                        "",
-                        state.editor_state
-                            .input_buffer
-                            .get_freq(i)
-                            .as_deref()
-                            .unwrap_or(&format!("{}", band.freq))
-                    )
-                    .on_input(move |s| Message::BandFreqInput(i, s))
-                    .on_submit(Message::BandFreqInputCommit(i))
-                    .style(theme::m3_outlined_input)
-                    .size(TYPE_LABEL),
+                    {
+                        let input = text_input(
+                            "",
+                            state.editor_state
+                                .input_buffer
+                                .get_freq(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{}", band.freq))
+                        )
+                        .style(theme::m3_outlined_input)
+                        .size(TYPE_LABEL);
+                        
+                        if is_busy {
+                            input
+                        } else {
+                            input.on_input(move |s| Message::BandFreqInput(i, s))
+                                 .on_submit(Message::BandFreqInputCommit(i))
+                        }
+                    },
                     if let Some(err) = freq_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {
@@ -65,18 +78,25 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 // Gain field
                 column![
                     text("GAIN").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
-                    text_input(
-                        "",
-                        state.editor_state
-                            .input_buffer
-                            .get_gain(i)
-                            .as_deref()
-                            .unwrap_or(&format!("{:.1}", band.gain))
-                    )
-                    .on_input(move |s| Message::BandGainInput(i, s))
-                    .on_submit(Message::BandGainInputCommit(i))
-                    .style(theme::m3_outlined_input)
-                    .size(TYPE_LABEL),
+                    {
+                        let input = text_input(
+                            "",
+                            state.editor_state
+                                .input_buffer
+                                .get_gain(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{:.1}", band.gain))
+                        )
+                        .style(theme::m3_outlined_input)
+                        .size(TYPE_LABEL);
+                        
+                        if is_busy {
+                            input
+                        } else {
+                            input.on_input(move |s| Message::BandGainInput(i, s))
+                                 .on_submit(Message::BandGainInputCommit(i))
+                        }
+                    },
                      if let Some(err) = gain_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {
@@ -86,18 +106,25 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 // Q field
                 column![
                     text("Q").size(TYPE_TINY).color(TOKYO_NIGHT_MUTED),
-                    text_input(
-                        "",
-                        state.editor_state
-                            .input_buffer
-                            .get_q(i)
-                            .as_deref()
-                            .unwrap_or(&format!("{:.2}", band.q))
-                    )
-                    .on_input(move |s| Message::BandQInput(i, s))
-                    .on_submit(Message::BandQInputCommit(i))
-                    .style(theme::m3_outlined_input)
-                    .size(TYPE_LABEL),
+                    {
+                        let input = text_input(
+                            "",
+                            state.editor_state
+                                .input_buffer
+                                .get_q(i)
+                                .as_deref()
+                                .unwrap_or(&format!("{:.2}", band.q))
+                        )
+                        .style(theme::m3_outlined_input)
+                        .size(TYPE_LABEL);
+                        
+                        if is_busy {
+                            input
+                        } else {
+                            input.on_input(move |s| Message::BandQInput(i, s))
+                                 .on_submit(Message::BandQInputCommit(i))
+                        }
+                    },
                     if let Some(err) = q_error {
                         text(err).size(TYPE_TINY).color(TOKYO_NIGHT_RED)
                     } else {

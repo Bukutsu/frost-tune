@@ -162,6 +162,19 @@ fn enforce_disabled_button_contrast(
     style
 }
 
+pub fn tooltip_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT)),
+        border: Border {
+            color: TOKYO_NIGHT_TERMINAL_BLACK,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        text_color: Some(TOKYO_NIGHT_FG),
+        ..Default::default()
+    }
+}
+
 pub fn m3_input_pick_list(_theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let (border_color, border_width) = match status {
         pick_list::Status::Active => (
