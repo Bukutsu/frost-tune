@@ -102,14 +102,21 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
                 } else {
-                    window.connection_status = ConnectionStatus::Error(err.message.clone());
-                    err.kind.user_message().to_string()
+                    window.connection_status = ConnectionStatus::Error(err.user_message().to_string());
+                    err.user_message().to_string()
                 };
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Error,
                     Source::Worker,
                     format!("Pull failed: {}", err.message),
                 ));
+                if let Some(context) = err.context.clone() {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::Worker,
+                        context,
+                    ));
+                }
                 window.set_status(format!("Pull failed: {}", msg), StatusSeverity::Error)
             } else {
                 Task::none()
@@ -145,8 +152,8 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
                 } else {
-                    window.connection_status = ConnectionStatus::Error(err.message.clone());
-                    err.kind.user_message().to_string()
+                    window.connection_status = ConnectionStatus::Error(err.user_message().to_string());
+                    err.user_message().to_string()
                 };
                 
                 let full_msg = format!("Push failed: {}. Try reading from device to resync.", base_msg);
@@ -156,6 +163,13 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                     Source::Worker,
                     format!("Push failed: {}", err.message),
                 ));
+                if let Some(context) = err.context.clone() {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::Worker,
+                        context,
+                    ));
+                }
                 window.set_status(full_msg, StatusSeverity::Error)
             } else {
                 Task::none()

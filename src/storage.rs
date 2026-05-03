@@ -53,6 +53,10 @@ fn get_ui_preferences_path() -> Result<PathBuf, String> {
     Ok(get_base_dir()?.join("ui_preferences.json"))
 }
 
+pub fn get_diagnostics_log_path() -> Result<PathBuf, String> {
+    Ok(get_base_dir()?.join("diagnostics.log"))
+}
+
 pub fn load_ui_preferences() -> Result<UiPreferences, String> {
     let path = get_ui_preferences_path()?;
     if !path.exists() {
@@ -86,7 +90,8 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
         let _ = dir_file.sync_all();
     }
 
-    Ok(())}
+    Ok(())
+}
 
 pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
     get_profiles_dir().ok().and_then(|dir| {
@@ -226,4 +231,46 @@ pub fn open_profiles_dir() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub fn append_diagnostics_log(line: &str) -> Result<(), String> {
+    let path = get_diagnostics_log_path()?;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("Failed to open diagnostics log: {}", e))?;
+    use std::io::Write;
+    file.write_all(line.as_bytes())
+        .map_err(|e| format!("Failed to write diagnostics log: {}", e))?;
+    file.write_all(b"\n")
+        .map_err(|e| format!("Failed to finalize diagnostics log: {}", e))?;
+    Ok(())
+}
+
+pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>, String> {
+    let path = get_diagnostics_log_path()?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read diagnostics log: {}", e))?;
+    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+    if lines.len() > limit {
+        lines = lines.split_off(lines.len() - limit);
+    }
+    Ok(lines)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_name() {
+        assert_eq!(sanitize_name("Hello World"), "Hello World");
+        assert_eq!(sanitize_name("Profile_1-2"), "Profile_1-2");
+        assert_eq!(sanitize_name("Bad@Name#$"), "BadName");
+        assert_eq!(sanitize_name(""), "");
+    }
 }

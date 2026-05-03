@@ -59,11 +59,13 @@ pub enum Message {
     ExportComplete,
     CopyDiagnostics,
     ClearDiagnostics,
+    ToggleDiagnostics,
     ToggleDiagnosticsErrorsOnly(bool),
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
     ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), String>),
     ProfilesDirMtimeChecked(Option<std::time::SystemTime>),
+    WorkerBackendReset,
     ReloadProfilesPressed,
     OpenProfilesDirPressed,
 

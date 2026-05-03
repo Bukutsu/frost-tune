@@ -44,8 +44,8 @@ fn write_response(
     stdout: &mut io::StdoutLock<'_>,
     response: &HelperResponse,
 ) -> crate::error::Result<()> {
-    let line = serde_json::to_string(response)
-        .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to serialize response: {}", e)))?;
+        let line = serde_json::to_string(response)
+            .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to serialize response: {}", e)))?;
     stdout
         .write_all(line.as_bytes())
         .map_err(|e| AppError::general(format!("Failed writing response: {}", e)))?;
@@ -78,7 +78,8 @@ pub fn run() -> crate::error::Result<()> {
                 let _ = write_response(
                     &mut stdout_lock,
                     &HelperResponse::Error {
-                        error: AppError::general(format!("Failed reading request: {}", e)),
+                        kind: ErrorKind::IpcError,
+                        error: AppError::new(ErrorKind::IpcError, format!("Failed reading request: {}", e)),
                     },
                 );
                 continue;
@@ -92,9 +93,10 @@ pub fn run() -> crate::error::Result<()> {
         if bytes_read == 65536 && !line.ends_with('\n') {
             let _ = write_response(
                 &mut stdout_lock,
-                &HelperResponse::Error {
-                    error: AppError::general("Request payload too large"),
-                },
+                    &HelperResponse::Error {
+                        kind: ErrorKind::IpcError,
+                        error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
+                    },
             );
             let mut buf = vec![];
             let _ = stdin_lock.read_until(b'\n', &mut buf);
@@ -112,7 +114,8 @@ pub fn run() -> crate::error::Result<()> {
                 let _ = write_response(
                     &mut stdout_lock,
                     &HelperResponse::Error {
-                        error: AppError::general(format!("Invalid request payload: {}", e)),
+                        kind: ErrorKind::ParseError,
+                        error: AppError::new(ErrorKind::ParseError, format!("Invalid request payload: {}", e)),
                     },
                 );
                 continue;
@@ -133,6 +136,7 @@ pub fn run() -> crate::error::Result<()> {
                                 Device::from_vid_pid(found.vendor_id(), found.product_id());
                             if found_type == Device::Unknown {
                                 HelperResponse::Error {
+                                    kind: ErrorKind::HardwareError,
                                     error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                                 }
                             } else {
@@ -145,12 +149,14 @@ pub fn run() -> crate::error::Result<()> {
                                         HelperResponse::Connected { device: Some(info) }
                                     }
                                     Err(e) => HelperResponse::Error {
+                                        kind: ErrorKind::PermissionDenied,
                                         error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
                                     },
                                 }
                             }
                         }
                         None => HelperResponse::Error {
+                            kind: ErrorKind::NotConnected,
                             error: AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?"),
                         },
                     }
@@ -186,13 +192,18 @@ pub fn run() -> crate::error::Result<()> {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {
+                                kind: ErrorKind::ParseError,
                                 error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
                             },
                         },
-                        Err(e) => HelperResponse::Error { error: e },
+                        Err(e) => HelperResponse::Error {
+                            kind: e.kind,
+                            error: e,
+                        },
                     }
                 } else {
                     HelperResponse::Error {
+                        kind: ErrorKind::NotConnected,
                         error: AppError::new(ErrorKind::NotConnected, "Not connected"),
                     }
                 }
@@ -206,13 +217,18 @@ pub fn run() -> crate::error::Result<()> {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {
+                                kind: ErrorKind::ParseError,
                                 error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
                             },
                         },
-                        Err(e) => HelperResponse::Error { error: e },
+                        Err(e) => HelperResponse::Error {
+                            kind: e.kind,
+                            error: e,
+                        },
                     }
                 } else {
                     HelperResponse::Error {
+                        kind: ErrorKind::NotConnected,
                         error: AppError::new(ErrorKind::NotConnected, "Not connected"),
                     }
                 }

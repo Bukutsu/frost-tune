@@ -28,7 +28,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::WorkerDisconnected(..) |
         Message::WorkerStatus(..) |
         Message::Tick(..) |
-        Message::ProfilesDirMtimeChecked(_) => handle_connection(window, message),
+        Message::ProfilesDirMtimeChecked(_) |
+        Message::WorkerBackendReset => handle_connection(window, message),
 
         // handle_hardware
         Message::PullPressed |
@@ -54,7 +55,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::BandQInputCancel(..) |
         Message::GlobalGainChanged(..) |
         Message::ResetFiltersPressed |
-        Message::ConfirmResetFilters => handle_editor(window, message),
+        Message::ConfirmResetFilters |
+        Message::ToggleDiagnostics => handle_editor(window, message),
 
         // handle_autoeq
         Message::ConfirmImportAutoEQ |

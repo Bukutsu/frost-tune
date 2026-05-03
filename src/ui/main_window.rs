@@ -1,4 +1,4 @@
-use crate::diagnostics::{DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
+use crate::diagnostics::{parse_diagnostic_log_line, DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
 use crate::hardware::worker::{UsbWorker};
 use crate::models::Filter;
 use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
@@ -62,7 +62,7 @@ pub fn parse_freq_string(s: &str) -> Option<u16> {
 }
 
 impl MainWindow {
-    fn new() -> (Self, Task<Message>) {
+    fn new_with_diagnostics(diagnostics: DiagnosticsStore) -> (Self, Task<Message>) {
         let worker = Arc::new(UsbWorker::new());
         let default_filters: Vec<Filter> =
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
@@ -82,13 +82,17 @@ impl MainWindow {
                 pending_confirm: ConfirmAction::None,
                 profiles_dir_mtime: None,
                 is_dirty: false,
+                is_autoeq_active: false,
+                show_diagnostics: false,
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
             connected_device: None,
             available_devices: Vec::new(),
             selected_device_index: None,
-            diagnostics: DiagnosticsStore::default(),
+            diagnostics,
+            connection_generation: 0,
+            suspend_status_polling: false,
         };
         let load_profiles_task = Task::perform(
             async move { crate::storage::load_all_profiles() },
@@ -98,6 +102,10 @@ impl MainWindow {
             window,
             load_profiles_task,
         )
+    }
+
+    fn new() -> (Self, Task<Message>) {
+        Self::new_with_diagnostics(DiagnosticsStore::default())
     }
 
     fn title(&self) -> String {
@@ -271,6 +279,38 @@ impl MainWindow {
         None
     }
 
+    pub fn num_bands(&self) -> usize {
+        self.connected_device.as_ref()
+            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
+            .and_then(|d| d.protocol())
+            .map(|p| p.num_bands())
+            .unwrap_or(10)
+    }
+
+    pub fn freq_range(&self) -> (u16, u16) {
+        self.connected_device.as_ref()
+            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
+            .and_then(|d| d.protocol())
+            .map(|p| p.freq_range())
+            .unwrap_or((crate::models::constants::MIN_FREQ, crate::models::constants::MAX_FREQ))
+    }
+
+    pub fn gain_range(&self) -> (f64, f64) {
+        self.connected_device.as_ref()
+            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
+            .and_then(|d| d.protocol())
+            .map(|p| p.gain_range())
+            .unwrap_or((crate::models::constants::MIN_BAND_GAIN, crate::models::constants::MAX_BAND_GAIN))
+    }
+
+    pub fn q_range(&self) -> (f64, f64) {
+        self.connected_device.as_ref()
+            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
+            .and_then(|d| d.protocol())
+            .map(|p| p.q_range())
+            .unwrap_or((crate::models::constants::MIN_Q, crate::models::constants::MAX_Q))
+    }
+
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
         match bucket {
             LayoutBucket::Narrow => vec![
@@ -298,11 +338,7 @@ impl MainWindow {
         scrollable(
             column![
                 views::graph_panel::view_graph(self),
-                views::presets_preamp::view_presets_and_preamp(
-                    self,
-                    views::presets_preamp::PresetsLayout::Narrow,
-                ),
-                views::autoeq::view_autoeq(self),
+                views::tools_panel::view_tools_panel(self),
                 views::bands::view_bands(self),
                 views::diagnostics::view_diagnostics_section(self),
             ]
@@ -313,23 +349,10 @@ impl MainWindow {
     }
 
     fn view_medium(&self) -> Element<'_, Message> {
-        let tools_row = row![
-            container(views::presets_preamp::view_presets_and_preamp(
-                self,
-                views::presets_preamp::PresetsLayout::Medium,
-            ))
-            .width(Length::FillPortion(1)),
-            container(views::autoeq::view_autoeq(self))
-                .width(Length::FillPortion(1)),
-        ]
-        .spacing(SPACE_16)
-        .align_y(iced::Alignment::Start)
-        .width(Length::Fill);
-
         scrollable(
             column![
                 views::graph_panel::view_graph(self),
-                tools_row,
+                views::tools_panel::view_tools_panel(self),
                 views::bands::view_bands(self),
                 views::diagnostics::view_diagnostics_section(self),
             ]
@@ -352,11 +375,7 @@ impl MainWindow {
         let right_sidebar = container(
             scrollable(
                 column![
-                    views::presets_preamp::view_presets_and_preamp(
-                        self,
-                        views::presets_preamp::PresetsLayout::Narrow,
-                    ),
-                    views::autoeq::view_autoeq(self),
+                    views::tools_panel::view_tools_panel(self),
                     views::diagnostics::view_diagnostics_section(self),
                 ]
                 .spacing(SPACE_16)
@@ -562,6 +581,29 @@ impl MainWindow {
 
 pub fn run() -> iced::Result {
     iced::application(MainWindow::new, MainWindow::update, MainWindow::view)
+        .title(MainWindow::title)
+        .subscription(MainWindow::subscription)
+        .theme(MainWindow::app_theme)
+        .run()
+}
+
+pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
+    let events: Vec<DiagnosticEvent> = recent_logs
+        .into_iter()
+        .map(|line| {
+            if let Some(event) = parse_diagnostic_log_line(&line) {
+                event
+            } else {
+                DiagnosticEvent::new(LogLevel::Info, Source::UI, line)
+            }
+        })
+        .collect();
+    let diagnostics = DiagnosticsStore::from_events(events);
+    iced::application(
+        move || MainWindow::new_with_diagnostics(diagnostics.clone()),
+        MainWindow::update,
+        MainWindow::view,
+    )
         .title(MainWindow::title)
         .subscription(MainWindow::subscription)
         .theme(MainWindow::app_theme)

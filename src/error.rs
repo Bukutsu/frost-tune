@@ -6,6 +6,7 @@ use thiserror::Error;
 pub struct AppError {
     pub kind: ErrorKind,
     pub message: String,
+    pub context: Option<String>,
 }
 
 impl AppError {
@@ -13,15 +14,21 @@ impl AppError {
         AppError {
             kind,
             message: msg.into(),
+            context: None,
         }
     }
 
     pub fn general(msg: impl Into<String>) -> Self {
-        let msg_str = msg.into();
-        AppError {
-            kind: ErrorKind::from_string(&msg_str),
-            message: msg_str,
-        }
+        AppError::new(ErrorKind::Unknown, msg)
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context = Some(context.into());
+        self
+    }
+
+    pub fn user_message(&self) -> &'static str {
+        self.kind.user_message()
     }
 }
 
@@ -79,33 +86,6 @@ impl ErrorKind {
         }
     }
 
-    pub fn from_string(s: &str) -> Self {
-        if s.contains("Not connected") || s.contains("not found") || s.contains("No such") {
-            ErrorKind::NotConnected
-        } else if s.contains("POLKIT_AUTH_REQUIRED") || s.contains("Authentication required") {
-            ErrorKind::PolkitAuthRequired
-        } else if s.contains("Permission denied") || s.contains("Access denied") {
-            ErrorKind::PermissionDenied
-        } else if s.contains("busy") || s.contains("in use") {
-            ErrorKind::DeviceBusy
-        } else if s.contains("timeout") || s.contains("Timeout") {
-            ErrorKind::ReadTimeout
-        } else if s.contains("verification") || s.contains("mismatch") || s.contains("Verify") {
-            ErrorKind::VerifyFailed
-        } else if s.contains("rollback") || s.contains("restore") {
-            ErrorKind::RollbackFailed
-        } else if s.contains("parse") || s.contains("Parse") {
-            ErrorKind::ParseError
-        } else if s.contains("storage") || s.contains("Storage") || s.contains("profile") {
-            ErrorKind::StorageError
-        } else if s.contains("ipc") || s.contains("IPC") || s.contains("helper") {
-            ErrorKind::IpcError
-        } else if s.contains("failed") || s.contains("error") {
-            ErrorKind::Unknown
-        } else {
-            ErrorKind::Unknown
-        }
-    }
 }
 
 pub const DEVICE_NOT_FOUND: &str = "Device not found. Is it plugged in?";

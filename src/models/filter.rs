@@ -61,21 +61,21 @@ impl Filter {
         }
     }
 
-    pub fn clamp(&mut self) {
-        if self.gain > MAX_BAND_GAIN {
-            self.gain = MAX_BAND_GAIN;
-        } else if self.gain < MIN_BAND_GAIN {
-            self.gain = MIN_BAND_GAIN;
+    pub fn clamp(&mut self, freq_range: (u16, u16), gain_range: (f64, f64), q_range: (f64, f64)) {
+        if self.gain > gain_range.1 {
+            self.gain = gain_range.1;
+        } else if self.gain < gain_range.0 {
+            self.gain = gain_range.0;
         }
-        if self.q < MIN_Q {
-            self.q = MIN_Q;
-        } else if self.q > MAX_Q {
-            self.q = MAX_Q;
+        if self.q < q_range.0 {
+            self.q = q_range.0;
+        } else if self.q > q_range.1 {
+            self.q = q_range.1;
         }
-        if self.freq < MIN_FREQ {
-            self.freq = MIN_FREQ;
-        } else if self.freq > MAX_FREQ {
-            self.freq = MAX_FREQ;
+        if self.freq < freq_range.0 {
+            self.freq = freq_range.0;
+        } else if self.freq > freq_range.1 {
+            self.freq = freq_range.1;
         }
     }
 }

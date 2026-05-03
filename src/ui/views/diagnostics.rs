@@ -37,6 +37,9 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
             row![
                 text("DIAGNOSTICS").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
                 container(text("")).width(Length::Fill),
+                action_button("Hide")
+                    .on_press(Message::ToggleDiagnostics)
+                    .style(theme::pill_text_button),
                 action_button("Copy")
                     .on_press(Message::CopyDiagnostics)
                     .style(theme::pill_text_button),
@@ -57,5 +60,21 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
 }
 
 pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
-    view_diagnostics(state)
+    if state.editor_state.show_diagnostics {
+        view_diagnostics(state)
+    } else {
+        container(
+            row![
+                text("DIAGNOSTICS").size(TYPE_CAPTION).color(TOKYO_NIGHT_MUTED),
+                container(text("")).width(Length::Fill),
+                action_button("Show").on_press(Message::ToggleDiagnostics).style(theme::pill_text_button),
+            ]
+            .spacing(SPACE_8)
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(SPACE_12)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
+    }
 }

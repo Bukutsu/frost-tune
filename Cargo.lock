@@ -1082,14 +1082,13 @@ dependencies = [
 
 [[package]]
 name = "frost-tune"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "dirs",
  "env_logger",
  "hidapi",
  "iced",
- "libc",
  "log",
  "nix 0.27.1",
  "rfd",
@@ -1097,8 +1096,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "zbus 4.4.0",
- "zvariant 4.2.0",
 ]
 
 [[package]]

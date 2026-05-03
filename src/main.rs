@@ -15,7 +15,8 @@ fn main() {
 
     env_logger::init();
     info!("Starting Frost-Tune v{}", env!("CARGO_PKG_VERSION"));
-    if let Err(e) = ui::run() {
+    let recent = frost_tune::storage::load_recent_diagnostics(200).unwrap_or_default();
+    if let Err(e) = ui::run_with_diagnostics(recent) {
         eprintln!("Error running Frost-Tune: {}", e);
         std::process::exit(1);
     }

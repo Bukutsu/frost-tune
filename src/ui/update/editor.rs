@@ -8,10 +8,13 @@ use iced::Task;
 pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::BandFreqChanged(index, freq) => {
+            let freq_range = window.freq_range();
+            let gain_range = window.gain_range();
+            let q_range = window.q_range();
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.freq = freq;
                 band.enabled = true;
-                band.clamp();
+                band.clamp(freq_range, gain_range, q_range);
                 window.editor_state.is_dirty = true;
             }
             Task::none()
@@ -39,17 +42,18 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandFreqInputCommit(index) => {
+            let (min_freq, max_freq) = window.freq_range();
             if let Some((i, s)) = window.editor_state.input_buffer.editing_freq.take() {
                 if i == index {
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Some(v) = parse_freq_string(&s) {
-                            band.freq = v.clamp(MIN_FREQ, MAX_FREQ);
+                            band.freq = v.clamp(min_freq, max_freq);
                             band.enabled = true;
                             window.editor_state.input_buffer.freq_error = None;
                             window.editor_state.is_dirty = true;
                         } else {
                             window.editor_state.input_buffer.freq_error =
-                                Some((index, "Freq: 20-20000 Hz".to_string()));
+                                Some((index, format!("Freq: {}-{} Hz", min_freq, max_freq)));
                         }
                     }
                 }
@@ -57,11 +61,12 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandGainInputCommit(index) => {
+            let (min_gain, max_gain) = window.gain_range();
             if let Some((i, s)) = window.editor_state.input_buffer.editing_gain.take() {
                 if i == index {
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Ok(v) = s.trim().parse::<f64>() {
-                            if v >= MIN_BAND_GAIN && v <= MAX_BAND_GAIN {
+                            if v >= min_gain && v <= max_gain {
                                 band.gain = v;
                                 band.enabled = true;
                                 window.editor_state.input_buffer.gain_error = None;
@@ -71,7 +76,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                                     index,
                                     format!(
                                         "Gain: {:.0} to {:.0}",
-                                        MIN_BAND_GAIN, MAX_BAND_GAIN
+                                        min_gain, max_gain
                                     ),
                                 ));
                             }
@@ -85,18 +90,19 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandQInputCommit(index) => {
+            let (min_q, max_q) = window.q_range();
             if let Some((i, s)) = window.editor_state.input_buffer.editing_q.take() {
                 if i == index {
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Ok(v) = s.trim().parse::<f64>() {
-                            if v >= MIN_Q && v <= MAX_Q {
+                            if v >= min_q && v <= max_q {
                                 band.q = v;
                                 band.enabled = true;
                                 window.editor_state.input_buffer.q_error = None;
                                 window.editor_state.is_dirty = true;
                             } else {
                                 window.editor_state.input_buffer.q_error =
-                                    Some((index, format!("Q: {:.1} to {:.1}", MIN_Q, MAX_Q)));
+                                    Some((index, format!("Q: {:.1} to {:.1}", min_q, max_q)));
                             }
                         } else {
                             window.editor_state.input_buffer.q_error =
@@ -134,8 +140,9 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandGainChanged(index, v) => {
+            let (min_gain, max_gain) = window.gain_range();
             if let Some(band) = window.editor_state.filters.get_mut(index) {
-                band.gain = v.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
+                band.gain = v.clamp(min_gain, max_gain);
                 band.enabled = true;
                 window.editor_state.is_dirty = true;
             }
@@ -159,15 +166,18 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::ConfirmResetFilters => {
+            let num_bands = window.num_bands();
             if matches!(
                 window.editor_state.pending_confirm,
                 ConfirmAction::ResetFilters
             ) {
-                let default_filters: Vec<Filter> =
-                    (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
-                window.editor_state.filters = default_filters;
+                window.editor_state.filters.clear();
+                for i in 0..num_bands {
+                    window.editor_state.filters.push(Filter::enabled(i as u8, false));
+                }
                 window.editor_state.global_gain = 0;
                 window.editor_state.is_dirty = true;
+                window.editor_state.is_autoeq_active = false;
                 window.editor_state.input_buffer = InputBuffer::default();
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
@@ -179,6 +189,10 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             } else {
                 Task::none()
             }
+        }
+        Message::ToggleDiagnostics => {
+            window.editor_state.show_diagnostics = !window.editor_state.show_diagnostics;
+            Task::none()
         }
         _ => Task::none(),
     }

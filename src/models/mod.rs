@@ -16,7 +16,7 @@ mod tests {
     fn test_band_gain_clamp_at_max() {
         let mut filter = Filter::enabled(0, true);
         filter.gain = 15.0;
-        filter.clamp();
+        filter.clamp((MIN_FREQ, MAX_FREQ), (MIN_BAND_GAIN, MAX_BAND_GAIN), (MIN_Q, MAX_Q));
         assert_eq!(filter.gain, MAX_BAND_GAIN);
     }
 
@@ -24,7 +24,7 @@ mod tests {
     fn test_band_gain_clamp_at_min() {
         let mut filter = Filter::enabled(0, true);
         filter.gain = -15.0;
-        filter.clamp();
+        filter.clamp((MIN_FREQ, MAX_FREQ), (MIN_BAND_GAIN, MAX_BAND_GAIN), (MIN_Q, MAX_Q));
         assert_eq!(filter.gain, MIN_BAND_GAIN);
     }
 
@@ -32,7 +32,7 @@ mod tests {
     fn test_band_gain_unchanged_when_in_bounds() {
         let mut filter = Filter::enabled(0, true);
         filter.gain = 5.0;
-        filter.clamp();
+        filter.clamp((MIN_FREQ, MAX_FREQ), (MIN_BAND_GAIN, MAX_BAND_GAIN), (MIN_Q, MAX_Q));
         assert_eq!(filter.gain, 5.0);
     }
 

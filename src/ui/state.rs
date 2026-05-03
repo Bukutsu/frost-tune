@@ -133,6 +133,8 @@ pub struct EditorState {
     pub pending_confirm: ConfirmAction,
     pub profiles_dir_mtime: Option<std::time::SystemTime>,
     pub is_dirty: bool,
+    pub is_autoeq_active: bool,
+    pub show_diagnostics: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -154,4 +156,6 @@ pub struct MainWindow {
     pub connected_device: Option<DeviceInfo>,
     pub available_devices: Vec<DeviceInfo>,
     pub selected_device_index: Option<usize>,
+    pub connection_generation: u64,
+    pub suspend_status_polling: bool,
 }

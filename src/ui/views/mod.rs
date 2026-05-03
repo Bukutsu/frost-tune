@@ -1,10 +1,9 @@
-pub mod autoeq;
 pub mod bands;
 pub mod confirm_dialog;
 pub mod diagnostics;
 pub mod graph_panel;
 pub mod header;
-pub mod presets_preamp;
+pub mod tools_panel;
 pub mod status_banner;
 
 use crate::ui::messages::Message;

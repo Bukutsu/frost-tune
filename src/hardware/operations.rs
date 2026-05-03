@@ -1,7 +1,7 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal};
 use crate::hardware::packet_builder::{
-    commit_changes, write_filters_and_gain, WriteTiming,
+    commit_changes, write_filters_and_gain,
 };
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Filter, PEQData};
@@ -16,6 +16,7 @@ pub fn pull_peq_data(
         if attempt > 0 {
             log::info!("Retrying PEQ pull, attempt {}...", attempt + 1);
         }
+        crate::hardware::hid::flush_hid_buffer(d);
         match pull_peq_internal(d, proto, strict) {
             Ok(data) => return Ok(data),
             Err(e) => {
@@ -35,7 +36,7 @@ pub fn rollback_state(
     proto: &dyn DeviceProtocol,
     state: &PEQData,
 ) -> Result<()> {
-    let timing = WriteTiming::default();
+    let timing = proto.write_timing();
     write_filters_and_gain(d, proto, &state.filters, state.global_gain, &timing)?;
     commit_changes(d, proto, &timing)
 }

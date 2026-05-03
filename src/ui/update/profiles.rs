@@ -60,28 +60,58 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
         }
         Message::ProfileSelected(name) => {
             if let Some(profile) = window.editor_state.profiles.iter().find(|p| p.name == name) {
-                window.editor_state.filters = profile
-                    .data
-                    .filters
-                    .clone()
+                let num_bands = window.num_bands();
+                let freq_range = window.freq_range();
+                let gain_range = window.gain_range();
+                let q_range = window.q_range();
+
+                let mut filters = profile.data.filters.clone();
+                let was_truncated = filters.len() > num_bands;
+                if was_truncated {
+                    filters.truncate(num_bands);
+                }
+
+                window.editor_state.filters = filters
                     .into_iter()
-                    .map(|mut f| {
+                    .enumerate()
+                    .map(|(i, mut f)| {
+                        f.index = i as u8;
                         f.enabled = true;
+                        f.clamp(freq_range, gain_range, q_range);
                         f
                     })
                     .collect();
+
+                while window.editor_state.filters.len() < num_bands {
+                    window.editor_state.filters.push(crate::models::Filter::enabled(window.editor_state.filters.len() as u8, false));
+                }
+
                 window.editor_state.global_gain = profile.data.global_gain;
                 window.editor_state.selected_profile_name = Some(name);
                 window.editor_state.new_profile_name = profile.name.clone();
-                window.diagnostics.push(DiagnosticEvent::new(
-                    LogLevel::Info,
-                    Source::UI,
-                    format!("Loaded profile: {}", profile.name),
-                ));
-                window.set_status(
-                    format!("Loaded profile: {}", profile.name),
-                    StatusSeverity::Info,
-                )
+                window.editor_state.is_autoeq_active = false;
+                
+                if was_truncated {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Warn,
+                        Source::UI,
+                        format!("Profile {} truncated to {} bands", profile.name, num_bands),
+                    ));
+                    window.set_status(
+                        format!("Loaded profile: {} (truncated to {})", profile.name, num_bands),
+                        StatusSeverity::Warning,
+                    )
+                } else {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::UI,
+                        format!("Loaded profile: {}", profile.name),
+                    ));
+                    window.set_status(
+                        format!("Loaded profile: {}", profile.name),
+                        StatusSeverity::Info,
+                    )
+                }
             } else {
                 Task::none()
             }
@@ -187,15 +217,48 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
                     Ok(profile) => {
+                        let num_bands = window.num_bands();
+                        let freq_range = window.freq_range();
+                        let gain_range = window.gain_range();
+                        let q_range = window.q_range();
+
+                        let mut filters = profile.data.filters.clone();
+                        let was_truncated = filters.len() > num_bands;
+                        if was_truncated {
+                            filters.truncate(num_bands);
+                        }
+
+                        window.editor_state.filters = filters
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, mut f)| {
+                                f.index = i as u8;
+                                f.clamp(freq_range, gain_range, q_range);
+                                f
+                            })
+                            .collect();
+
+                        while window.editor_state.filters.len() < num_bands {
+                            window.editor_state.filters.push(crate::models::Filter::enabled(window.editor_state.filters.len() as u8, false));
+                        }
+
                         window.editor_state.profiles.push(profile.clone());
                         window.editor_state.selected_profile_name = Some(profile.name.clone());
                         window.editor_state.new_profile_name = profile.name.clone();
-                        window.editor_state.filters = profile.data.filters.clone();
                         window.editor_state.global_gain = profile.data.global_gain;
-                        window.set_status(
-                            format!("Imported profile: {}", profile.name),
-                            StatusSeverity::Success,
-                        )
+                        window.editor_state.is_autoeq_active = false;
+                        
+                        if was_truncated {
+                            window.set_status(
+                                format!("Imported profile: {} (truncated to {})", profile.name, num_bands),
+                                StatusSeverity::Warning,
+                            )
+                        } else {
+                            window.set_status(
+                                format!("Imported profile: {}", profile.name),
+                                StatusSeverity::Success,
+                            )
+                        }
                     }
                     Err(e) => window.set_status(format!("Import failed: {}", e), StatusSeverity::Error),
                 }

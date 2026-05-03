@@ -31,6 +31,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             }
             window.connection_status = ConnectionStatus::Connecting;
             window.operation_lock.is_connecting = true;
+            window.suspend_status_polling = true;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,
@@ -43,10 +44,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             Task::perform(
                 async move {
                     let rx = worker.connect(Some(device), Some(BackendKind::Local));
-                    rx.recv().unwrap_or_else(|_| ConnectionResult {
+                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or_else(|_| ConnectionResult {
                         success: false,
                         device: None,
-                        error: Some(AppError::new(ErrorKind::NotConnected, "Channel closed")),
+                        error: Some(AppError::new(ErrorKind::IpcError, "Connection request timed out")),
                     })
                 },
                 Message::WorkerConnected,
@@ -59,6 +60,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             }
             window.connection_status = ConnectionStatus::Connecting;
             window.operation_lock.is_connecting = true;
+            window.suspend_status_polling = true;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,
@@ -76,10 +78,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     let backend = None;
                     
                     let rx = worker.connect(Some(device), backend);
-                    rx.recv().unwrap_or(ConnectionResult {
+                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(ConnectionResult {
                         success: false,
                         device: None,
-                        error: Some("Worker closed".into()),
+                        error: Some(AppError::new(ErrorKind::IpcError, "Connection request timed out")),
                     })
                 },
                 Message::WorkerConnected,
@@ -93,6 +95,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             }
             window.disconnect_reason = DisconnectReason::Manual;
             window.operation_lock.is_disconnecting = true;
+            window.suspend_status_polling = true;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,
@@ -105,10 +108,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             let disconnect_task = Task::perform(
                 async move {
                     let rx = worker.disconnect();
-                    rx.recv().unwrap_or(OperationResult {
+                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(OperationResult {
                         success: false,
                         data: None,
-                        error: Some(AppError::new(ErrorKind::Unknown, "Worker closed")),
+                        error: Some(AppError::new(ErrorKind::IpcError, "Disconnect request timed out")),
                     })
                 },
                 Message::WorkerDisconnected,
@@ -118,6 +121,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
         }
         Message::WorkerConnected(result) => {
             window.operation_lock.is_connecting = false;
+            window.suspend_status_polling = false;
             let device_name_owned = if let Some(ref d) = result.device {
                 Device::from_vid_pid(d.vendor_id, d.product_id)
                     .name()
@@ -149,7 +153,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 }
                 let user_error = match err.kind {
                     ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
-                    _ => err.message.clone(),
+                    _ => err.user_message().to_string(),
                 };
                 window.connection_status = ConnectionStatus::Error(user_error.clone());
                 window.connected_device = None;
@@ -158,6 +162,13 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     format!("Connect failed: {}", err.message),
                 ));
+                if let Some(context) = err.context.clone() {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::Worker,
+                        context,
+                    ));
+                }
                 window.set_status(
                     format!("Connect failed: {}", user_error),
                     StatusSeverity::Error,
@@ -166,6 +177,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
         }
         Message::WorkerDisconnected(_) => {
             window.operation_lock.is_disconnecting = false;
+            window.suspend_status_polling = false;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::Worker,
@@ -173,9 +185,22 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             ));
             window.connection_status = ConnectionStatus::Disconnected;
             window.connected_device = None;
+            window.editor_state.pending_confirm = ConfirmAction::None;
             window.set_status("Disconnected", StatusSeverity::Info)
         }
         Message::WorkerStatus(status) => {
+            if status.backend_reset {
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Warn,
+                    Source::Worker,
+                    "Worker backend reset",
+                ));
+                return Task::perform(async {}, |_| Message::WorkerBackendReset);
+            }
+            if status.generation < window.connection_generation {
+                return Task::none();
+            }
+            window.connection_generation = status.generation;
             if window.available_devices != status.available_devices {
                 window.available_devices = status.available_devices.clone();
             }
@@ -227,11 +252,13 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             let status_task = Task::perform(
                 async move {
                     let rx = worker.status();
-                    rx.recv().unwrap_or(WorkerStatus {
+                    rx.recv_timeout(std::time::Duration::from_secs(2)).unwrap_or(WorkerStatus {
                         connected: false,
                         physically_present: false,
                         device: None,
                         available_devices: Vec::new(),
+                        backend_reset: false,
+                        generation: 0,
                     })
                 },
                 Message::WorkerStatus,
@@ -243,7 +270,21 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Message::ProfilesDirMtimeChecked,
             );
 
-            Task::batch(vec![status_task, mtime_task])
+            if window.suspend_status_polling {
+                mtime_task
+            } else {
+                Task::batch(vec![status_task, mtime_task])
+            }
+        }
+        Message::WorkerBackendReset => {
+            window.connection_status = ConnectionStatus::Error("Worker backend reset".into());
+            window.connected_device = None;
+            window.operation_lock.is_connecting = false;
+            window.operation_lock.is_pulling = false;
+            window.operation_lock.is_pushing = false;
+            window.operation_lock.is_disconnecting = false;
+            window.suspend_status_polling = false;
+            window.set_status("Connection lost. Please reconnect.", StatusSeverity::Error)
         }
         Message::ProfilesDirMtimeChecked(mtime) => {
             if mtime != window.editor_state.profiles_dir_mtime {

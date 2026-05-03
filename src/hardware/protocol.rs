@@ -56,6 +56,12 @@ pub trait DeviceProtocol: Send + Sync {
     fn cmd_temp_write(&self) -> u8;
     fn cmd_flash_eq(&self) -> u8;
 
+    /// Dynamic limits exposed by the device protocol
+    fn num_bands(&self) -> usize { 10 }
+    fn freq_range(&self) -> (u16, u16) { (20, 20000) }
+    fn gain_range(&self) -> (f64, f64) { (-10.0, 10.0) }
+    fn q_range(&self) -> (f64, f64) { (0.1, 10.0) }
+
     /// Default timings for reading from this device.
     fn read_timing(&self) -> ReadTiming {
         ReadTiming::default()

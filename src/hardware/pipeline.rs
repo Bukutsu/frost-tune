@@ -2,7 +2,7 @@ use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::delay_ms;
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
 use crate::hardware::packet_builder::{
-    commit_changes, init_device_session, write_filters_and_gain, WriteTiming,
+    commit_changes, init_device_session, write_filters_and_gain,
 };
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{PEQData, PushPayload};
@@ -12,6 +12,9 @@ pub fn pull_with_retry(
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
+    let wake_request = proto.build_global_gain_request(0x01);
+    let _ = crate::hardware::hid::send_report(device, &wake_request[..]);
+    delay_ms(50);
     let first_result = pull_peq_data(device, proto, strict);
 
     let needs_retry = match &first_result {
@@ -50,9 +53,12 @@ pub fn push_with_verify(
     payload.is_valid()
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
+    let wake_request = proto.build_global_gain_request(0x01);
+    let _ = crate::hardware::hid::send_report(device, &wake_request[..]);
+    delay_ms(50);
     let snapshot = pull_peq_data(device, proto, true)?;
 
-    let timing = WriteTiming::default();
+    let timing = proto.write_timing();
     let write_res = (|| -> Result<()> {
         init_device_session(device, proto)?;
         write_filters_and_gain(

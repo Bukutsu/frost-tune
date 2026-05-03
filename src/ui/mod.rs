@@ -14,3 +14,7 @@ pub use state::*;
 pub fn run() -> iced::Result {
     main_window::run()
 }
+
+pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
+    main_window::run_with_diagnostics(recent_logs)
+}

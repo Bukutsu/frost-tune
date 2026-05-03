@@ -11,6 +11,10 @@ pub const DEFAULT_RETRY_DELAY_MS: u64 = 20;
 
 static GLOBAL_NONCE: AtomicU8 = AtomicU8::new(1);
 
+pub fn reset_nonce() {
+    GLOBAL_NONCE.store(1, Ordering::SeqCst);
+}
+
 fn get_next_nonce() -> u8 {
     let mut next = GLOBAL_NONCE.fetch_add(1, Ordering::SeqCst);
     if next == 0 {
@@ -117,10 +121,12 @@ pub fn pull_peq_internal(
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
-    let cfg = ReadTiming::default();
+    let cfg = proto.read_timing();
     init_device_session(device, proto)?;
 
     let mut filter_responses = vec![None; NUM_FILTERS as usize];
+
+    let mut had_mismatch = false;
 
     for i in 0u8..NUM_FILTERS {
         let filter_nonce = get_next_nonce();
@@ -134,9 +140,19 @@ pub fn pull_peq_internal(
                 format!("Failed to read filter {} (nonce: {})", i, filter_nonce),
             ));
         }
+        if response.is_none() {
+            had_mismatch = true;
+        }
         filter_responses[i as usize] = response;
-        
+
         delay_ms(cfg.inter_filter_ms as u64);
+    }
+
+    if had_mismatch {
+        return Err(AppError::new(
+            ErrorKind::ReadTimeout,
+            "One or more filters failed to read",
+        ));
     }
 
     let global_nonce = get_next_nonce();
@@ -157,6 +173,7 @@ fn read_single_filter_with_nonce(
     nonce: u8,
 ) -> Option<Vec<u8>> {
     let mut attempts = 0;
+    let mut mismatches = 0;
     while attempts < MAX_FILTER_READ_ATTEMPTS {
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
@@ -175,6 +192,10 @@ fn read_single_filter_with_nonce(
                     if r_nonce == nonce && r_idx == expected_index {
                         return Some(buf[offset..offset + 34].to_vec());
                     } else {
+                        mismatches += 1;
+                        if mismatches > 8 {
+                            return None;
+                        }
                         continue;
                     }
                 }

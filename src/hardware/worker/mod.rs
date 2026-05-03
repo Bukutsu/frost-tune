@@ -21,6 +21,8 @@ pub struct WorkerStatus {
     pub physically_present: bool,
     pub device: Option<DeviceInfo>,
     pub available_devices: Vec<DeviceInfo>,
+    pub backend_reset: bool,
+    pub generation: u64,
 }
 
 pub enum UsbCommand {
@@ -56,11 +58,13 @@ impl UsbWorker {
 
             let mut last_physical_check = std::time::Instant::now();
             let check_interval = std::time::Duration::from_millis(1000);
+            let mut generation: u64 = 0;
 
             loop {
                 let now = std::time::Instant::now();
                 let time_since_check = now.duration_since(last_physical_check);
                 let mut remaining_time = check_interval.saturating_sub(time_since_check);
+                let mut backend_reset = false;
 
                 if time_since_check >= check_interval {
                     last_physical_check = now;
@@ -114,6 +118,8 @@ impl UsbWorker {
 
                     if clear_backend {
                         backend = None;
+                        generation = generation.saturating_add(1);
+                        backend_reset = true;
                     }
                 }
 
@@ -128,6 +134,9 @@ impl UsbWorker {
                                 Some(preferred),
                                 target_device,
                             );
+                            if result.success {
+                                generation = generation.saturating_add(1);
+                            }
                             let _ = resp.send(result);
                         }
                         UsbCommand::Disconnect(resp) => {
@@ -138,6 +147,7 @@ impl UsbWorker {
                                 }
                             }
                             backend = None;
+                            generation = generation.saturating_add(1);
                             let _ = resp.send(OperationResult {
                                 success: true,
                                 data: None,
@@ -145,7 +155,7 @@ impl UsbWorker {
                             });
                         }
                         UsbCommand::Status(resp) => {
-                            let status = worker_status(&mut backend, &mut api);
+                            let status = worker_status(&mut backend, &mut api, backend_reset, generation);
                             let _ = resp.send(status);
                         }
                         UsbCommand::PullPEQ(resp) => {
@@ -203,7 +213,12 @@ impl Default for UsbWorker {
     }
 }
 
-fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidApi) -> WorkerStatus {
+fn worker_status(
+    backend: &mut Option<TransportBackend>,
+    api: &mut hidapi::HidApi,
+    backend_reset: bool,
+    generation: u64,
+) -> WorkerStatus {
     let available_devices = crate::hardware::hid::list_devices(api);
     let physically_present = !available_devices.is_empty();
 
@@ -215,6 +230,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
             physically_present,
             device: Some(info.clone()),
             available_devices: available_devices.clone(),
+            backend_reset,
+            generation,
         },
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info }) => {
@@ -232,6 +249,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
                         physically_present,
                         device: device.or_else(|| Some(info.clone())),
                         available_devices: available_devices.clone(),
+                        backend_reset,
+                        generation,
                     }
                 }
                 Ok(_) | Err(_) => {
@@ -241,6 +260,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
                         physically_present,
                         device: available_devices.first().cloned(),
                         available_devices: available_devices.clone(),
+                        backend_reset: true,
+                        generation,
                     }
                 }
             }
@@ -250,6 +271,8 @@ fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidAp
             physically_present,
             device: available_devices.first().cloned(),
             available_devices: available_devices.clone(),
+            backend_reset,
+            generation,
         },
     };
 

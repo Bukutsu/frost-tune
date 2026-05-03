@@ -153,11 +153,9 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
     }
 }
 
-pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
-    if filter.freq == 0 {
-        return 0.0;
-    }
-    let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter);
+pub fn get_magnitude_response_with_coeffs(
+    b0: f64, b1: f64, b2: f64, a0: f64, a1: f64, a2: f64, f: f64,
+) -> f64 {
     let w = (f * TAU) / DSP_SAMPLE_RATE;
     let cos_w = w.cos();
     let cos_2w = (2.0 * w).cos();
@@ -175,13 +173,34 @@ pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
     10.0 * (num_mag_sq / den_mag_sq).log10()
 }
 
+pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
+    if filter.freq == 0 || !filter.enabled {
+        return 0.0;
+    }
+    let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter);
+    get_magnitude_response_with_coeffs(b0, b1, b2, a0, a1, a2, f)
+}
+
 pub fn calculate_total_response(filters: &[Filter], global_gain: i8, freqs: &[f64]) -> Vec<f64> {
+    let precomputed_coeffs: Vec<Option<(f64, f64, f64, f64, f64, f64)>> = filters
+        .iter()
+        .map(|f| {
+            if f.freq == 0 || !f.enabled {
+                None
+            } else {
+                Some(get_biquad_coefficients(f))
+            }
+        })
+        .collect();
+
     freqs
         .iter()
         .map(|&f| {
             let mut total_db = global_gain as f64;
-            for filter in filters {
-                total_db += get_magnitude_response(filter, f);
+            for coeffs in &precomputed_coeffs {
+                if let Some((b0, b1, b2, a0, a1, a2)) = coeffs {
+                    total_db += get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                }
             }
             total_db
         })

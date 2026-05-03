@@ -157,10 +157,10 @@ pub fn try_connect_elevated() -> AppResult<TransportBackend> {
     let mut transport = ElevatedTransport::spawn()?;
     match transport.round_trip(&HelperRequest::Connect)? {
         HelperResponse::Connected { device } => {
-            let info = device.ok_or_else(|| AppError::general("Helper connected without device info"))?;
+            let info = device.ok_or_else(|| AppError::new(ErrorKind::IpcError, "Helper connected without device info"))?;
             Ok(TransportBackend::Elevated { transport, info })
         }
-        HelperResponse::Error { error } => Err(error),
-        _ => Err(AppError::general("Unexpected response from elevated helper during connect")),
+        HelperResponse::Error { error, .. } => Err(error),
+        _ => Err(AppError::new(ErrorKind::IpcError, "Unexpected response from elevated helper during connect")),
     }
 }

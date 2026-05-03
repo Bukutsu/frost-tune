@@ -32,12 +32,12 @@ pub const TOKYO_NIGHT_RED: Color = color!(0xf7768e);
 // Material role mapping
 pub const TOKYO_NIGHT_BACKGROUND: Color = TOKYO_NIGHT_BG;
 pub const TOKYO_NIGHT_SURFACE: Color = TOKYO_NIGHT_BG_HIGHLIGHT;
-pub const TOKYO_NIGHT_PRIMARY: Color = TOKYO_NIGHT_BLUE;
+pub const TOKYO_NIGHT_PRIMARY: Color = TOKYO_NIGHT_CYAN;
 pub const TOKYO_NIGHT_SECONDARY: Color = TOKYO_NIGHT_MAGENTA;
 pub const TOKYO_NIGHT_SUCCESS: Color = TOKYO_NIGHT_GREEN;
 pub const TOKYO_NIGHT_ERROR: Color = TOKYO_NIGHT_RED;
 pub const TOKYO_NIGHT_TEXT: Color = TOKYO_NIGHT_FG;
-pub const TOKYO_NIGHT_MUTED: Color = TOKYO_NIGHT_COMMENT;
+pub const TOKYO_NIGHT_MUTED: Color = TOKYO_NIGHT_FG_DARK;
 pub const TOKYO_NIGHT_WARNING: Color = TOKYO_NIGHT_YELLOW;
 
 pub const GRAPH_BG: Color = TOKYO_NIGHT_BG_DARK;
@@ -273,7 +273,7 @@ pub fn m3_filled_input(_theme: &Theme, status: text_input::Status) -> text_input
     style.border = Border {
         color: underline_color,
         width: 1.0,
-        radius: INPUT_RADIUS.into(),
+        radius: 8.0.into(),
     };
     style.background = Background::Color(Color {
         a: 1.0,

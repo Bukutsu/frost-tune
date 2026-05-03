@@ -34,7 +34,7 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
                         data: peq,
                     }
                 }
-                Ok(HelperResponse::Error { error }) => OperationResult {
+                Ok(HelperResponse::Error { error, .. }) => OperationResult {
                     success: false,
                     data: None,
                     error: Some(error),
@@ -97,7 +97,7 @@ pub fn worker_push_peq(
                         data: peq,
                     }
                 }
-                Ok(HelperResponse::Error { error }) => OperationResult {
+                Ok(HelperResponse::Error { error, .. }) => OperationResult {
                     success: false,
                     data: None,
                     error: Some(error),

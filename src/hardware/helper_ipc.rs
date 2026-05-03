@@ -1,4 +1,4 @@
-use crate::error::AppError;
+use crate::error::{AppError, ErrorKind};
 use crate::models::{DeviceInfo, Filter};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,7 @@ pub enum HelperResponse {
     },
     Error {
         error: AppError,
+        kind: ErrorKind,
     },
     Ok,
 }

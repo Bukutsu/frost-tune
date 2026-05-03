@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::VecDeque;
 
+
 const MAX_EVENTS: usize = 500;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -97,6 +98,16 @@ impl DiagnosticsStore {
         self.events.iter()
     }
 
+    pub fn from_events(events: Vec<DiagnosticEvent>) -> Self {
+        let mut store = DiagnosticsStore::default();
+        let mut queue: VecDeque<DiagnosticEvent> = events.into_iter().collect();
+        while queue.len() > MAX_EVENTS {
+            queue.pop_front();
+        }
+        store.events = queue;
+        store
+    }
+
     pub fn errors(&self) -> impl Iterator<Item = &DiagnosticEvent> {
         self.events
             .iter()
@@ -148,4 +159,52 @@ pub fn format_diagnostics(
     output.push(format!("=== Total Events: {} ===", store.count()));
 
     output.join("\n")
+}
+
+pub fn format_diagnostic_log_line(event: &DiagnosticEvent) -> String {
+    let mut line = format!(
+        "{} [{}] [{}] {}",
+        event.timestamp, event.level, event.source, event.message
+    );
+    if let Some(ref ctx) = event.context {
+        for (k, v) in ctx {
+            line.push_str(&format!(" | {}={}", k, v));
+        }
+    }
+    line
+}
+
+pub fn parse_diagnostic_log_line(line: &str) -> Option<DiagnosticEvent> {
+    let line = line.trim();
+    let mut parts = line.splitn(5, ' ');
+    let date = parts.next()?;
+    let time = parts.next()?;
+    let timestamp = format!("{} {}", date, time);
+    let level_raw = parts.next()?;
+    let source_raw = parts.next()?;
+    let message = parts.next()?.to_string();
+    let message = message.split(" | ").next().unwrap_or(&message).to_string();
+
+    let level = match level_raw.trim_matches(&['[', ']'][..]) {
+        "INFO" => LogLevel::Info,
+        "WARN" => LogLevel::Warn,
+        "ERROR" => LogLevel::Error,
+        _ => return None,
+    };
+
+    let source = match source_raw.trim_matches(&['[', ']'][..]) {
+        "UI" => Source::UI,
+        "Worker" => Source::Worker,
+        "HID" => Source::HID,
+        "AutoEQ" => Source::AutoEQ,
+        _ => return None,
+    };
+
+    Some(DiagnosticEvent {
+        timestamp,
+        level,
+        source,
+        message,
+        context: None,
+    })
 }

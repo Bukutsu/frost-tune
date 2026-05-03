@@ -1,6 +1,7 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 
@@ -27,14 +28,14 @@ impl ElevatedTransport {
             HelperResponse::Version { version } => {
                 if version != IPC_VERSION {
                     return Err(AppError::new(
-                        ErrorKind::HardwareError,
+                        ErrorKind::IpcError,
                         format!("IPC Version mismatch: UI={} helper={}. Re-install the application.", IPC_VERSION, version),
                     ));
                 }
             }
             _ => {
                 return Err(AppError::new(
-                    ErrorKind::HardwareError,
+                    ErrorKind::IpcError,
                     "Elevated helper failed version handshake",
                 ));
             }
@@ -81,8 +82,9 @@ impl ElevatedTransport {
             }
         };
 
-        serde_json::from_str::<HelperResponse>(line.trim())
-            .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to parse helper response: {}", e)))
+        serde_json::from_str::<HelperResponse>(line.trim()).map_err(|e| {
+            AppError::new(ErrorKind::ParseError, format!("Failed to parse helper response: {}", e))
+        })
     }
 
     pub fn shutdown(&mut self) {
@@ -104,6 +106,7 @@ struct CommandSpec {
 }
 
 fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
+    validate_pkexec_target(&spec.program)?;
     let mut command = Command::new("pkexec");
     command.arg(spec.program.as_os_str());
     for arg in spec.args {
@@ -159,3 +162,40 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
     })
 }
 
+fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
+    let metadata = std::fs::metadata(path).map_err(|e| {
+        AppError::new(ErrorKind::IpcError, format!("Failed to stat executable: {}", e))
+    })?;
+
+    if metadata.permissions().mode() & 0o002 != 0 {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Executable is world-writable; refusing to elevate.",
+        ));
+    }
+
+    let parent = path.parent().ok_or_else(|| {
+        AppError::new(ErrorKind::IpcError, "Failed to resolve executable directory")
+    })?;
+    let parent_meta = std::fs::metadata(parent).map_err(|e| {
+        AppError::new(ErrorKind::IpcError, format!("Failed to stat executable directory: {}", e))
+    })?;
+
+    if parent_meta.permissions().mode() & 0o002 != 0 {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Executable directory is world-writable; refusing to elevate.",
+        ));
+    }
+
+    let uid = nix::unistd::Uid::current().as_raw();
+    let owner = parent_meta.uid();
+    if owner != 0 && owner != uid {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Executable directory is not owned by current user or root.",
+        ));
+    }
+
+    Ok(())
+}
