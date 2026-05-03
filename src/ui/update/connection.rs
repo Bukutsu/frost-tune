@@ -176,7 +176,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.set_status("Disconnected", StatusSeverity::Info)
         }
         Message::WorkerStatus(status) => {
-            window.available_devices = status.available_devices.clone();
+            if window.available_devices != status.available_devices {
+                window.available_devices = status.available_devices.clone();
+            }
             if let Some(idx) = window.selected_device_index {
                 if idx >= window.available_devices.len() {
                     window.selected_device_index = None;
@@ -236,16 +238,22 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             );
 
             // Lightweight profiles directory polling
-            let current_mtime = crate::storage::get_profiles_dir_mtime();
-            if current_mtime != window.editor_state.profiles_dir_mtime {
+            let mtime_task = Task::perform(
+                async move { crate::storage::get_profiles_dir_mtime() },
+                Message::ProfilesDirMtimeChecked,
+            );
+
+            Task::batch(vec![status_task, mtime_task])
+        }
+        Message::ProfilesDirMtimeChecked(mtime) => {
+            if mtime != window.editor_state.profiles_dir_mtime {
                 let reload_task = Task::perform(
                     async move { crate::storage::load_all_profiles() },
                     Message::ProfilesLoaded,
                 );
-                return Task::batch(vec![status_task, reload_task]);
+                return reload_task;
             }
-
-            status_task
+            Task::none()
         }
         _ => Task::none(),
     }

@@ -1,5 +1,5 @@
-use frost_tune::hardware::protocol::{DeviceProtocol, TP35ProProtocol, WRITE, READ, CMD_PEQ_VALUES, CMD_GLOBAL_GAIN, CMD_TEMP_WRITE, CMD_FLASH_EQ};
-use frost_tune::models::{Filter, FilterType};
+use frost_tune::hardware::protocol::{DeviceProtocol, TP35ProProtocol, WRITE, READ, CMD_PEQ_VALUES, CMD_GLOBAL_GAIN};
+use frost_tune::models::FilterType;
 
 #[test]
 fn test_tp35pro_build_filter_read_request() {

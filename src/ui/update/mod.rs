@@ -27,7 +27,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::WorkerConnected(..) |
         Message::WorkerDisconnected(..) |
         Message::WorkerStatus(..) |
-        Message::Tick(..) => handle_connection(window, message),
+        Message::Tick(..) |
+        Message::ProfilesDirMtimeChecked(_) => handle_connection(window, message),
 
         // handle_hardware
         Message::PullPressed |

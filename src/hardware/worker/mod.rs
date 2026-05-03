@@ -4,7 +4,6 @@ pub mod ops;
 
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
 
 use crate::hardware::hid::find_device_info;
 use crate::models::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
@@ -60,8 +59,12 @@ impl UsbWorker {
 
             loop {
                 let now = std::time::Instant::now();
-                if now.duration_since(last_physical_check) >= check_interval {
+                let time_since_check = now.duration_since(last_physical_check);
+                let mut remaining_time = check_interval.saturating_sub(time_since_check);
+
+                if time_since_check >= check_interval {
                     last_physical_check = now;
+                    remaining_time = check_interval;
 
                     if let Err(e) = api.refresh_devices() {
                         log::warn!("Failed to refresh USB device list: {}", e);
@@ -114,7 +117,7 @@ impl UsbWorker {
                     }
                 }
 
-                match rx.recv_timeout(Duration::from_millis(100)) {
+                match rx.recv_timeout(remaining_time.max(std::time::Duration::from_millis(1))) {
                     Ok(cmd) => match cmd {
                         UsbCommand::Connect(target_device, target_backend, resp) => {
                             let preferred = target_backend.unwrap_or(preferred_backend);
@@ -201,7 +204,6 @@ impl Default for UsbWorker {
 }
 
 fn worker_status(backend: &mut Option<TransportBackend>, api: &mut hidapi::HidApi) -> WorkerStatus {
-    let _ = api.refresh_devices();
     let available_devices = crate::hardware::hid::list_devices(api);
     let physically_present = !available_devices.is_empty();
 

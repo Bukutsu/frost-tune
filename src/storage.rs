@@ -76,10 +76,17 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
     
     fs::write(&tmp_path, content).map_err(|e| format!("Failed to write temp UI preferences: {}", e))?;
     fs::rename(&tmp_path, &path).map_err(|e| {
-        let _ = fs::remove_file(&tmp_path);
+        if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
+            log::warn!("Failed to clean up temp file after rename error: {}", cleanup_err);
+        }
         format!("Failed to finalize UI preferences save: {}", e)
-    })
-}
+    })?;
+
+    if let Ok(dir_file) = fs::File::open(&base_dir) {
+        let _ = dir_file.sync_all();
+    }
+
+    Ok(())}
 
 pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
     get_profiles_dir().ok().and_then(|dir| {
@@ -147,9 +154,15 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     let content = autoeq::peq_to_autoeq(data);
     fs::write(&tmp_path, &content).map_err(|e| format!("Failed to write temp profile: {}", e))?;
     fs::rename(&tmp_path, &path).map_err(|e| {
-        let _ = fs::remove_file(&tmp_path);
+        if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
+            log::warn!("Failed to clean up temp file after rename error: {}", cleanup_err);
+        }
         format!("Failed to finalize profile save: {}", e)
     })?;
+
+    if let Ok(dir_file) = fs::File::open(&dir) {
+        let _ = dir_file.sync_all();
+    }
 
     Ok(())
 }

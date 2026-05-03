@@ -63,6 +63,7 @@ pub enum Message {
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
     ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), String>),
+    ProfilesDirMtimeChecked(Option<std::time::SystemTime>),
     ReloadProfilesPressed,
     OpenProfilesDirPressed,
 

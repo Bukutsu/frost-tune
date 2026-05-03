@@ -126,7 +126,6 @@ pub fn pull_peq_internal(
         let filter_nonce = get_next_nonce();
         let request = proto.build_filter_read_request(i, filter_nonce);
         send_report(device, &request[..])?;
-        delay_ms(cfg.inter_filter_ms as u64);
 
         let response = read_single_filter_with_nonce(device, proto, &cfg, i, filter_nonce);
         if strict && response.is_none() {
@@ -136,6 +135,8 @@ pub fn pull_peq_internal(
             ));
         }
         filter_responses[i as usize] = response;
+        
+        delay_ms(cfg.inter_filter_ms as u64);
     }
 
     let global_nonce = get_next_nonce();

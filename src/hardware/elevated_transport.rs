@@ -1,13 +1,13 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 use std::io::{BufRead, BufReader, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::path::PathBuf;
+use std::process::{Child, ChildStdin, Command, Stdio};
 
 pub struct ElevatedTransport {
     child: Child,
     child_stdin: ChildStdin,
-    child_stdout: Option<BufReader<ChildStdout>>,
+    rx: std::sync::mpsc::Receiver<std::io::Result<String>>,
 }
 
 impl ElevatedTransport {
@@ -57,19 +57,8 @@ impl ElevatedTransport {
             .flush()
             .map_err(|e| AppError::new(ErrorKind::IpcError, format!("Failed to flush helper stdin: {}", e)))?;
 
-        let mut stdout = self.child_stdout.take().ok_or_else(|| {
-            AppError::new(ErrorKind::DeviceLost, "Helper stdout is missing (previous timeout?)")
-        })?;
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let mut line = String::new();
-            let res = stdout.read_line(&mut line);
-            let _ = tx.send((res, line, stdout));
-        });
-
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
-        let (bytes, line) = loop {
+        let line = loop {
             if let Some(status) = self
                 .child
                 .try_wait()
@@ -82,22 +71,15 @@ impl ElevatedTransport {
                 return Err(AppError::new(ErrorKind::ReadTimeout, "Elevated helper response timed out (15s)"));
             }
 
-            match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                Ok((res, line, returned_stdout)) => {
-                    self.child_stdout = Some(returned_stdout);
-                    let bytes = res.map_err(|e| AppError::new(ErrorKind::ReadTimeout, format!("Failed to read helper response: {}", e)))?;
-                    break (bytes, line);
-                }
+            match self.rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                Ok(Ok(line)) => break line,
+                Ok(Err(e)) => return Err(AppError::new(ErrorKind::ReadTimeout, format!("Failed to read helper response: {}", e))),
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     return Err(AppError::new(ErrorKind::DeviceLost, "Helper read thread disconnected"));
                 }
             }
         };
-
-        if bytes == 0 {
-            return Err(AppError::new(ErrorKind::DeviceLost, "Helper closed stdout unexpectedly"));
-        }
 
         serde_json::from_str::<HelperResponse>(line.trim())
             .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to parse helper response: {}", e)))
@@ -150,10 +132,30 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
         .take()
         .ok_or_else(|| AppError::general("Failed to open helper stdout"))?;
 
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut stdout = BufReader::new(child_stdout);
+        loop {
+            let mut line = String::new();
+            match stdout.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if tx.send(Ok(line)).is_err() {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(e));
+                    break;
+                }
+            }
+        }
+    });
+
     Ok(ElevatedTransport {
         child,
         child_stdin,
-        child_stdout: Some(BufReader::new(child_stdout)),
+        rx,
     })
 }
 
