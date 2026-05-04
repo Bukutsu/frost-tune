@@ -1,42 +1,63 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1a1b26"/>
-      <stop offset="100%" stop-color="#16161e"/>
-    </linearGradient>
-    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7dcfff"/>
-      <stop offset="100%" stop-color="#2ac3de"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <defs>
+        <!-- Smooth Tokyo Night background gradient -->
+        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#24283b" />
+            <stop offset="100%" stop-color="#15161e" />
+        </linearGradient>
 
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="240" fill="url(#bg)" stroke="#7dcfff" stroke-width="12"/>
+        <!-- Accent Blue -->
+        <linearGradient id="accentBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#7dcfff" />
+            <stop offset="100%" stop-color="#0db9d7" />
+        </linearGradient>
+    </defs>
 
-  <!-- Central snowflake / star core -->
-  <g fill="url(#cyan)">
-    <polygon points="256,100 270,230 400,230 290,290 330,420 256,330 182,420 222,290 112,230 242,230"/>
-  </g>
+    <!-- App Icon Base Surface -->
+    <rect width="512" height="512" rx="115" fill="url(#bgGradient)" />
 
-  <!-- Audio waveform inside the snowflake -->
-  <g stroke="#1a1b26" stroke-width="14" stroke-linecap="round" fill="none">
-    <path d="M 196 256 L 196 216"/>
-    <path d="M 226 256 L 226 196"/>
-    <path d="M 256 256 L 256 186"/>
-    <path d="M 286 256 L 286 196"/>
-    <path d="M 316 256 L 316 216"/>
-  </g>
+    <!-- Top Motif: Clean Parametric EQ Soundwave -->
+    <path d="M 116 200 
+             C 146 200, 156 150, 176 150 
+             C 196 150, 206 240, 226 240 
+             C 240 240, 246 100, 256 100 
+             C 266 100, 272 260, 286 260 
+             C 306 260, 316 160, 336 160 
+             C 356 160, 366 200, 396 200" 
+          fill="none" stroke="url(#accentBlue)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
 
-  <!-- Outer decorative snowflake arms (subtle) -->
-  <g stroke="#7dcfff" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.3">
-    <path d="M 256 40 L 256 80"/>
-    <path d="M 256 432 L 256 472"/>
-    <path d="M 40 256 L 80 256"/>
-    <path d="M 432 256 L 472 256"/>
-    <path d="M 110 110 L 138 138"/>
-    <path d="M 374 374 L 402 402"/>
-    <path d="M 402 110 L 374 138"/>
-    <path d="M 138 374 L 110 402"/>
-  </g>
+    <!-- Bottom Motif: Detailed Front-Facing DAC Unit -->
+    <g transform="translate(0, 20)">
+        
+        <!-- Main Chassis Plate -->
+        <rect x="116" y="290" width="280" height="64" rx="8" fill="url(#accentBlue)" />
+
+        <!-- Chassis Mounting Screws (Corners) -->
+        <circle cx="128" cy="302" r="3.5" fill="#15161e" />
+        <circle cx="128" cy="342" r="3.5" fill="#15161e" />
+        <circle cx="384" cy="302" r="3.5" fill="#15161e" />
+        <circle cx="384" cy="342" r="3.5" fill="#15161e" />
+
+        <!-- 1/4" Headphone Jack Output -->
+        <circle cx="160" cy="322" r="14" fill="none" stroke="#15161e" stroke-width="4" />
+        <circle cx="160" cy="322" r="6" fill="#15161e" />
+
+        <!-- Toggle Button / Status LED -->
+        <circle cx="200" cy="322" r="6" fill="none" stroke="#15161e" stroke-width="3" />
+
+        <!-- Center Vents / Heatsink Grille -->
+        <line x1="220" y1="304" x2="280" y2="304" stroke="#15161e" stroke-width="4" stroke-linecap="round" />
+        <line x1="220" y1="316" x2="280" y2="316" stroke="#15161e" stroke-width="4" stroke-linecap="round" />
+        <line x1="220" y1="328" x2="280" y2="328" stroke="#15161e" stroke-width="4" stroke-linecap="round" />
+        <line x1="220" y1="340" x2="280" y2="340" stroke="#15161e" stroke-width="4" stroke-linecap="round" />
+
+        <!-- Large Tactile Volume Knob (Overlaps the chassis and vents) -->
+        <circle cx="316" cy="322" r="28" fill="#7dcfff" stroke="#15161e" stroke-width="4" />
+        <!-- Knob Position Indicator -->
+        <line x1="316" y1="322" x2="302" y2="342" stroke="#15161e" stroke-width="4" stroke-linecap="round" />
+
+        <!-- USB-C / Data Input Slot -->
+        <rect x="360" y="318" width="16" height="8" rx="3" fill="#15161e" />
+        
+    </g>
 </svg>
