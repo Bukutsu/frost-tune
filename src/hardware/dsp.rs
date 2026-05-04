@@ -150,6 +150,26 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
             let a2 = a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha;
             (b0, b1, b2, a0, a1, a2)
         }
+        FilterType::HighPass => {
+            let alpha = sin_w / (2.0 * q);
+            let b0 = (1.0 + cos_w) / 2.0;
+            let b1 = -(1.0 + cos_w);
+            let b2 = (1.0 + cos_w) / 2.0;
+            let a0 = 1.0 + alpha;
+            let a1 = -2.0 * cos_w;
+            let a2 = 1.0 - alpha;
+            (b0, b1, b2, a0, a1, a2)
+        }
+        FilterType::LowPass => {
+            let alpha = sin_w / (2.0 * q);
+            let b0 = (1.0 - cos_w) / 2.0;
+            let b1 = 1.0 - cos_w;
+            let b2 = (1.0 - cos_w) / 2.0;
+            let a0 = 1.0 + alpha;
+            let a1 = -2.0 * cos_w;
+            let a2 = 1.0 - alpha;
+            (b0, b1, b2, a0, a1, a2)
+        }
     }
 }
 

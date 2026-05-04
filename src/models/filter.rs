@@ -9,6 +9,32 @@ pub enum FilterType {
     Peak = 2,
     #[serde(rename = "HSQ")]
     HighShelf = 3,
+    #[serde(rename = "HP")]
+    HighPass = 4,
+    #[serde(rename = "LP")]
+    LowPass = 5,
+}
+
+impl FilterType {
+    /// All supported filter types in UI display order.
+    pub const ALL: &[FilterType] = &[
+        FilterType::Peak,
+        FilterType::HighShelf,
+        FilterType::LowShelf,
+        FilterType::HighPass,
+        FilterType::LowPass,
+    ];
+
+    /// Short 2-letter label for compact UI buttons.
+    pub fn short_label(&self) -> &'static str {
+        match self {
+            FilterType::Peak => "PK",
+            FilterType::LowShelf => "LS",
+            FilterType::HighShelf => "HS",
+            FilterType::HighPass => "HP",
+            FilterType::LowPass => "LP",
+        }
+    }
 }
 
 impl From<u8> for FilterType {
@@ -17,6 +43,8 @@ impl From<u8> for FilterType {
             1 => FilterType::LowShelf,
             2 => FilterType::Peak,
             3 => FilterType::HighShelf,
+            4 => FilterType::HighPass,
+            5 => FilterType::LowPass,
             _ => FilterType::Peak,
         }
     }
@@ -34,6 +62,8 @@ impl std::fmt::Display for FilterType {
             FilterType::LowShelf => write!(f, "Low Shelf"),
             FilterType::Peak => write!(f, "Peak"),
             FilterType::HighShelf => write!(f, "High Shelf"),
+            FilterType::HighPass => write!(f, "High Pass"),
+            FilterType::LowPass => write!(f, "Low Pass"),
         }
     }
 }

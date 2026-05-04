@@ -97,6 +97,10 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
         FilterType::LowShelf
     } else if rest.to_uppercase().contains("HSQ") || rest.to_uppercase().contains("HSC") {
         FilterType::HighShelf
+    } else if rest.to_uppercase().contains("HP") {
+        FilterType::HighPass
+    } else if rest.to_uppercase().contains("LP") {
+        FilterType::LowPass
     } else {
         FilterType::Peak
     };
@@ -161,6 +165,8 @@ pub fn peq_to_autoeq(peq: &PEQData) -> String {
             FilterType::LowShelf => "LSQ",
             FilterType::Peak => "PK",
             FilterType::HighShelf => "HSQ",
+            FilterType::HighPass => "HP",
+            FilterType::LowPass => "LP",
         };
         lines.push(format!(
             "Filter {}: {} {} Fc {} Hz Gain {:.2} dB Q {:.3}",
