@@ -127,7 +127,7 @@ jobs:
         run: |
           cargo install cargo-deb
           cargo deb
-          cp "target/debian/frost-tune_${RELEASE_VERSION}_amd64.deb" "frost-tune-${RELEASE_TAG}-amd64.deb"
+          cp "target/debian/frost-tune_${RELEASE_VERSION}-1_amd64.deb" "frost-tune-${RELEASE_TAG}-amd64.deb"
 
       - name: Build RPM package
         if: matrix.os == 'ubuntu-latest'
