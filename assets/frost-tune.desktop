@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Frost-Tune
+Exec=frost-tune
+Icon=frost-tune
+Type=Application
+Categories=AudioVideo;Audio;
+Comment=Native parametric EQ editor for USB DACs
+Terminal=false

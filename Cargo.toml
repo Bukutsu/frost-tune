@@ -1,6 +1,6 @@
 [package]
 name = "frost-tune"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 authors = ["Bukutsu"]
 description = "Native cross-platform parametric EQ editor for USB DACs. Built with Rust and Iced."
@@ -31,3 +31,30 @@ strip = true
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[package.metadata.deb]
+maintainer = "Bukutsu <bukutsu@users.noreply.github.com>"
+copyright = "2026, Bukutsu"
+extended-description = """\
+Frost-Tune is a native cross-platform parametric EQ editor for USB DACs. \
+It communicates directly with compatible DACs over USB HID to adjust \
+10-band parametric EQ settings on the hardware itself. \
+Built with Rust and the Iced GUI framework."""
+section = "sound"
+priority = "optional"
+depends = "$auto, libudev1"
+assets = [
+    ["target/release/frost-tune", "usr/bin/frost-tune", "755"],
+    ["assets/frost-tune.desktop", "usr/share/applications/frost-tune.desktop", "644"],
+    ["assets/frost-tune.svg", "usr/share/icons/hicolor/scalable/apps/frost-tune.svg", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/frost-tune", dest = "/usr/bin/frost-tune", mode = "755" },
+    { source = "assets/frost-tune.desktop", dest = "/usr/share/applications/frost-tune.desktop", mode = "644" },
+    { source = "assets/frost-tune.svg", dest = "/usr/share/icons/hicolor/scalable/apps/frost-tune.svg", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+systemd-libs = "*"

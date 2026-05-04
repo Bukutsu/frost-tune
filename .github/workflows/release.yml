@@ -121,6 +121,22 @@ jobs:
       - name: sccache stats
         run: sccache --show-stats || true
 
+      - name: Build Debian package
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          cargo install cargo-deb
+          cargo deb
+          cp "target/debian/frost-tune_${RELEASE_VERSION}_amd64.deb" "frost-tune-${RELEASE_TAG}-amd64.deb"
+
+      - name: Build RPM package
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          cargo install cargo-generate-rpm
+          cargo generate-rpm
+          cp "target/generate-rpm/frost-tune-${RELEASE_VERSION}-1.x86_64.rpm" "frost-tune-${RELEASE_TAG}-x86_64.rpm"
+
       - name: Prepare versioned binary filename
         shell: bash
         run: |
@@ -132,11 +148,27 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$ASSET_NAME"
           echo "ASSET_NAME=$ASSET_NAME" >> "$GITHUB_ENV"
 
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ASSET_NAME }}
           path: ${{ env.ASSET_NAME }}
+          retention-days: 14
+
+      - name: Upload Debian package
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-tune-${{ env.RELEASE_TAG }}-amd64.deb
+          path: frost-tune-${{ env.RELEASE_TAG }}-amd64.deb
+          retention-days: 14
+
+      - name: Upload RPM package
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frost-tune-${{ env.RELEASE_TAG }}-x86_64.rpm
+          path: frost-tune-${{ env.RELEASE_TAG }}-x86_64.rpm
           retention-days: 14
 
   publish-github-release:
