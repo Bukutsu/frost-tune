@@ -27,7 +27,11 @@ impl Default for WriteTiming {
 
 pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<()> {
     crate::hardware::hid::reset_nonce();
-    send_report(device, &[READ, proto.cmd_version(), END][..])?;
+    send_report(
+        device,
+        &[READ, proto.cmd_version(), END][..],
+        proto.report_id(),
+    )?;
     delay_ms(50);
     let mut drain = [0u8; 64];
     while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
@@ -55,14 +59,14 @@ pub fn write_filters_and_gain(
             filter.q,
             filter.filter_type.into(),
         );
-        send_report(device, &packet[..])?;
+        send_report(device, &packet[..], proto.report_id())?;
         delay_ms(timing.per_filter_ms);
     }
 
     delay_ms(timing.batch_ms);
 
     let gain_packet = proto.build_global_gain_write_packet(global_gain);
-    send_report(device, &gain_packet[..])?;
+    send_report(device, &gain_packet[..], proto.report_id())?;
     delay_ms(timing.global_gain_ms);
 
     Ok(())
@@ -74,11 +78,11 @@ pub fn commit_changes(
     timing: &WriteTiming,
 ) -> Result<()> {
     let temp_packet = proto.build_temp_write_packet();
-    send_report(device, &temp_packet[..])?;
+    send_report(device, &temp_packet[..], proto.report_id())?;
     delay_ms(timing.commit_ms);
 
     let flash_packet = proto.build_flash_eq_packet();
-    send_report(device, &flash_packet[..])?;
+    send_report(device, &flash_packet[..], proto.report_id())?;
 
     Ok(())
 }

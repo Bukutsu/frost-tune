@@ -69,7 +69,9 @@ impl ErrorKind {
         match self {
             ErrorKind::NotConnected => "Device not found. Is it plugged in?",
             ErrorKind::PermissionDenied => "Access denied. Check USB permissions.",
-            ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt.",
+            ErrorKind::PolkitAuthRequired => {
+                "Authentication required to access USB DAC on Linux. Approve the polkit prompt."
+            }
             ErrorKind::DeviceBusy => "Device is busy. Another app may be connected.",
             ErrorKind::ReadTimeout => "USB read timeout. Try again.",
             ErrorKind::WriteError => "USB write failed.",
@@ -85,7 +87,6 @@ impl ErrorKind {
             ErrorKind::Unknown => "Unknown error.",
         }
     }
-
 }
 
 pub const DEVICE_NOT_FOUND: &str = "Device not found. Is it plugged in?";

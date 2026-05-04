@@ -49,3 +49,14 @@ pub const TYPE_TINY: f32 = 9.0;
 pub const BUTTON_VERTICAL_PADDING: f32 = 10.0;
 pub const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
 pub const INPUT_HEIGHT: f32 = 36.0;
+
+// Icons
+pub const ICON_FONT: iced::Font = iced::Font::with_name("Material Icons");
+pub const ICON_FOLDER: &str = "\u{e2c7}";
+pub const ICON_RELOAD: &str = "\u{e5d5}";
+pub const ICON_CLOSE: &str = "\u{e5cd}";
+pub const ICON_IMPORT_FILE: &str = "\u{e2c4}";
+pub const ICON_EXPORT_FILE: &str = "\u{e2c6}";
+pub const ICON_IMPORT_CLIPBOARD: &str = "\u{e14f}";
+pub const ICON_EXPORT_CLIPBOARD: &str = "\u{e173}";
+pub const ICON_FONT_BYTES: &[u8] = include_bytes!("../../assets/MaterialIcons-Regular.ttf");

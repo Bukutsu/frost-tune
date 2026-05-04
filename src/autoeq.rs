@@ -53,7 +53,7 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
 
 fn extract_number(s: &str) -> Option<f64> {
     let start = s.find(|c: char| c == '-' || c == '+' || c.is_ascii_digit())?;
-    
+
     let mut end = start;
     let mut has_decimal = false;
     for c in s[start..].chars() {
@@ -68,7 +68,7 @@ fn extract_number(s: &str) -> Option<f64> {
             break;
         }
     }
-    
+
     s[start..end].parse().ok()
 }
 

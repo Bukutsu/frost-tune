@@ -1,7 +1,7 @@
-use crate::hardware::hid::{device_info_from_hid, find_device_info};
 use crate::error::{AppError, ErrorKind, Result as AppResult};
-use crate::models::{ConnectionResult, Device, DeviceInfo};
+use crate::hardware::hid::{device_info_from_hid, find_device_info};
 use crate::hardware::worker::backend::{BackendKind, TransportBackend};
+use crate::models::{ConnectionResult, Device, DeviceInfo};
 
 #[cfg(target_os = "linux")]
 use crate::hardware::elevated_transport::ElevatedTransport;
@@ -46,7 +46,10 @@ pub fn worker_connect(
                 return ConnectionResult {
                     success: false,
                     device: None,
-                    error: Some(AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?")),
+                    error: Some(AppError::new(
+                        ErrorKind::NotConnected,
+                        "Device not found. Is it plugged in?",
+                    )),
                 };
             }
             Err(local_err) => {
@@ -56,7 +59,10 @@ pub fn worker_connect(
                         return ConnectionResult {
                             success: false,
                             device: target_device,
-                            error: Some(AppError::new(ErrorKind::PolkitAuthRequired, "Authentication required to access USB DAC on Linux.")),
+                            error: Some(AppError::new(
+                                ErrorKind::PolkitAuthRequired,
+                                "Authentication required to access USB DAC on Linux.",
+                            )),
                         };
                     }
                 }
@@ -100,7 +106,10 @@ pub fn worker_connect(
                         return ConnectionResult {
                             success: false,
                             device: None,
-                            error: Some(AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?")),
+                            error: Some(AppError::new(
+                                ErrorKind::NotConnected,
+                                "Device not found. Is it plugged in?",
+                            )),
                         };
                     }
                     Err(_local_err) => {
@@ -123,10 +132,16 @@ pub fn worker_connect(
     }
 }
 
-pub fn try_connect_local(api: &hidapi::HidApi, target_device: Option<DeviceInfo>) -> AppResult<Option<TransportBackend>> {
+pub fn try_connect_local(
+    api: &hidapi::HidApi,
+    target_device: Option<DeviceInfo>,
+) -> AppResult<Option<TransportBackend>> {
     let device_info = match target_device {
         Some(info) => {
-            match api.device_list().find(|d| d.path().to_string_lossy() == info.path) {
+            match api
+                .device_list()
+                .find(|d| d.path().to_string_lossy() == info.path)
+            {
                 Some(d) => d.clone(),
                 None => return Ok(None),
             }
@@ -134,7 +149,7 @@ pub fn try_connect_local(api: &hidapi::HidApi, target_device: Option<DeviceInfo>
         None => match find_device_info(api) {
             Some(d) => d,
             None => return Ok(None),
-        }
+        },
     };
 
     let info = device_info_from_hid(&device_info);
@@ -157,10 +172,15 @@ pub fn try_connect_elevated() -> AppResult<TransportBackend> {
     let mut transport = ElevatedTransport::spawn()?;
     match transport.round_trip(&HelperRequest::Connect)? {
         HelperResponse::Connected { device } => {
-            let info = device.ok_or_else(|| AppError::new(ErrorKind::IpcError, "Helper connected without device info"))?;
+            let info = device.ok_or_else(|| {
+                AppError::new(ErrorKind::IpcError, "Helper connected without device info")
+            })?;
             Ok(TransportBackend::Elevated { transport, info })
         }
         HelperResponse::Error { error, .. } => Err(error),
-        _ => Err(AppError::new(ErrorKind::IpcError, "Unexpected response from elevated helper during connect")),
+        _ => Err(AppError::new(
+            ErrorKind::IpcError,
+            "Unexpected response from elevated helper during connect",
+        )),
     }
 }

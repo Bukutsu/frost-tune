@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::models::constants::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FilterType {

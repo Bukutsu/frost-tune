@@ -1,8 +1,6 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal};
-use crate::hardware::packet_builder::{
-    commit_changes, write_filters_and_gain,
-};
+use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Filter, PEQData};
 
@@ -115,4 +113,136 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Filter, PEQData};
+
+    fn make_filter(
+        index: u8,
+        freq: u16,
+        gain: f64,
+        q: f64,
+        filter_type: crate::models::FilterType,
+    ) -> Filter {
+        Filter {
+            index,
+            enabled: true,
+            filter_type,
+            freq,
+            gain,
+            q,
+        }
+    }
+
+    #[test]
+    fn test_compare_peq_success() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let data = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        assert!(compare_peq(&data, &filters, 0).is_ok());
+    }
+
+    #[test]
+    fn test_compare_peq_gain_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let mut data = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        data.filters[0].gain = 6.0;
+        let result = compare_peq(&data, &filters, 0);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind,
+            crate::error::ErrorKind::VerifyFailed
+        );
+    }
+
+    #[test]
+    fn test_compare_peq_freq_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let mut data = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        data.filters[0].freq = 2000;
+        let result = compare_peq(&data, &filters, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compare_peq_q_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let mut data = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        data.filters[0].q = 2.0;
+        let result = compare_peq(&data, &filters, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compare_peq_global_gain_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let data = PEQData {
+            filters: filters.clone(),
+            global_gain: -3,
+        };
+        let result = compare_peq(&data, &filters, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compare_peq_filter_type_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::models::FilterType::Peak,
+        )];
+        let mut data = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        data.filters[0].filter_type = crate::models::FilterType::LowShelf;
+        let result = compare_peq(&data, &filters, 0);
+        assert!(result.is_err());
+    }
 }

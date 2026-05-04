@@ -35,72 +35,78 @@ impl Default for DisconnectReason {
 
 #[derive(Debug, Clone, Default)]
 pub struct InputBuffer {
-    pub editing_freq: Option<(usize, String)>,
-    pub editing_gain: Option<(usize, String)>,
-    pub editing_q: Option<(usize, String)>,
-    pub freq_error: Option<(usize, String)>,
-    pub gain_error: Option<(usize, String)>,
-    pub q_error: Option<(usize, String)>,
+    pub active_draft: Option<DraftFilter>,
 }
 
 impl InputBuffer {
-    pub fn get_freq(&self, band_index: usize) -> Option<&String> {
-        self.editing_freq
+    pub fn get_freq_input(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .map(|d| d.freq_input.as_str())
     }
 
-    pub fn get_gain(&self, band_index: usize) -> Option<&String> {
-        self.editing_gain
+    pub fn get_gain_input(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .map(|d| d.gain_input.as_str())
     }
 
-    pub fn get_q(&self, band_index: usize) -> Option<&String> {
-        self.editing_q
+    pub fn get_q_input(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .map(|d| d.q_input.as_str())
     }
 
-    pub fn get_freq_error(&self, band_index: usize) -> Option<&String> {
-        self.freq_error
+    pub fn get_freq_error(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .and_then(|d| d.freq_error.as_ref().map(|s| s.as_str()))
     }
 
-    pub fn get_gain_error(&self, band_index: usize) -> Option<&String> {
-        self.gain_error
+    pub fn get_gain_error(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .and_then(|d| d.gain_error.as_ref().map(|s| s.as_str()))
     }
 
-    pub fn get_q_error(&self, band_index: usize) -> Option<&String> {
-        self.q_error
+    pub fn get_q_error(&self, band_index: usize) -> Option<&str> {
+        self.active_draft
             .as_ref()
-            .filter(|(i, _)| *i == band_index)
-            .map(|(_, s)| s)
+            .filter(|d| d.index == band_index)
+            .and_then(|d| d.q_error.as_ref().map(|s| s.as_str()))
     }
 
-    pub fn clear_error(&mut self, band_index: usize) {
-        if let Some((i, _)) = self.freq_error.as_ref() {
-            if *i == band_index {
-                self.freq_error = None;
-            }
-        }
-        if let Some((i, _)) = self.gain_error.as_ref() {
-            if *i == band_index {
-                self.gain_error = None;
-            }
-        }
-        if let Some((i, _)) = self.q_error.as_ref() {
-            if *i == band_index {
-                self.q_error = None;
-            }
+    pub fn has_errors(&self) -> bool {
+        self.active_draft.as_ref().map_or(false, |d| d.has_errors())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DraftFilter {
+    pub index: usize,
+    pub freq_input: String,
+    pub gain_input: String,
+    pub q_input: String,
+    pub freq_error: Option<String>,
+    pub gain_error: Option<String>,
+    pub q_error: Option<String>,
+}
+
+impl DraftFilter {
+    pub fn from_filter(filter: &Filter) -> Self {
+        Self {
+            index: filter.index as usize,
+            freq_input: filter.freq.to_string(),
+            gain_input: format!("{:.1}", filter.gain), // Format to 1 decimal place
+            q_input: format!("{:.2}", filter.q),       // Format to 2 decimal places
+            freq_error: None,
+            gain_error: None,
+            q_error: None,
         }
     }
 

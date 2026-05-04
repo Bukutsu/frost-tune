@@ -1,7 +1,6 @@
 use serde::Serialize;
 use std::collections::VecDeque;
 
-
 const MAX_EVENTS: usize = 500;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

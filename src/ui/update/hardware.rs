@@ -1,8 +1,8 @@
-use crate::ui::state::{MainWindow, ConnectionStatus};
-use crate::ui::messages::{Message, StatusSeverity};
+use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::{AppError, ErrorKind};
 use crate::models::{OperationResult, PushPayload};
-use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
+use crate::ui::messages::{Message, StatusSeverity};
+use crate::ui::state::{ConnectionStatus, MainWindow};
 use iced::Task;
 use std::sync::Arc;
 
@@ -60,12 +60,18 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
                             success: false,
                             data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 5 seconds")),
+                            error: Some(AppError::new(
+                                ErrorKind::Unknown,
+                                "Operation timed out after 5 seconds",
+                            )),
                         },
                         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
                             success: false,
                             data: None,
-                            error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
+                            error: Some(AppError::new(
+                                ErrorKind::Unknown,
+                                "Background worker unexpectedly terminated",
+                            )),
                         },
                     }
                 },
@@ -79,30 +85,26 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             if result.success {
                 window.editor_state.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.filters = peq
-                        .filters
-                        .into_iter()
-                        .map(|mut f| {
-                            f.enabled = true;
-                            f
-                        })
-                        .collect();
+                    window.editor_state.filters = peq.filters;
                     window.editor_state.global_gain = peq.global_gain;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
                         "Pull successful",
                     ));
-                    return window
-                        .set_status("Data pulled from device", StatusSeverity::Success);
+                    return window.set_status("Data pulled from device", StatusSeverity::Success);
                 }
                 Task::none()
             } else if let Some(err) = result.error {
-                let msg = if err.kind == ErrorKind::NotConnected || err.kind == ErrorKind::PolkitAuthRequired {
-                    window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
+                let msg = if err.kind == ErrorKind::NotConnected
+                    || err.kind == ErrorKind::PolkitAuthRequired
+                {
+                    window.connection_status =
+                        ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
                 } else {
-                    window.connection_status = ConnectionStatus::Error(err.user_message().to_string());
+                    window.connection_status =
+                        ConnectionStatus::Error(err.user_message().to_string());
                     err.user_message().to_string()
                 };
                 window.diagnostics.push(DiagnosticEvent::new(
@@ -127,37 +129,45 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             if result.success {
                 window.editor_state.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.filters = peq
-                        .filters
-                        .into_iter()
-                        .map(|mut f| {
-                            f.enabled = true;
-                            f
-                        })
-                        .collect();
+                    window.editor_state.filters = peq.filters;
                     window.editor_state.global_gain = peq.global_gain;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
                         "Push successful",
                     ));
-                    return window.set_status(
-                        "Settings applied and verified",
-                        StatusSeverity::Success,
-                    );
+                    return window
+                        .set_status("Settings applied and verified", StatusSeverity::Success);
                 }
                 Task::none()
             } else if let Some(err) = result.error {
                 let base_msg = if err.kind == ErrorKind::NotConnected {
-                    window.connection_status = ConnectionStatus::Error("Device lost during operation".into());
+                    window.connection_status =
+                        ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
+                } else if err.kind == ErrorKind::DeviceLost {
+                    window.connection_status =
+                        ConnectionStatus::Error("Device disconnected".into());
+                    window.disconnect_reason = crate::ui::state::DisconnectReason::DeviceLost;
+                    "Device disconnected. Please reconnect and try again.".to_string()
+                } else if err.kind == ErrorKind::DeviceBusy {
+                    "Device is busy. Close other applications using the device and retry."
+                        .to_string()
+                } else if err.kind == ErrorKind::ReadTimeout {
+                    "Read timeout. Device may be unresponsive. Try reconnecting.".to_string()
+                } else if err.kind == ErrorKind::PolkitAuthRequired {
+                    "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string()
                 } else {
-                    window.connection_status = ConnectionStatus::Error(err.user_message().to_string());
+                    window.connection_status =
+                        ConnectionStatus::Error(err.user_message().to_string());
                     err.user_message().to_string()
                 };
-                
-                let full_msg = format!("Push failed: {}. Try reading from device to resync.", base_msg);
-                
+
+                let full_msg = format!(
+                    "Push failed: {}. Try reading from device to resync.",
+                    base_msg
+                );
+
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Error,
                     Source::Worker,
@@ -198,12 +208,18 @@ fn perform_pull(window: &mut MainWindow) -> Task<Message> {
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Operation timed out after 5 seconds")),
+                    error: Some(AppError::new(
+                        ErrorKind::Unknown,
+                        "Operation timed out after 5 seconds",
+                    )),
                 },
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Background worker unexpectedly terminated")),
+                    error: Some(AppError::new(
+                        ErrorKind::Unknown,
+                        "Background worker unexpectedly terminated",
+                    )),
                 },
             }
         },

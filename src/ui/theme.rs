@@ -1,5 +1,5 @@
 use iced::theme::Palette;
-use iced::widget::{button, container, pick_list, text_input};
+use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
 use iced::{color, Background, Border, Color, Theme};
 
 pub const SPACE_8: f32 = 8.0;
@@ -103,12 +103,60 @@ pub fn pill_secondary_button(theme: &Theme, status: button::Status) -> button::S
 pub fn pill_danger_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::danger(theme, status);
     style.border.radius = BUTTON_PILL_RADIUS.into();
+
+    // Ensure active state is a solid, distinct red
+    if matches!(status, button::Status::Active) {
+        style.background = Some(Background::Color(TOKYO_NIGHT_RED));
+        style.text_color = TOKYO_NIGHT_BG_DARK;
+    }
+
     enforce_disabled_button_contrast(style, status)
 }
 
 pub fn pill_text_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(theme, status);
     style.border.radius = BUTTON_PILL_RADIUS.into();
+
+    // Make hover state for icon/text buttons more distinct
+    if matches!(status, button::Status::Hovered) {
+        style.background = Some(Background::Color(Color {
+            a: 0.1,
+            ..TOKYO_NIGHT_FG
+        }));
+        style.border.width = 1.0;
+        style.border.color = Color {
+            a: 0.2,
+            ..TOKYO_NIGHT_FG
+        };
+    }
+
+    enforce_disabled_button_contrast(style, status)
+}
+
+pub fn pill_outlined_primary_button(_theme: &Theme, status: button::Status) -> button::Style {
+    let mut style = button::text(_theme, status);
+    let (text_alpha, border_alpha, bg_alpha) = match status {
+        button::Status::Disabled => (0.45, 0.3, 0.04),
+        button::Status::Hovered => (1.0, 0.9, 0.1),
+        button::Status::Pressed => (1.0, 1.0, 0.15),
+        _ => (0.92, 0.7, 0.05),
+    };
+    style.text_color = Color {
+        a: text_alpha,
+        ..TOKYO_NIGHT_PRIMARY
+    };
+    style.background = Some(Background::Color(Color {
+        a: bg_alpha,
+        ..TOKYO_NIGHT_PRIMARY
+    }));
+    style.border = Border {
+        color: Color {
+            a: border_alpha,
+            ..TOKYO_NIGHT_PRIMARY
+        },
+        width: 1.0,
+        radius: BUTTON_PILL_RADIUS.into(),
+    };
     enforce_disabled_button_contrast(style, status)
 }
 
@@ -184,13 +232,7 @@ pub fn m3_input_pick_list(_theme: &Theme, status: pick_list::Status) -> pick_lis
             },
             1.0,
         ),
-        pick_list::Status::Hovered | pick_list::Status::Opened { .. } => (
-            Color {
-                a: 0.72,
-                ..TOKYO_NIGHT_PRIMARY
-            },
-            1.2,
-        ),
+        pick_list::Status::Hovered | pick_list::Status::Opened { .. } => (TOKYO_NIGHT_PRIMARY, 2.0),
     };
 
     pick_list::Style {
@@ -225,13 +267,7 @@ pub fn m3_outlined_input(_theme: &Theme, status: text_input::Status) -> text_inp
             },
             1.2,
         ),
-        text_input::Status::Focused { .. } => (
-            Color {
-                a: 0.95,
-                ..TOKYO_NIGHT_PRIMARY
-            },
-            1.6,
-        ),
+        text_input::Status::Focused { .. } => (TOKYO_NIGHT_PRIMARY, 2.0),
         text_input::Status::Disabled => (
             Color {
                 a: 0.3,
@@ -272,12 +308,67 @@ pub fn m3_filled_input(_theme: &Theme, status: text_input::Status) -> text_input
     };
     style.border = Border {
         color: underline_color,
-        width: 1.0,
+        width: if matches!(status, text_input::Status::Focused { .. }) {
+            2.0
+        } else {
+            1.0
+        },
         radius: 8.0.into(),
     };
-    style.background = Background::Color(Color {
-        a: 1.0,
-        ..TOKYO_NIGHT_BG_HIGHLIGHT
+    style.background = Background::Color(if matches!(status, text_input::Status::Focused { .. }) {
+        TOKYO_NIGHT_BG_DARK
+    } else {
+        TOKYO_NIGHT_BG_HIGHLIGHT
     });
     style
+}
+
+pub fn checkbox_style(_theme: &Theme, status: checkbox::Status) -> checkbox::Style {
+    let is_checked = match status {
+        checkbox::Status::Active { is_checked } => is_checked,
+        checkbox::Status::Hovered { is_checked } => is_checked,
+        checkbox::Status::Disabled { is_checked } => is_checked,
+    };
+
+    checkbox::Style {
+        background: if is_checked {
+            Background::Color(TOKYO_NIGHT_PRIMARY)
+        } else {
+            Background::Color(Color::TRANSPARENT)
+        },
+        icon_color: TOKYO_NIGHT_BG_DARK,
+        border: Border {
+            radius: 4.0.into(),
+            width: 1.0,
+            color: if is_checked {
+                TOKYO_NIGHT_PRIMARY
+            } else {
+                TOKYO_NIGHT_TERMINAL_BLACK
+            },
+        },
+        text_color: Some(TOKYO_NIGHT_FG),
+    }
+}
+
+pub fn slider_style(_theme: &Theme, _status: slider::Status) -> slider::Style {
+    slider::Style {
+        rail: slider::Rail {
+            backgrounds: (
+                Background::Color(TOKYO_NIGHT_BLUE),
+                Background::Color(TOKYO_NIGHT_BG_DARK),
+            ),
+            width: 4.0,
+            border: Border {
+                radius: 2.0.into(),
+                width: 0.0,
+                color: Color::TRANSPARENT,
+            },
+        },
+        handle: slider::Handle {
+            shape: slider::HandleShape::Circle { radius: 8.0 },
+            background: Background::Color(TOKYO_NIGHT_BLUE),
+            border_width: 1.0,
+            border_color: TOKYO_NIGHT_BLUE,
+        },
+    }
 }

@@ -1,4 +1,6 @@
-use frost_tune::hardware::protocol::{DeviceProtocol, TP35ProProtocol, WRITE, READ, CMD_PEQ_VALUES, CMD_GLOBAL_GAIN};
+use frost_tune::hardware::protocol::{
+    DeviceProtocol, TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
+};
 use frost_tune::models::FilterType;
 
 #[test]
@@ -26,13 +28,12 @@ fn test_tp35pro_parse_filter_packet_invalid() {
 
 #[test]
 fn test_tp35pro_filter_packet_round_trip() {
-    // We can't perfectly round-trip because dsp::compute_iir_filter creates the biquad array 
+    // We can't perfectly round-trip because dsp::compute_iir_filter creates the biquad array
     // and dsp::parse_filter_packet reads it back, but let's at least ensure it doesn't panic
     let proto = TP35ProProtocol;
-    let packet = proto.build_filter_write_packet(
-        0, true, 1000.0, 2.5, 1.414, FilterType::Peak.into()
-    );
-    
+    let packet =
+        proto.build_filter_write_packet(0, true, 1000.0, 2.5, 1.414, FilterType::Peak.into());
+
     // In actual device, report ID is prefix, and device sends back packet.
     // The parse_filter_packet expects the payload.
     // Let's just make sure it's valid format.

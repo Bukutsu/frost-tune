@@ -1,88 +1,89 @@
-pub mod connection;
-pub mod hardware;
-pub mod editor;
 pub mod autoeq;
+pub mod connection;
+pub mod editor;
+pub mod hardware;
 pub mod profiles;
 
-use crate::ui::state::MainWindow;
 use crate::ui::messages::Message;
+use crate::ui::state::MainWindow;
 use iced::Task;
 
-use self::connection::handle_connection;
-use self::hardware::handle_hardware;
-use self::editor::handle_editor;
 use self::autoeq::handle_autoeq;
+use self::connection::handle_connection;
+use self::editor::handle_editor;
+use self::hardware::handle_hardware;
 use self::profiles::handle_profiles;
 
 pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::None => Task::none(),
         // handle_connection
-        Message::ClearStatusMessage(_) |
-        Message::DismissConfirmDialog |
-        Message::DeviceSelected(_) |
-        Message::ConnectPressed(_) |
-        Message::ConfirmElevatedConnect(_) |
-        Message::DisconnectPressed |
-        Message::WorkerConnected(..) |
-        Message::WorkerDisconnected(..) |
-        Message::WorkerStatus(..) |
-        Message::Tick(..) |
-        Message::ProfilesDirMtimeChecked(_) |
-        Message::WorkerBackendReset => handle_connection(window, message),
+        Message::ClearStatusMessage(_)
+        | Message::DismissConfirmDialog
+        | Message::DeviceSelected(_)
+        | Message::ConnectPressed(_)
+        | Message::ConfirmElevatedConnect(_)
+        | Message::DisconnectPressed
+        | Message::WorkerConnected(..)
+        | Message::WorkerDisconnected(..)
+        | Message::WorkerStatus(..)
+        | Message::Tick(..)
+        | Message::ProfilesDirMtimeChecked(_)
+        | Message::WorkerBackendReset => handle_connection(window, message),
 
         // handle_hardware
-        Message::PullPressed |
-        Message::ConfirmPullPressed |
-        Message::PushPressed |
-        Message::WorkerPulled(..) |
-        Message::WorkerPushed(..) => handle_hardware(window, message),
+        Message::PullPressed
+        | Message::ConfirmPullPressed
+        | Message::PushPressed
+        | Message::WorkerPulled(..)
+        | Message::WorkerPushed(..) => handle_hardware(window, message),
 
         // handle_editor
-        Message::BandGainChanged(..) |
-        Message::BandFreqChanged(..) |
-        Message::BandQChanged(..) |
-        Message::BandTypeChanged(..) |
-        Message::BandGainInput(..) |
-        Message::BandFreqInput(..) |
-        Message::BandQInput(..) |
-        Message::BandFreqSliderChanged(..) |
-        Message::BandFreqInputCommit(..) |
-        Message::BandGainInputCommit(..) |
-        Message::BandQInputCommit(..) |
-        Message::BandFreqInputCancel(..) |
-        Message::BandGainInputCancel(..) |
-        Message::BandQInputCancel(..) |
-        Message::GlobalGainChanged(..) |
-        Message::ResetFiltersPressed |
-        Message::ConfirmResetFilters |
-        Message::ToggleDiagnostics => handle_editor(window, message),
+        Message::BandGainChanged(..)
+        | Message::BandFreqChanged(..)
+        | Message::BandQChanged(..)
+        | Message::BandTypeChanged(..)
+        | Message::BandEnabledToggled(..)
+        | Message::BandGainInput(..)
+        | Message::BandFreqInput(..)
+        | Message::BandQInput(..)
+        | Message::BandFreqSliderChanged(..)
+        | Message::BandFreqInputCommit(..)
+        | Message::BandGainInputCommit(..)
+        | Message::BandQInputCommit(..)
+        | Message::BandFreqInputCancel(..)
+        | Message::BandGainInputCancel(..)
+        | Message::BandQInputCancel(..)
+        | Message::GlobalGainChanged(..)
+        | Message::ResetFiltersPressed
+        | Message::ConfirmResetFilters
+        | Message::ToggleDiagnostics => handle_editor(window, message),
 
         // handle_autoeq
-        Message::ConfirmImportAutoEQ |
-        Message::ImportFromClipboard |
-        Message::ImportClipboardReceived(..) |
-        Message::ImportClipboardFailed(..) |
-        Message::ExportAutoEQPressed |
-        Message::ExportComplete |
-        Message::ToggleDiagnosticsErrorsOnly(..) |
-        Message::CopyDiagnostics |
-        Message::ClearDiagnostics |
-        Message::ExportDiagnosticsToFile |
-        Message::DiagnosticsExported(..) => handle_autoeq(window, message),
+        Message::ConfirmImportAutoEQ
+        | Message::ImportFromClipboard
+        | Message::ImportClipboardReceived(..)
+        | Message::ImportClipboardFailed(..)
+        | Message::ExportAutoEQPressed
+        | Message::ExportComplete
+        | Message::ToggleDiagnosticsErrorsOnly(..)
+        | Message::CopyDiagnostics
+        | Message::ClearDiagnostics
+        | Message::ExportDiagnosticsToFile
+        | Message::DiagnosticsExported(..) => handle_autoeq(window, message),
 
         // handle_profiles
-        Message::ReloadProfilesPressed |
-        Message::OpenProfilesDirPressed |
-        Message::ProfilesLoaded(..) |
-        Message::ProfileSelected(..) |
-        Message::ProfileNameInput(..) |
-        Message::SaveProfilePressed |
-        Message::ConfirmDeleteProfile |
-        Message::DeleteProfilePressed |
-        Message::ImportFromFilePressed |
-        Message::ExportToFilePressed |
-        Message::FileImported(..) |
-        Message::FileExported(..) => handle_profiles(window, message),
+        Message::ReloadProfilesPressed
+        | Message::OpenProfilesDirPressed
+        | Message::ProfilesLoaded(..)
+        | Message::ProfileSelected(..)
+        | Message::ProfileNameInput(..)
+        | Message::SaveProfilePressed
+        | Message::ConfirmDeleteProfile
+        | Message::DeleteProfilePressed
+        | Message::ImportFromFilePressed
+        | Message::ExportToFilePressed
+        | Message::FileImported(..)
+        | Message::FileExported(..) => handle_profiles(window, message),
     }
 }

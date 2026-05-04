@@ -25,7 +25,12 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
             .width(Length::Fill)
             .height(Length::Fixed(height)),
         )
-        .padding(Padding { top: SPACE_16, right: SPACE_12, bottom: SPACE_12, left: SPACE_12 })
+        .padding(Padding {
+            top: SPACE_16,
+            right: SPACE_12,
+            bottom: SPACE_12,
+            left: SPACE_12,
+        })
         .style(graph_container_style)
         .width(Length::Fill)
         .into()
@@ -43,7 +48,12 @@ pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill),
     )
-    .padding(Padding { top: SPACE_16, right: SPACE_12, bottom: SPACE_12, left: SPACE_12 })
+    .padding(Padding {
+        top: SPACE_16,
+        right: SPACE_12,
+        bottom: SPACE_12,
+        left: SPACE_12,
+    })
     .style(graph_container_style)
     .width(Length::Fill)
     .height(Length::Fill)
@@ -54,7 +64,10 @@ fn graph_container_style(_theme: &iced::Theme) -> container::Style {
     container::Style {
         background: Some(theme::GRAPH_BG.into()),
         border: iced::Border {
-            color: iced::Color { a: 0.2, ..theme::TOKYO_NIGHT_TERMINAL_BLACK },
+            color: iced::Color {
+                a: 0.2,
+                ..theme::TOKYO_NIGHT_TERMINAL_BLACK
+            },
             width: 1.0,
             radius: theme::CARD_RADIUS.into(),
         },

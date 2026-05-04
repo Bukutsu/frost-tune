@@ -74,14 +74,18 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
     let path = get_ui_preferences_path()?;
     let content = serde_json::to_string_pretty(prefs)
         .map_err(|e| format!("Failed to serialize UI preferences: {}", e))?;
-    
+
     let base_dir = get_base_dir()?;
     let tmp_path = base_dir.join(".ui_preferences.json.tmp");
-    
-    fs::write(&tmp_path, content).map_err(|e| format!("Failed to write temp UI preferences: {}", e))?;
+
+    fs::write(&tmp_path, content)
+        .map_err(|e| format!("Failed to write temp UI preferences: {}", e))?;
     fs::rename(&tmp_path, &path).map_err(|e| {
         if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
-            log::warn!("Failed to clean up temp file after rename error: {}", cleanup_err);
+            log::warn!(
+                "Failed to clean up temp file after rename error: {}",
+                cleanup_err
+            );
         }
         format!("Failed to finalize UI preferences save: {}", e)
     })?;
@@ -94,9 +98,9 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
 }
 
 pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
-    get_profiles_dir().ok().and_then(|dir| {
-        fs::metadata(dir).ok().and_then(|m| m.modified().ok())
-    })
+    get_profiles_dir()
+        .ok()
+        .and_then(|dir| fs::metadata(dir).ok().and_then(|m| m.modified().ok()))
 }
 
 pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
@@ -160,7 +164,10 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     fs::write(&tmp_path, &content).map_err(|e| format!("Failed to write temp profile: {}", e))?;
     fs::rename(&tmp_path, &path).map_err(|e| {
         if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
-            log::warn!("Failed to clean up temp file after rename error: {}", cleanup_err);
+            log::warn!(
+                "Failed to clean up temp file after rename error: {}",
+                cleanup_err
+            );
         }
         format!("Failed to finalize profile save: {}", e)
     })?;
@@ -186,11 +193,12 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
 }
 
 pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read profile file: {}", e))?;
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Failed to read profile file: {}", e))?;
     let data = autoeq::parse_autoeq_text(&content)
         .map_err(|e| format!("Failed to parse profile: {}", e))?;
-    let name = path.file_stem()
+    let name = path
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("Imported Profile")
         .to_string();
@@ -199,13 +207,12 @@ pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
 
 pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<(), String> {
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(path, content)
-        .map_err(|e| format!("Failed to write profile file: {}", e))
+    fs::write(path, content).map_err(|e| format!("Failed to write profile file: {}", e))
 }
 
 pub fn open_profiles_dir() -> Result<(), String> {
     let dir = get_profiles_dir()?;
-    
+
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
@@ -265,6 +272,8 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::autoeq;
+    use crate::models::{Filter, FilterType, PEQData};
 
     #[test]
     fn test_sanitize_name() {
@@ -272,5 +281,103 @@ mod tests {
         assert_eq!(sanitize_name("Profile_1-2"), "Profile_1-2");
         assert_eq!(sanitize_name("Bad@Name#$"), "BadName");
         assert_eq!(sanitize_name(""), "");
+        assert_eq!(sanitize_name("Normal Name 123"), "Normal Name 123");
+    }
+
+    #[test]
+    fn test_save_and_load_profile_roundtrip() {
+        let test_name = "___test_roundtrip_profile___";
+        let data = PEQData {
+            filters: vec![Filter {
+                index: 0,
+                enabled: true,
+                filter_type: FilterType::Peak,
+                freq: 1000,
+                gain: 5.0,
+                q: 1.5,
+            }],
+            global_gain: -2,
+        };
+
+        let save_result = save_profile(test_name, &data);
+        assert!(save_result.is_ok(), "Saving profile should succeed");
+
+        let load_result = load_all_profiles();
+        assert!(load_result.is_ok());
+        let (profiles, _) = load_result.unwrap();
+
+        let found = profiles.iter().any(|p| p.name == test_name);
+        assert!(found, "Test profile should be in loaded profiles");
+
+        let _ = delete_profile(test_name);
+    }
+
+    #[test]
+    fn test_delete_profile() {
+        let test_name = "___test_delete_profile___";
+        let data = PEQData {
+            filters: vec![Filter::enabled(0, true)],
+            global_gain: 0,
+        };
+
+        let _ = save_profile(test_name, &data);
+
+        let delete_result = delete_profile(test_name);
+        assert!(delete_result.is_ok(), "Deleting profile should succeed");
+
+        let (profiles, _) = load_all_profiles().unwrap_or_default();
+        let found = profiles.iter().any(|p| p.name == test_name);
+        assert!(!found, "Deleted profile should not be in loaded profiles");
+    }
+
+    #[test]
+    fn test_import_profile() {
+        let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
+        let data = autoeq::parse_autoeq_text(content).unwrap();
+
+        assert_eq!(data.global_gain, -3);
+        assert!(data.filters[0].enabled);
+        assert_eq!(data.filters[0].freq, 1000);
+    }
+
+    #[test]
+    fn test_export_profile_format() {
+        let data = PEQData {
+            filters: vec![Filter::enabled(0, true)],
+            global_gain: 0,
+        };
+
+        let output = autoeq::peq_to_autoeq(&data);
+        assert!(output.contains("Preamp: 0 dB"));
+        assert!(output.contains("Filter 1: ON"));
+    }
+
+    #[test]
+    fn test_append_and_load_diagnostics() {
+        let test_line = r#"{"level":"INFO","source":"UI","message":"Test log entry"}"#;
+
+        let append_result = append_diagnostics_log(test_line);
+        assert!(
+            append_result.is_ok(),
+            "Appending to diagnostics log should succeed"
+        );
+
+        let loaded = load_recent_diagnostics(10);
+        assert!(loaded.is_ok());
+        let logs = loaded.unwrap();
+        assert!(!logs.is_empty(), "Should have loaded some diagnostics");
+    }
+
+    #[test]
+    fn test_load_profiles_error_handling() {
+        let result = load_all_profiles();
+        assert!(
+            result.is_ok(),
+            "Loading profiles should not error even with invalid files"
+        );
+        let (_, errors) = result.unwrap();
+        for error in errors {
+            println!("Profile parse error (expected in test): {}", error);
+        }
     }
 }

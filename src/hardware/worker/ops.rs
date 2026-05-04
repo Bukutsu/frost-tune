@@ -1,6 +1,6 @@
 use crate::error::{AppError, ErrorKind};
-use crate::models::{OperationResult, PEQData, PushPayload};
 use crate::hardware::worker::backend::TransportBackend;
+use crate::models::{OperationResult, PEQData, PushPayload};
 
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
@@ -18,7 +18,10 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
                 OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::HardwareError, "Unsupported device protocol")),
+                    error: Some(AppError::new(
+                        ErrorKind::HardwareError,
+                        "Unsupported device protocol",
+                    )),
                 }
             }
         }
@@ -30,7 +33,14 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
                     let success = peq.is_some();
                     OperationResult {
                         success,
-                        error: if !success { Some(AppError::new(ErrorKind::ParseError, "Failed to parse data from helper")) } else { None },
+                        error: if !success {
+                            Some(AppError::new(
+                                ErrorKind::ParseError,
+                                "Failed to parse data from helper",
+                            ))
+                        } else {
+                            None
+                        },
                         data: peq,
                     }
                 }
@@ -42,7 +52,10 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
                 Ok(_) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::HardwareError, "Unexpected helper response for pull")),
+                    error: Some(AppError::new(
+                        ErrorKind::HardwareError,
+                        "Unexpected helper response for pull",
+                    )),
                 },
                 Err(e) => {
                     *backend = None;
@@ -78,7 +91,10 @@ pub fn worker_push_peq(
                 OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::HardwareError, "Unsupported device protocol")),
+                    error: Some(AppError::new(
+                        ErrorKind::HardwareError,
+                        "Unsupported device protocol",
+                    )),
                 }
             }
         }
@@ -93,7 +109,14 @@ pub fn worker_push_peq(
                     let success = peq.is_some();
                     OperationResult {
                         success,
-                        error: if !success { Some(AppError::new(ErrorKind::ParseError, "Failed to parse data from helper")) } else { None },
+                        error: if !success {
+                            Some(AppError::new(
+                                ErrorKind::ParseError,
+                                "Failed to parse data from helper",
+                            ))
+                        } else {
+                            None
+                        },
                         data: peq,
                     }
                 }
@@ -105,7 +128,10 @@ pub fn worker_push_peq(
                 Ok(_) => OperationResult {
                     success: false,
                     data: None,
-                    error: Some(AppError::new(ErrorKind::HardwareError, "Unexpected helper response for push")),
+                    error: Some(AppError::new(
+                        ErrorKind::HardwareError,
+                        "Unexpected helper response for push",
+                    )),
                 },
                 Err(e) => {
                     *backend = None;

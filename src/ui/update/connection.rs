@@ -1,9 +1,9 @@
-use crate::ui::state::{MainWindow, ConfirmAction, ConnectionStatus, DisconnectReason};
-use crate::ui::messages::{Message, StatusSeverity};
-use crate::error::{AppError, ErrorKind};
-use crate::hardware::worker::{WorkerStatus, BackendKind};
-use crate::models::{ConnectionResult, Device, OperationResult};
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
+use crate::error::{AppError, ErrorKind};
+use crate::hardware::worker::{BackendKind, WorkerStatus};
+use crate::models::{ConnectionResult, Device, OperationResult};
+use crate::ui::messages::{Message, StatusSeverity};
+use crate::ui::state::{ConfirmAction, ConnectionStatus, DisconnectReason, MainWindow};
 use iced::Task;
 use std::sync::Arc;
 
@@ -44,11 +44,15 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             Task::perform(
                 async move {
                     let rx = worker.connect(Some(device), Some(BackendKind::Local));
-                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or_else(|_| ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(AppError::new(ErrorKind::IpcError, "Connection request timed out")),
-                    })
+                    rx.recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap_or_else(|_| ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(AppError::new(
+                                ErrorKind::IpcError,
+                                "Connection request timed out",
+                            )),
+                        })
                 },
                 Message::WorkerConnected,
             )
@@ -76,13 +80,17 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     let backend = Some(BackendKind::Elevated);
                     #[cfg(not(target_os = "linux"))]
                     let backend = None;
-                    
+
                     let rx = worker.connect(Some(device), backend);
-                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(AppError::new(ErrorKind::IpcError, "Connection request timed out")),
-                    })
+                    rx.recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap_or(ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(AppError::new(
+                                ErrorKind::IpcError,
+                                "Connection request timed out",
+                            )),
+                        })
                 },
                 Message::WorkerConnected,
             );
@@ -108,11 +116,15 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             let disconnect_task = Task::perform(
                 async move {
                     let rx = worker.disconnect();
-                    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(OperationResult {
-                        success: false,
-                        data: None,
-                        error: Some(AppError::new(ErrorKind::IpcError, "Disconnect request timed out")),
-                    })
+                    rx.recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap_or(OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(
+                                ErrorKind::IpcError,
+                                "Disconnect request timed out",
+                            )),
+                        })
                 },
                 Message::WorkerDisconnected,
             );
@@ -143,10 +155,15 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     StatusSeverity::Success,
                 )
             } else {
-                let err = result.error.unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
-                if err.kind == ErrorKind::PolkitAuthRequired || err.kind == ErrorKind::PermissionDenied {
+                let err = result
+                    .error
+                    .unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
+                if err.kind == ErrorKind::PolkitAuthRequired
+                    || err.kind == ErrorKind::PermissionDenied
+                {
                     if let Some(device) = result.device {
-                        window.editor_state.pending_confirm = ConfirmAction::ElevatedConnect(device);
+                        window.editor_state.pending_confirm =
+                            ConfirmAction::ElevatedConnect(device);
                         window.connection_status = ConnectionStatus::Disconnected;
                         return Task::none();
                     }
@@ -209,7 +226,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     window.selected_device_index = None;
                 }
             }
-            
+
             // Ignore contradictory status updates during manual transition
             if window.operation_lock.is_connecting || window.operation_lock.is_disconnecting {
                 return Task::none();
@@ -230,8 +247,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     "Device connected (poll)",
                 ));
-            } else if !status.connected && window.connection_status == ConnectionStatus::Connected
-            {
+            } else if !status.connected && window.connection_status == ConnectionStatus::Connected {
                 window.connection_status = ConnectionStatus::Disconnected;
                 window.disconnect_reason = DisconnectReason::DeviceLost;
                 log::info!("Device disconnected");
@@ -252,14 +268,15 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             let status_task = Task::perform(
                 async move {
                     let rx = worker.status();
-                    rx.recv_timeout(std::time::Duration::from_secs(2)).unwrap_or(WorkerStatus {
-                        connected: false,
-                        physically_present: false,
-                        device: None,
-                        available_devices: Vec::new(),
-                        backend_reset: false,
-                        generation: 0,
-                    })
+                    rx.recv_timeout(std::time::Duration::from_secs(2))
+                        .unwrap_or(WorkerStatus {
+                            connected: false,
+                            physically_present: false,
+                            device: None,
+                            available_devices: Vec::new(),
+                            backend_reset: false,
+                            generation: 0,
+                        })
                 },
                 Message::WorkerStatus,
             );

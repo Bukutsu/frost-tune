@@ -154,7 +154,13 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
 }
 
 pub fn get_magnitude_response_with_coeffs(
-    b0: f64, b1: f64, b2: f64, a0: f64, a1: f64, a2: f64, f: f64,
+    b0: f64,
+    b1: f64,
+    b2: f64,
+    a0: f64,
+    a1: f64,
+    a2: f64,
+    f: f64,
 ) -> f64 {
     let w = (f * TAU) / DSP_SAMPLE_RATE;
     let cos_w = w.cos();

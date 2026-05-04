@@ -1,6 +1,6 @@
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::protocol::{DeviceProtocol, READ, REPORT_ID};
 use crate::hardware::packet_builder::{init_device_session, NUM_FILTERS};
+use crate::hardware::protocol::{DeviceProtocol, READ, REPORT_ID};
 use crate::models::{Device, DeviceInfo, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -67,15 +67,31 @@ pub fn detect_device(api: &hidapi::HidApi) -> Device {
     Device::Unknown
 }
 
-pub fn send_report(device: &hidapi::HidDevice, data: &[u8]) -> Result<()> {
-    let mut buf = [0u8; 65];
-    buf[0] = REPORT_ID;
-    let len = data.len().min(64);
-    buf[1..1 + len].copy_from_slice(&data[..len]);
-
-    match device.write(&buf[..]) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(AppError::new(ErrorKind::WriteError, format!("HID Write failed: {}", e))),
+pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        let len = data.len().min(64);
+        match device.write(&data[..len]) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(AppError::new(
+                ErrorKind::WriteError,
+                format!("HID Write failed: {}", e),
+            )),
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut buf = [0u8; 65];
+        buf[0] = report_id;
+        let len = data.len().min(64);
+        buf[1..1 + len].copy_from_slice(&data[..len]);
+        match device.write(&buf[..]) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(AppError::new(
+                ErrorKind::WriteError,
+                format!("HID Write failed: {}", e),
+            )),
+        }
     }
 }
 
@@ -131,7 +147,7 @@ pub fn pull_peq_internal(
     for i in 0u8..NUM_FILTERS {
         let filter_nonce = get_next_nonce();
         let request = proto.build_filter_read_request(i, filter_nonce);
-        send_report(device, &request[..])?;
+        send_report(device, &request[..], proto.report_id())?;
 
         let response = read_single_filter_with_nonce(device, proto, &cfg, i, filter_nonce);
         if strict && response.is_none() {
@@ -216,7 +232,7 @@ fn read_global_gain(
 ) -> Result<u8> {
     delay_ms(cfg.post_filter_read_ms);
     let request = proto.build_global_gain_request(nonce);
-    send_report(device, &request[..])?;
+    send_report(device, &request[..], proto.report_id())?;
     delay_ms(cfg.post_global_gain_ms);
 
     let mut attempts = 0;
@@ -237,7 +253,10 @@ fn read_global_gain(
         }
         attempts += 1;
     }
-    Err(AppError::new(ErrorKind::ReadTimeout, "Global gain read timeout"))
+    Err(AppError::new(
+        ErrorKind::ReadTimeout,
+        "Global gain read timeout",
+    ))
 }
 
 fn assemble_filters(proto: &dyn DeviceProtocol, responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {

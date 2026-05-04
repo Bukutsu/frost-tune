@@ -13,7 +13,7 @@ pub fn pull_with_retry(
     strict: bool,
 ) -> Result<PEQData> {
     let wake_request = proto.build_global_gain_request(0x01);
-    let _ = crate::hardware::hid::send_report(device, &wake_request[..]);
+    let _ = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id());
     delay_ms(50);
     let first_result = pull_peq_data(device, proto, strict);
 
@@ -50,11 +50,12 @@ pub fn push_with_verify(
     mut payload: PushPayload,
 ) -> Result<PEQData> {
     payload.clamp();
-    payload.is_valid()
+    payload
+        .is_valid()
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     let wake_request = proto.build_global_gain_request(0x01);
-    let _ = crate::hardware::hid::send_report(device, &wake_request[..]);
+    let _ = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id());
     delay_ms(50);
     let snapshot = pull_peq_data(device, proto, true)?;
 

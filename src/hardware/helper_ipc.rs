@@ -11,6 +11,7 @@ pub enum HelperRequest {
     Disconnect,
     Status,
     Version,
+    Ping,
     PullPeq {
         strict: bool,
     },
@@ -36,6 +37,7 @@ pub enum HelperResponse {
     Version {
         version: String,
     },
+    Pong,
     Pulled {
         data: serde_json::Value,
     },

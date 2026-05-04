@@ -39,14 +39,14 @@ use crate::hardware::packet_builder::WriteTiming;
 /// Trait defining hardware-specific packet layouts and constants.
 ///
 /// **Contributor Guide: Implementing a New Protocol**
-/// To support a new USB DAC, you must create a new struct (e.g., `MyNewDeviceProtocol`) 
-/// and implement this trait for it. 
+/// To support a new USB DAC, you must create a new struct (e.g., `MyNewDeviceProtocol`)
+/// and implement this trait for it.
 ///
-/// Hardware devices often have unique binary payloads and command bytes for reading 
-/// and writing EQ filters and global gains. Use USB packet capture tools (like Wireshark or USBPcap) 
+/// Hardware devices often have unique binary payloads and command bytes for reading
+/// and writing EQ filters and global gains. Use USB packet capture tools (like Wireshark or USBPcap)
 /// on the official device software to reverse-engineer these payloads.
 ///
-/// Note: Ensure your protocol implementation handles the required endianness and 
+/// Note: Ensure your protocol implementation handles the required endianness and
 /// offset indexing accurately as expected by the target hardware.
 pub trait DeviceProtocol: Send + Sync {
     fn report_id(&self) -> u8;
@@ -57,10 +57,18 @@ pub trait DeviceProtocol: Send + Sync {
     fn cmd_flash_eq(&self) -> u8;
 
     /// Dynamic limits exposed by the device protocol
-    fn num_bands(&self) -> usize { 10 }
-    fn freq_range(&self) -> (u16, u16) { (20, 20000) }
-    fn gain_range(&self) -> (f64, f64) { (-10.0, 10.0) }
-    fn q_range(&self) -> (f64, f64) { (0.1, 10.0) }
+    fn num_bands(&self) -> usize {
+        10
+    }
+    fn freq_range(&self) -> (u16, u16) {
+        (20, 20000)
+    }
+    fn gain_range(&self) -> (f64, f64) {
+        (-10.0, 10.0)
+    }
+    fn q_range(&self) -> (f64, f64) {
+        (0.1, 10.0)
+    }
 
     /// Default timings for reading from this device.
     fn read_timing(&self) -> ReadTiming {
@@ -99,15 +107,15 @@ pub trait DeviceProtocol: Send + Sync {
     /// Build a packet to write the global gain value to the device's volatile memory.
     fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8>;
 
-    /// Build a packet that commits the current volatile EQ configuration 
+    /// Build a packet that commits the current volatile EQ configuration
     /// into a temporary active state on the hardware.
     fn build_temp_write_packet(&self) -> Vec<u8>;
 
-    /// Build a packet that commits the current EQ configuration to the 
+    /// Build a packet that commits the current EQ configuration to the
     /// hardware's persistent flash memory so it survives a power cycle.
     fn build_flash_eq_packet(&self) -> Vec<u8>;
 
-    /// Parse a raw byte payload (excluding the report ID, if present) returned 
+    /// Parse a raw byte payload (excluding the report ID, if present) returned
     /// by the device in response to a filter read request, extracting it into a `Filter` struct.
     /// Return `None` if the packet is invalid or unparseable.
     fn parse_filter_packet(&self, data: &[u8]) -> Option<Filter>;

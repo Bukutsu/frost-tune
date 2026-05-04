@@ -1,5 +1,5 @@
 use crate::hardware::worker::WorkerStatus;
-use crate::models::{DeviceInfo, ConnectionResult, OperationResult};
+use crate::models::{ConnectionResult, DeviceInfo, OperationResult};
 use crate::storage::Profile;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -38,6 +38,7 @@ pub enum Message {
     BandFreqChanged(usize, u16),
     BandQChanged(usize, f64),
     BandTypeChanged(usize, crate::models::FilterType),
+    BandEnabledToggled(usize, bool),
     BandGainInput(usize, String),
     BandFreqInput(usize, String),
     BandQInput(usize, String),

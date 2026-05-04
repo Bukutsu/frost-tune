@@ -1,20 +1,21 @@
-use crate::ui::state::{MainWindow, ConfirmAction};
-use crate::ui::messages::{Message, StatusSeverity};
-use crate::models::PEQData;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
+use crate::models::PEQData;
+use crate::ui::messages::{Message, StatusSeverity};
+use crate::ui::state::{ConfirmAction, MainWindow};
 use iced::Task;
 
 pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::ReloadProfilesPressed => {
-            Task::perform(
-                async move { crate::storage::load_all_profiles() },
-                Message::ProfilesLoaded,
-            )
-        }
+        Message::ReloadProfilesPressed => Task::perform(
+            async move { crate::storage::load_all_profiles() },
+            Message::ProfilesLoaded,
+        ),
         Message::OpenProfilesDirPressed => {
             if let Err(e) = crate::storage::open_profiles_dir() {
-                window.set_status(format!("Failed to open folder: {}", e), StatusSeverity::Error)
+                window.set_status(
+                    format!("Failed to open folder: {}", e),
+                    StatusSeverity::Error,
+                )
             } else {
                 Task::none()
             }
@@ -25,7 +26,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 Ok((profiles, errors)) => {
                     let prev_count = window.editor_state.profiles.len();
                     window.editor_state.profiles = profiles;
-                    
+
                     for err in &errors {
                         window.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Error,
@@ -36,13 +37,20 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
 
                     if !errors.is_empty() {
                         window.set_status(
-                            format!("Loaded {} profiles ({} failed to parse)", window.editor_state.profiles.len(), errors.len()),
-                            StatusSeverity::Warning
+                            format!(
+                                "Loaded {} profiles ({} failed to parse)",
+                                window.editor_state.profiles.len(),
+                                errors.len()
+                            ),
+                            StatusSeverity::Warning,
                         )
                     } else if window.editor_state.profiles.len() != prev_count {
-                         window.set_status(
-                            format!("Profiles updated ({} total)", window.editor_state.profiles.len()),
-                            StatusSeverity::Info
+                        window.set_status(
+                            format!(
+                                "Profiles updated ({} total)",
+                                window.editor_state.profiles.len()
+                            ),
+                            StatusSeverity::Info,
                         )
                     } else {
                         Task::none()
@@ -54,7 +62,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         Source::UI,
                         format!("Failed to load profiles: {}", e),
                     ));
-                    window.set_status(format!("Failed to load profiles: {}", e), StatusSeverity::Error)
+                    window.set_status(
+                        format!("Failed to load profiles: {}", e),
+                        StatusSeverity::Error,
+                    )
                 }
             }
         }
@@ -83,14 +94,20 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     .collect();
 
                 while window.editor_state.filters.len() < num_bands {
-                    window.editor_state.filters.push(crate::models::Filter::enabled(window.editor_state.filters.len() as u8, false));
+                    window
+                        .editor_state
+                        .filters
+                        .push(crate::models::Filter::enabled(
+                            window.editor_state.filters.len() as u8,
+                            false,
+                        ));
                 }
 
                 window.editor_state.global_gain = profile.data.global_gain;
                 window.editor_state.selected_profile_name = Some(name);
                 window.editor_state.new_profile_name = profile.name.clone();
                 window.editor_state.is_autoeq_active = false;
-                
+
                 if was_truncated {
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Warn,
@@ -98,7 +115,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         format!("Profile {} truncated to {} bands", profile.name, num_bands),
                     ));
                     window.set_status(
-                        format!("Loaded profile: {} (truncated to {})", profile.name, num_bands),
+                        format!(
+                            "Loaded profile: {} (truncated to {})",
+                            profile.name, num_bands
+                        ),
                         StatusSeverity::Warning,
                     )
                 } else {
@@ -140,10 +160,8 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         async move { crate::storage::load_all_profiles() },
                         Message::ProfilesLoaded,
                     );
-                    let status_task = window.set_status(
-                        format!("Saved profile: {}", name),
-                        StatusSeverity::Success,
-                    );
+                    let status_task = window
+                        .set_status(format!("Saved profile: {}", name), StatusSeverity::Success);
                     Task::batch(vec![reload_task, status_task])
                 }
                 Err(e) => {
@@ -202,17 +220,15 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 Task::none()
             }
         }
-        Message::ImportFromFilePressed => {
-            Task::perform(
-                async {
-                    rfd::AsyncFileDialog::new()
-                        .add_filter("Frost-Tune Profile", &["json", "txt"])
-                        .pick_file()
-                        .await
-                },
-                |handle| Message::FileImported(handle.map(|h| h.path().to_path_buf())),
-            )
-        }
+        Message::ImportFromFilePressed => Task::perform(
+            async {
+                rfd::AsyncFileDialog::new()
+                    .add_filter("Frost-Tune Profile", &["json", "txt"])
+                    .pick_file()
+                    .await
+            },
+            |handle| Message::FileImported(handle.map(|h| h.path().to_path_buf())),
+        ),
         Message::FileImported(path_opt) => {
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
@@ -239,7 +255,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             .collect();
 
                         while window.editor_state.filters.len() < num_bands {
-                            window.editor_state.filters.push(crate::models::Filter::enabled(window.editor_state.filters.len() as u8, false));
+                            window
+                                .editor_state
+                                .filters
+                                .push(crate::models::Filter::enabled(
+                                    window.editor_state.filters.len() as u8,
+                                    false,
+                                ));
                         }
 
                         window.editor_state.profiles.push(profile.clone());
@@ -247,10 +269,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         window.editor_state.new_profile_name = profile.name.clone();
                         window.editor_state.global_gain = profile.data.global_gain;
                         window.editor_state.is_autoeq_active = false;
-                        
+
                         if was_truncated {
                             window.set_status(
-                                format!("Imported profile: {} (truncated to {})", profile.name, num_bands),
+                                format!(
+                                    "Imported profile: {} (truncated to {})",
+                                    profile.name, num_bands
+                                ),
                                 StatusSeverity::Warning,
                             )
                         } else {
@@ -260,7 +285,9 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             )
                         }
                     }
-                    Err(e) => window.set_status(format!("Import failed: {}", e), StatusSeverity::Error),
+                    Err(e) => {
+                        window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
+                    }
                 }
             } else {
                 Task::none()
@@ -292,7 +319,9 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::export_profile(&path, &peq) {
                     Ok(_) => window.set_status("Profile exported", StatusSeverity::Success),
-                    Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
+                    Err(e) => {
+                        window.set_status(format!("Export failed: {}", e), StatusSeverity::Error)
+                    }
                 }
             } else {
                 Task::none()

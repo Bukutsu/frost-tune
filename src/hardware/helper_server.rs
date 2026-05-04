@@ -10,17 +10,15 @@ use crate::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
 #[cfg(target_os = "linux")]
 use std::io::{self, BufRead, Read, Write};
 
-
-
-
-
 #[cfg(target_os = "linux")]
 fn pull_logic(
     device: &hidapi::HidDevice,
     device_type: Device,
     strict: bool,
 ) -> crate::error::Result<PEQData> {
-    let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
+    let proto = device_type
+        .protocol()
+        .ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
     crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict)
 }
 
@@ -31,7 +29,9 @@ fn push_logic(
     filters: Vec<Filter>,
     global_gain: Option<i8>,
 ) -> crate::error::Result<PEQData> {
-    let proto = device_type.protocol().ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
+    let proto = device_type
+        .protocol()
+        .ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
     let payload = PushPayload {
         filters,
         global_gain,
@@ -44,8 +44,12 @@ fn write_response(
     stdout: &mut io::StdoutLock<'_>,
     response: &HelperResponse,
 ) -> crate::error::Result<()> {
-        let line = serde_json::to_string(response)
-            .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to serialize response: {}", e)))?;
+    let line = serde_json::to_string(response).map_err(|e| {
+        AppError::new(
+            ErrorKind::ParseError,
+            format!("Failed to serialize response: {}", e),
+        )
+    })?;
     stdout
         .write_all(line.as_bytes())
         .map_err(|e| AppError::general(format!("Failed writing response: {}", e)))?;
@@ -60,7 +64,8 @@ fn write_response(
 
 #[cfg(target_os = "linux")]
 pub fn run() -> crate::error::Result<()> {
-    let mut api = hidapi::HidApi::new().map_err(|e| AppError::general(format!("Failed to init HID API: {}", e)))?;
+    let mut api = hidapi::HidApi::new()
+        .map_err(|e| AppError::general(format!("Failed to init HID API: {}", e)))?;
     let mut device: Option<hidapi::HidDevice> = None;
     let mut device_info: Option<DeviceInfo> = None;
     let mut device_type: Device = Device::Unknown;
@@ -79,7 +84,10 @@ pub fn run() -> crate::error::Result<()> {
                     &mut stdout_lock,
                     &HelperResponse::Error {
                         kind: ErrorKind::IpcError,
-                        error: AppError::new(ErrorKind::IpcError, format!("Failed reading request: {}", e)),
+                        error: AppError::new(
+                            ErrorKind::IpcError,
+                            format!("Failed reading request: {}", e),
+                        ),
                     },
                 );
                 continue;
@@ -93,10 +101,10 @@ pub fn run() -> crate::error::Result<()> {
         if bytes_read == 65536 && !line.ends_with('\n') {
             let _ = write_response(
                 &mut stdout_lock,
-                    &HelperResponse::Error {
-                        kind: ErrorKind::IpcError,
-                        error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
-                    },
+                &HelperResponse::Error {
+                    kind: ErrorKind::IpcError,
+                    error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
+                },
             );
             let mut buf = vec![];
             let _ = stdin_lock.read_until(b'\n', &mut buf);
@@ -115,7 +123,10 @@ pub fn run() -> crate::error::Result<()> {
                     &mut stdout_lock,
                     &HelperResponse::Error {
                         kind: ErrorKind::ParseError,
-                        error: AppError::new(ErrorKind::ParseError, format!("Invalid request payload: {}", e)),
+                        error: AppError::new(
+                            ErrorKind::ParseError,
+                            format!("Invalid request payload: {}", e),
+                        ),
                     },
                 );
                 continue;
@@ -137,7 +148,10 @@ pub fn run() -> crate::error::Result<()> {
                             if found_type == Device::Unknown {
                                 HelperResponse::Error {
                                     kind: ErrorKind::HardwareError,
-                                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
+                                    error: AppError::new(
+                                        ErrorKind::HardwareError,
+                                        "Unsupported DAC device",
+                                    ),
                                 }
                             } else {
                                 match found.open_device(&api) {
@@ -150,14 +164,20 @@ pub fn run() -> crate::error::Result<()> {
                                     }
                                     Err(e) => HelperResponse::Error {
                                         kind: ErrorKind::PermissionDenied,
-                                        error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
+                                        error: AppError::new(
+                                            ErrorKind::PermissionDenied,
+                                            e.to_string(),
+                                        ),
                                     },
                                 }
                             }
                         }
                         None => HelperResponse::Error {
                             kind: ErrorKind::NotConnected,
-                            error: AppError::new(ErrorKind::NotConnected, "Device not found. Is it plugged in?"),
+                            error: AppError::new(
+                                ErrorKind::NotConnected,
+                                "Device not found. Is it plugged in?",
+                            ),
                         },
                     }
                 }
@@ -186,6 +206,7 @@ pub fn run() -> crate::error::Result<()> {
             HelperRequest::Version => HelperResponse::Version {
                 version: IPC_VERSION.to_string(),
             },
+            HelperRequest::Ping => HelperResponse::Pong,
             HelperRequest::PullPeq { strict } => {
                 if let Some(d) = &device {
                     match pull_logic(d, device_type, strict) {
@@ -193,7 +214,10 @@ pub fn run() -> crate::error::Result<()> {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {
                                 kind: ErrorKind::ParseError,
-                                error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
+                                error: AppError::new(
+                                    ErrorKind::ParseError,
+                                    format!("Serialization failed: {}", e),
+                                ),
                             },
                         },
                         Err(e) => HelperResponse::Error {
@@ -218,7 +242,10 @@ pub fn run() -> crate::error::Result<()> {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {
                                 kind: ErrorKind::ParseError,
-                                error: AppError::new(ErrorKind::ParseError, format!("Serialization failed: {}", e)),
+                                error: AppError::new(
+                                    ErrorKind::ParseError,
+                                    format!("Serialization failed: {}", e),
+                                ),
                             },
                         },
                         Err(e) => HelperResponse::Error {

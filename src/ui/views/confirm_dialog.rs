@@ -10,7 +10,14 @@ pub fn view_confirm_dialog<'a>(
     message: String,
     confirm_label: &'static str,
     confirm_msg: Message,
+    is_danger: bool,
 ) -> Element<'a, Message> {
+    let confirm_style = if is_danger {
+        theme::pill_danger_button
+    } else {
+        theme::pill_primary_button
+    };
+
     container(
         column![
             text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
@@ -21,7 +28,7 @@ pub fn view_confirm_dialog<'a>(
                     .style(theme::pill_secondary_button),
                 action_button(confirm_label)
                     .on_press(confirm_msg)
-                    .style(theme::pill_danger_button),
+                    .style(confirm_style),
             ]
             .spacing(SPACE_12),
         ]

@@ -1,5 +1,7 @@
-use crate::diagnostics::{parse_diagnostic_log_line, DiagnosticEvent, DiagnosticsStore, LogLevel, Source};
-use crate::hardware::worker::{UsbWorker};
+use crate::diagnostics::{
+    parse_diagnostic_log_line, DiagnosticEvent, DiagnosticsStore, LogLevel, Source,
+};
+use crate::hardware::worker::UsbWorker;
 use crate::models::Filter;
 use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
 use crate::ui::state::{
@@ -7,7 +9,10 @@ use crate::ui::state::{
     OperationLock,
 };
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_8, SPACE_16, SPACE_24, SPACE_4, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX, WINDOW_NARROW_MAX};
+use crate::ui::tokens::{
+    SPACE_16, SPACE_24, SPACE_4, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX,
+    WINDOW_NARROW_MAX,
+};
 use crate::ui::views;
 use iced::widget::text;
 use iced::{
@@ -98,9 +103,12 @@ impl MainWindow {
             async move { crate::storage::load_all_profiles() },
             Message::ProfilesLoaded,
         );
+        let load_font_task =
+            iced::font::load(crate::ui::tokens::ICON_FONT_BYTES).map(|_| Message::None);
+
         (
             window,
-            load_profiles_task,
+            Task::batch(vec![load_profiles_task, load_font_task]),
         )
     }
 
@@ -280,7 +288,8 @@ impl MainWindow {
     }
 
     pub fn num_bands(&self) -> usize {
-        self.connected_device.as_ref()
+        self.connected_device
+            .as_ref()
             .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
             .and_then(|d| d.protocol())
             .map(|p| p.num_bands())
@@ -288,27 +297,39 @@ impl MainWindow {
     }
 
     pub fn freq_range(&self) -> (u16, u16) {
-        self.connected_device.as_ref()
+        self.connected_device
+            .as_ref()
             .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
             .and_then(|d| d.protocol())
             .map(|p| p.freq_range())
-            .unwrap_or((crate::models::constants::MIN_FREQ, crate::models::constants::MAX_FREQ))
+            .unwrap_or((
+                crate::models::constants::MIN_FREQ,
+                crate::models::constants::MAX_FREQ,
+            ))
     }
 
     pub fn gain_range(&self) -> (f64, f64) {
-        self.connected_device.as_ref()
+        self.connected_device
+            .as_ref()
             .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
             .and_then(|d| d.protocol())
             .map(|p| p.gain_range())
-            .unwrap_or((crate::models::constants::MIN_BAND_GAIN, crate::models::constants::MAX_BAND_GAIN))
+            .unwrap_or((
+                crate::models::constants::MIN_BAND_GAIN,
+                crate::models::constants::MAX_BAND_GAIN,
+            ))
     }
 
     pub fn q_range(&self) -> (f64, f64) {
-        self.connected_device.as_ref()
+        self.connected_device
+            .as_ref()
             .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
             .and_then(|d| d.protocol())
             .map(|p| p.q_range())
-            .unwrap_or((crate::models::constants::MIN_Q, crate::models::constants::MAX_Q))
+            .unwrap_or((
+                crate::models::constants::MIN_Q,
+                crate::models::constants::MAX_Q,
+            ))
     }
 
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
@@ -338,12 +359,13 @@ impl MainWindow {
         scrollable(
             column![
                 views::graph_panel::view_graph(self),
-                views::tools_panel::view_tools_panel(self),
+                views::preamp::view_preamp(self),
                 views::bands::view_bands(self),
+                views::tools_panel::view_tools_panel(self, false),
                 views::diagnostics::view_diagnostics_section(self),
             ]
             .spacing(SPACE_16)
-            .width(Length::Fill)
+            .width(Length::Fill),
         )
         .into()
     }
@@ -352,12 +374,13 @@ impl MainWindow {
         scrollable(
             column![
                 views::graph_panel::view_graph(self),
-                views::tools_panel::view_tools_panel(self),
+                views::preamp::view_preamp(self),
                 views::bands::view_bands(self),
+                views::tools_panel::view_tools_panel(self, false),
                 views::diagnostics::view_diagnostics_section(self),
             ]
             .spacing(SPACE_16)
-            .width(Length::Fill)
+            .width(Length::Fill),
         )
         .into()
     }
@@ -365,23 +388,34 @@ impl MainWindow {
     fn view_wide(&self) -> Element<'_, Message> {
         let left_content = column![
             views::graph_panel::view_graph_fill(self),
+            views::preamp::view_preamp(self),
             views::bands::view_bands(self),
         ]
         .spacing(SPACE_8)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(Padding { top: 0.0, right: SPACE_16, bottom: SPACE_8, left: SPACE_16 });
+        .padding(Padding {
+            top: 0.0,
+            right: SPACE_16,
+            bottom: SPACE_8,
+            left: SPACE_16,
+        });
 
         let right_sidebar = container(
             scrollable(
                 column![
-                    views::tools_panel::view_tools_panel(self),
+                    views::tools_panel::view_tools_panel(self, false),
                     views::diagnostics::view_diagnostics_section(self),
                 ]
                 .spacing(SPACE_16)
-                .padding(Padding { top: 0.0, right: SPACE_16, bottom: SPACE_16, left: 0.0 })
+                .padding(Padding {
+                    top: 0.0,
+                    right: SPACE_16,
+                    bottom: SPACE_16,
+                    left: 0.0,
+                }),
             )
-            .height(Length::Fill)
+            .height(Length::Fill),
         )
         .width(Length::Fixed(crate::ui::tokens::SIDEBAR_WIDTH));
 
@@ -399,18 +433,21 @@ impl MainWindow {
                 "This will reset all 10 bands to default values and set global gain to 0.".to_string(),
                 "Reset",
                 Message::ConfirmResetFilters,
+                true,
             )),
             ConfirmAction::DeleteProfile => Some(views::confirm_dialog::view_confirm_dialog(
                 "Delete Profile?".to_string(),
                 "Are you sure you want to delete this profile? This cannot be undone.".to_string(),
                 "Delete",
                 Message::ConfirmDeleteProfile,
+                true,
             )),
             ConfirmAction::ElevatedConnect(ref device) => Some(views::confirm_dialog::view_confirm_dialog(
                 "Temporary Root Access Required".to_string(),
                 format!("Connecting to {}.\n\nOn Linux, temporary root access is required to communicate with USB devices. You will be prompted for your password.", device.manufacturer.as_deref().unwrap_or("Unknown Device")),
                 "Continue",
                 Message::ConfirmElevatedConnect(device.clone()),
+                false,
             )),
             ConfirmAction::ImportAutoEQ(ref peq) => {
                 let count = peq.filters.iter().filter(|f| f.enabled).count();
@@ -419,13 +456,15 @@ impl MainWindow {
                     format!("This will import {} filters and set global gain to {:.1}dB. Current editor settings will be overwritten.", count, peq.global_gain),
                     "Import",
                     Message::ConfirmImportAutoEQ,
+                    true,
                 ))
             },
             ConfirmAction::PullDevice => Some(views::confirm_dialog::view_confirm_dialog(
-                "Overwrite with Device Settings?".to_string(),
-                "You have unsaved changes in the editor. Reading from the device will overwrite your current settings. Continue?".to_string(),
-                "Overwrite",
+                "Sync from Device?".to_string(),
+                "You have unsaved changes. Reading from the device will replace your current editor settings with the hardware configuration. Continue?".to_string(),
+                "Discard & Read",
                 Message::ConfirmPullPressed,
+                false,
             )),
             ConfirmAction::None => None,
         } {
@@ -448,28 +487,27 @@ impl MainWindow {
     }
 
     fn view_disconnected(&self) -> Element<'_, Message> {
-        let mut devices_col = column![
-            text("Available Devices")
-                .size(TYPE_TITLE)
-                .color(crate::ui::theme::TOKYO_NIGHT_FG),
-        ].spacing(SPACE_16);
+        let mut devices_col = column![text("Available Devices")
+            .size(TYPE_TITLE)
+            .color(crate::ui::theme::TOKYO_NIGHT_FG),]
+        .spacing(SPACE_16);
 
         if self.available_devices.is_empty() {
             devices_col = devices_col.push(
                 text("No devices found. Is your DAC plugged in?")
                     .size(TYPE_BODY)
-                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED),
             );
         } else {
             for (i, dev) in self.available_devices.iter().enumerate() {
                 let is_selected = self.selected_device_index == Some(i);
-                
+
                 let bg_color = if is_selected {
                     crate::ui::theme::TOKYO_NIGHT_BG_HIGHLIGHT
                 } else {
                     crate::ui::theme::TOKYO_NIGHT_BG_DARK
                 };
-                
+
                 let border_color = if is_selected {
                     crate::ui::theme::TOKYO_NIGHT_PRIMARY
                 } else {
@@ -477,84 +515,89 @@ impl MainWindow {
                 };
 
                 let dev_type = crate::models::Device::from_vid_pid(dev.vendor_id, dev.product_id);
-                
-                let dev_row = row![
-                    column![
-                        text(dev_type.name())
-                            .size(TYPE_BODY)
-                            .color(crate::ui::theme::TOKYO_NIGHT_FG),
-                        text(format!("VID: {:04X}  PID: {:04X}  Path: {}", dev.vendor_id, dev.product_id, dev.path))
-                            .size(TYPE_CAPTION)
-                            .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
-                    ].spacing(SPACE_4)
-                ];
 
-                let dev_btn = iced::widget::button(
-                    container(dev_row)
-                        .padding(SPACE_16)
-                        .width(Length::Fill)
-                )
-                .style(move |_theme, _status| iced::widget::button::Style {
-                    background: Some(bg_color.into()),
-                    border: iced::Border {
-                        radius: 8.0.into(),
-                        width: 1.0,
-                        color: border_color,
-                    },
-                    text_color: crate::ui::theme::TOKYO_NIGHT_FG,
-                    ..Default::default()
-                })
-                .on_press(Message::DeviceSelected(i))
-                .width(Length::Fill);
+                let dev_row = row![column![
+                    text(dev_type.name())
+                        .size(TYPE_BODY)
+                        .color(crate::ui::theme::TOKYO_NIGHT_FG),
+                    text(format!(
+                        "VID: {:04X}  PID: {:04X}  Path: {}",
+                        dev.vendor_id, dev.product_id, dev.path
+                    ))
+                    .size(TYPE_CAPTION)
+                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+                ]
+                .spacing(SPACE_4)];
+
+                let dev_btn =
+                    iced::widget::button(container(dev_row).padding(SPACE_16).width(Length::Fill))
+                        .style(move |_theme, _status| iced::widget::button::Style {
+                            background: Some(bg_color.into()),
+                            border: iced::Border {
+                                radius: 8.0.into(),
+                                width: 1.0,
+                                color: border_color,
+                            },
+                            text_color: crate::ui::theme::TOKYO_NIGHT_FG,
+                            ..Default::default()
+                        })
+                        .on_press(Message::DeviceSelected(i))
+                        .width(Length::Fill);
 
                 devices_col = devices_col.push(dev_btn);
             }
         }
-        
+
         let mut connect_col = column![devices_col].spacing(SPACE_24);
-        
+
         if let Some(idx) = self.selected_device_index {
             if let Some(dev) = self.available_devices.get(idx) {
-                let connect_btn = crate::ui::views::action_button("Connect")
-                    .style(crate::ui::theme::pill_primary_button)
-                    .on_press(Message::ConnectPressed(dev.clone()));
+                let connect_btn = container(
+                    crate::ui::views::action_button("Connect")
+                        .style(crate::ui::theme::pill_primary_button)
+                        .on_press(Message::ConnectPressed(dev.clone())),
+                )
+                .width(Length::Fixed(200.0))
+                .center_x(Length::Fill);
                 connect_col = connect_col.push(connect_btn);
             }
         }
 
-        container(
-            scrollable(connect_col)
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        container(scrollable(connect_col))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let content: Element<'_, Message> = if self.connection_status == ConnectionStatus::Disconnected {
-            container(self.view_disconnected())
-                .padding(SPACE_24)
-                .width(Length::Fill)
-                .height(Length::Fill)
+        let content: Element<'_, Message> =
+            if self.connection_status == ConnectionStatus::Disconnected {
+                container(self.view_disconnected())
+                    .padding(SPACE_24)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            } else {
+                responsive(move |size| {
+                    let bucket = layout_bucket_for_width(size.width);
+                    match bucket {
+                        LayoutBucket::Narrow => container(self.view_narrow())
+                            .padding(SPACE_16)
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .into(),
+                        LayoutBucket::Medium => container(self.view_medium())
+                            .padding(SPACE_24)
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .into(),
+                        LayoutBucket::Wide => self.view_wide(),
+                    }
+                })
                 .into()
-        } else {
-            responsive(move |size| {
-                let bucket = layout_bucket_for_width(size.width);
-                match bucket {
-                    LayoutBucket::Narrow => container(self.view_narrow())
-                        .padding(SPACE_16)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .into(),
-                    LayoutBucket::Medium => container(self.view_medium())
-                        .padding(SPACE_24)
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .into(),
-                    LayoutBucket::Wide => self.view_wide(),
-                }
-            }).into()
-        };
+            };
 
         let main_view = column![
             views::header::view_header(self),
@@ -584,6 +627,10 @@ pub fn run() -> iced::Result {
         .title(MainWindow::title)
         .subscription(MainWindow::subscription)
         .theme(MainWindow::app_theme)
+        .window(iced::window::Settings {
+            min_size: Some(iced::Size::new(900.0, 580.0)),
+            ..Default::default()
+        })
         .run()
 }
 
@@ -604,10 +651,14 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
         MainWindow::update,
         MainWindow::view,
     )
-        .title(MainWindow::title)
-        .subscription(MainWindow::subscription)
-        .theme(MainWindow::app_theme)
-        .run()
+    .title(MainWindow::title)
+    .subscription(MainWindow::subscription)
+    .theme(MainWindow::app_theme)
+    .window(iced::window::Settings {
+        min_size: Some(iced::Size::new(900.0, 580.0)),
+        ..Default::default()
+    })
+    .run()
 }
 
 #[cfg(test)]

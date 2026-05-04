@@ -1,8 +1,8 @@
 /// # Hardware Interaction Layer
-/// 
-/// This module provides the infrastructure for discovering, authenticating, and communicating 
+///
+/// This module provides the infrastructure for discovering, authenticating, and communicating
 /// with USB DAC devices. It is designed to be extensible to support multiple DAC models.
-/// 
+///
 /// ## Adding Support for a New Device
 /// The hardware layer abstracts device-specific payloads via the `DeviceProtocol` trait.
 /// To add a new device:
@@ -20,8 +20,8 @@ pub mod helper_server;
 pub mod hid;
 pub mod operations;
 pub mod packet_builder;
-pub mod protocol;
 pub mod pipeline;
+pub mod protocol;
 pub mod worker;
 
 pub use dsp::*;

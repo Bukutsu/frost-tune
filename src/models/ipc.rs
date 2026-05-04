@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use crate::models::constants::*;
-use crate::models::filter::{Filter, PEQData};
-use crate::models::device::DeviceInfo;
 use crate::error::AppError;
+use crate::models::constants::*;
+use crate::models::device::DeviceInfo;
+use crate::models::filter::{Filter, PEQData};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionResult {
@@ -29,7 +29,11 @@ impl PushPayload {
     pub fn clamp(&mut self) {
         for filter in &mut self.filters {
             filter.enabled = true;
-            filter.clamp((crate::models::MIN_FREQ, crate::models::MAX_FREQ), (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN), (crate::models::MIN_Q, crate::models::MAX_Q));
+            filter.clamp(
+                (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
+                (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
+                (crate::models::MIN_Q, crate::models::MAX_Q),
+            );
         }
         if let Some(ref mut gain) = self.global_gain {
             if *gain > MAX_GLOBAL_GAIN {

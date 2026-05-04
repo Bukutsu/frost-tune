@@ -1,4 +1,6 @@
-use crate::hardware::dsp::{calculate_total_response, get_biquad_coefficients, get_magnitude_response_with_coeffs};
+use crate::hardware::dsp::{
+    calculate_total_response, get_biquad_coefficients, get_magnitude_response_with_coeffs,
+};
 use crate::models::Filter;
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};

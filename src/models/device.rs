@@ -75,13 +75,13 @@ define_devices! {
         pid: 0x43E6,
         protocol: TP35ProProtocol,
     },
-    
+
     // =========================================================================
     // CONTRIBUTOR GUIDE: ADDING A NEW DEVICE
     // =========================================================================
-    // To add support for a new device, simply define it here and ensure you 
+    // To add support for a new device, simply define it here and ensure you
     // have implemented a protocol for it in `src/hardware/protocol.rs`.
-    // 
+    //
     // DO NOT DELETE THIS EXAMPLE BLOCK. You can copy it for your PR.
     //
     // ExampleDeviceVariant {

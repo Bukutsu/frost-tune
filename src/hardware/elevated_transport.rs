@@ -29,7 +29,10 @@ impl ElevatedTransport {
                 if version != IPC_VERSION {
                     return Err(AppError::new(
                         ErrorKind::IpcError,
-                        format!("IPC Version mismatch: UI={} helper={}. Re-install the application.", IPC_VERSION, version),
+                        format!(
+                            "IPC Version mismatch: UI={} helper={}. Re-install the application.",
+                            IPC_VERSION, version
+                        ),
                     ));
                 }
             }
@@ -45,45 +48,76 @@ impl ElevatedTransport {
     }
 
     pub fn round_trip(&mut self, request: &HelperRequest) -> Result<HelperResponse> {
-        let payload = serde_json::to_string(request)
-            .map_err(|e| AppError::new(ErrorKind::ParseError, format!("Failed to serialize helper request: {}", e)))?;
+        let payload = serde_json::to_string(request).map_err(|e| {
+            AppError::new(
+                ErrorKind::ParseError,
+                format!("Failed to serialize helper request: {}", e),
+            )
+        })?;
 
         self.child_stdin
             .write_all(payload.as_bytes())
-            .map_err(|e| AppError::new(ErrorKind::IpcError, format!("Failed to write request to helper: {}", e)))?;
-        self.child_stdin
-            .write_all(b"\n")
-            .map_err(|e| AppError::new(ErrorKind::IpcError, format!("Failed to write request delimiter to helper: {}", e)))?;
-        self.child_stdin
-            .flush()
-            .map_err(|e| AppError::new(ErrorKind::IpcError, format!("Failed to flush helper stdin: {}", e)))?;
+            .map_err(|e| {
+                AppError::new(
+                    ErrorKind::IpcError,
+                    format!("Failed to write request to helper: {}", e),
+                )
+            })?;
+        self.child_stdin.write_all(b"\n").map_err(|e| {
+            AppError::new(
+                ErrorKind::IpcError,
+                format!("Failed to write request delimiter to helper: {}", e),
+            )
+        })?;
+        self.child_stdin.flush().map_err(|e| {
+            AppError::new(
+                ErrorKind::IpcError,
+                format!("Failed to flush helper stdin: {}", e),
+            )
+        })?;
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
-        let line = loop {
-            if let Some(status) = self
-                .child
-                .try_wait()
-                .map_err(|e| AppError::general(format!("Failed checking helper status: {}", e)))?
-            {
-                return Err(AppError::new(ErrorKind::DeviceLost, format!("Helper exited unexpectedly: {}", status)));
-            }
-
-            if std::time::Instant::now() > deadline {
-                return Err(AppError::new(ErrorKind::ReadTimeout, "Elevated helper response timed out (15s)"));
-            }
-
-            match self.rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                Ok(Ok(line)) => break line,
-                Ok(Err(e)) => return Err(AppError::new(ErrorKind::ReadTimeout, format!("Failed to read helper response: {}", e))),
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    return Err(AppError::new(ErrorKind::DeviceLost, "Helper read thread disconnected"));
+        let line =
+            loop {
+                if let Some(status) = self.child.try_wait().map_err(|e| {
+                    AppError::general(format!("Failed checking helper status: {}", e))
+                })? {
+                    return Err(AppError::new(
+                        ErrorKind::DeviceLost,
+                        format!("Helper exited unexpectedly: {}", status),
+                    ));
                 }
-            }
-        };
+
+                if std::time::Instant::now() > deadline {
+                    return Err(AppError::new(
+                        ErrorKind::ReadTimeout,
+                        "Elevated helper response timed out (15s)",
+                    ));
+                }
+
+                match self.rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                    Ok(Ok(line)) => break line,
+                    Ok(Err(e)) => {
+                        return Err(AppError::new(
+                            ErrorKind::ReadTimeout,
+                            format!("Failed to read helper response: {}", e),
+                        ))
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        return Err(AppError::new(
+                            ErrorKind::DeviceLost,
+                            "Helper read thread disconnected",
+                        ));
+                    }
+                }
+            };
 
         serde_json::from_str::<HelperResponse>(line.trim()).map_err(|e| {
-            AppError::new(ErrorKind::ParseError, format!("Failed to parse helper response: {}", e))
+            AppError::new(
+                ErrorKind::ParseError,
+                format!("Failed to parse helper response: {}", e),
+            )
         })
     }
 
@@ -120,7 +154,10 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
         .spawn()
         .map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                AppError::new(ErrorKind::PolkitAuthRequired, "pkexec not found. Install polkit (policykit-1).")
+                AppError::new(
+                    ErrorKind::PolkitAuthRequired,
+                    "pkexec not found. Install polkit (policykit-1).",
+                )
             } else {
                 AppError::general(format!("Failed to launch helper via pkexec: {}", e))
             }
@@ -164,7 +201,10 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
 
 fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
     let metadata = std::fs::metadata(path).map_err(|e| {
-        AppError::new(ErrorKind::IpcError, format!("Failed to stat executable: {}", e))
+        AppError::new(
+            ErrorKind::IpcError,
+            format!("Failed to stat executable: {}", e),
+        )
     })?;
 
     if metadata.permissions().mode() & 0o002 != 0 {
@@ -175,10 +215,16 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
     }
 
     let parent = path.parent().ok_or_else(|| {
-        AppError::new(ErrorKind::IpcError, "Failed to resolve executable directory")
+        AppError::new(
+            ErrorKind::IpcError,
+            "Failed to resolve executable directory",
+        )
     })?;
     let parent_meta = std::fs::metadata(parent).map_err(|e| {
-        AppError::new(ErrorKind::IpcError, format!("Failed to stat executable directory: {}", e))
+        AppError::new(
+            ErrorKind::IpcError,
+            format!("Failed to stat executable directory: {}", e),
+        )
     })?;
 
     if parent_meta.permissions().mode() & 0o002 != 0 {

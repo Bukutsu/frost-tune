@@ -6,11 +6,11 @@ use std::sync::mpsc;
 use std::thread;
 
 use crate::hardware::hid::find_device_info;
-use crate::models::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
-pub use backend::BackendKind;
 use crate::hardware::worker::backend::TransportBackend;
 use crate::hardware::worker::connection::worker_connect;
 use crate::hardware::worker::ops::{worker_pull_peq, worker_push_peq};
+use crate::models::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
+pub use backend::BackendKind;
 
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
@@ -26,7 +26,11 @@ pub struct WorkerStatus {
 }
 
 pub enum UsbCommand {
-    Connect(Option<DeviceInfo>, Option<BackendKind>, mpsc::Sender<ConnectionResult>),
+    Connect(
+        Option<DeviceInfo>,
+        Option<BackendKind>,
+        mpsc::Sender<ConnectionResult>,
+    ),
     Disconnect(mpsc::Sender<OperationResult>),
     Status(mpsc::Sender<WorkerStatus>),
     PullPEQ(mpsc::Sender<OperationResult>),
@@ -89,6 +93,7 @@ impl UsbWorker {
                             }
                             #[cfg(target_os = "linux")]
                             TransportBackend::Elevated { transport, .. } => {
+                                let ping_result = transport.round_trip(&HelperRequest::Ping);
                                 match transport.round_trip(&HelperRequest::Status) {
                                     Ok(HelperResponse::Status {
                                         connected,
@@ -97,10 +102,10 @@ impl UsbWorker {
                                     }) => {
                                         if !connected || !physically_present {
                                             log::warn!(
-                                                "DAC disconnected (elevated backend status: connected={}, physically_present={})",
-                                                connected,
-                                                physically_present
-                                            );
+                                "DAC disconnected (elevated backend status: connected={}, physically_present={})",
+                                connected,
+                                physically_present
+                            );
                                             clear_backend = true;
                                         }
                                     }
@@ -111,6 +116,9 @@ impl UsbWorker {
                                         log::warn!("Elevated backend status failed: {}", e);
                                         clear_backend = true;
                                     }
+                                }
+                                if ping_result.is_err() {
+                                    log::warn!("Elevated backend ping failed, may be unresponsive");
                                 }
                             }
                         }
@@ -144,6 +152,7 @@ impl UsbWorker {
                                 #[cfg(target_os = "linux")]
                                 if let TransportBackend::Elevated { transport, .. } = current {
                                     let _ = transport.round_trip(&HelperRequest::Disconnect);
+                                    transport.shutdown();
                                 }
                             }
                             backend = None;
@@ -155,7 +164,8 @@ impl UsbWorker {
                             });
                         }
                         UsbCommand::Status(resp) => {
-                            let status = worker_status(&mut backend, &mut api, backend_reset, generation);
+                            let status =
+                                worker_status(&mut backend, &mut api, backend_reset, generation);
                             let _ = resp.send(status);
                         }
                         UsbCommand::PullPEQ(resp) => {
@@ -176,7 +186,11 @@ impl UsbWorker {
         UsbWorker { tx }
     }
 
-    pub fn connect(&self, device: Option<DeviceInfo>, backend: Option<BackendKind>) -> mpsc::Receiver<ConnectionResult> {
+    pub fn connect(
+        &self,
+        device: Option<DeviceInfo>,
+        backend: Option<BackendKind>,
+    ) -> mpsc::Receiver<ConnectionResult> {
         let (tx, rx) = mpsc::channel();
         let _ = self.tx.send(UsbCommand::Connect(device, backend, tx));
         rx
