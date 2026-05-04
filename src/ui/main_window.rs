@@ -623,14 +623,20 @@ impl MainWindow {
 }
 
 pub fn run() -> iced::Result {
+    let mut window_settings = iced::window::Settings {
+        min_size: Some(iced::Size::new(900.0, 580.0)),
+        ..Default::default()
+    };
+    #[cfg(target_os = "linux")]
+    {
+        window_settings.platform_specific.application_id = "frost-tune".to_string();
+    }
+
     iced::application(MainWindow::new, MainWindow::update, MainWindow::view)
         .title(MainWindow::title)
         .subscription(MainWindow::subscription)
         .theme(MainWindow::app_theme)
-        .window(iced::window::Settings {
-            min_size: Some(iced::Size::new(900.0, 580.0)),
-            ..Default::default()
-        })
+        .window(window_settings)
         .run()
 }
 
@@ -646,6 +652,15 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
         })
         .collect();
     let diagnostics = DiagnosticsStore::from_events(events);
+    let mut window_settings = iced::window::Settings {
+        min_size: Some(iced::Size::new(900.0, 580.0)),
+        ..Default::default()
+    };
+    #[cfg(target_os = "linux")]
+    {
+        window_settings.platform_specific.application_id = "frost-tune".to_string();
+    }
+
     iced::application(
         move || MainWindow::new_with_diagnostics(diagnostics.clone()),
         MainWindow::update,
@@ -654,10 +669,7 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
     .title(MainWindow::title)
     .subscription(MainWindow::subscription)
     .theme(MainWindow::app_theme)
-    .window(iced::window::Settings {
-        min_size: Some(iced::Size::new(900.0, 580.0)),
-        ..Default::default()
-    })
+    .window(window_settings)
     .run()
 }
 
