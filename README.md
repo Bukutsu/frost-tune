@@ -45,14 +45,16 @@ cd frost-tune
 cargo run --release
 ```
 
-## Linux permissions
+## Security
 
-Frost-Tune is self-contained and handles elevated HID access automatically. If direct hardware access is denied, it will prompt for elevation via `pkexec` (using the binary itself as a temporary helper). No system-wide installation or complex configuration is required.
+Accessing USB HID devices typically requires root privileges. Frost-Tune handles this by running a copy of itself with elevated permissions via `pkexec`. This means **the entire binary executes as root** while communicating with your device — not just a minimal helper.
 
-<details>
-<summary>Alternative: udev rules (to avoid password prompts)</summary>
+Several mitigations are in place:
+- The binary and its parent directory are checked for world-writable permissions before elevation is allowed
+- All privileged I/O is isolated to a background thread
+- Band gain and preamp are hard-capped at ±10 dB
 
-If you prefer not to enter a password every time you connect a device:
+Still, you are running a GUI application as root. If that concerns you, the safest path is a **udev rule** — this grants unprivileged access to the specific USB device and eliminates the need for elevation entirely:
 
 ```bash
 echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", \
@@ -60,8 +62,6 @@ ATTRS{idProduct}=="43e6", MODE="0666"' \
 | sudo tee /etc/udev/rules.d/99-frosttune.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
-
-</details>
 
 ## Usage
 
