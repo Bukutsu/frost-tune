@@ -6,3 +6,5 @@ Type=Application
 Categories=AudioVideo;Audio;
 Comment=Native parametric EQ editor for USB DACs
 Terminal=false
+StartupWMClass=frost-tune
+StartupNotify=true
