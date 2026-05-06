@@ -41,11 +41,15 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         ));
                     }
                 }
+                window.editor_state.import_name_input = "Imported Profile".to_string();
                 window.editor_state.pending_confirm =
-                    crate::ui::state::ConfirmAction::ImportAutoEQ(peq);
+                    crate::ui::state::ConfirmAction::ImportAutoEQ {
+                        data: peq,
+                        default_name: "Imported Profile".to_string(),
+                    };
                 if !warnings.is_empty() {
                     window.set_status(
-                        format!("Imported with warnings: {}", warnings.join("; ")),
+                        format!("Import parsed with warnings: {}", warnings.join("; ")),
                         StatusSeverity::Warning,
                     )
                 } else {
@@ -61,76 +65,6 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
             }
         },
-        Message::ConfirmImportAutoEQ => {
-            if let crate::ui::state::ConfirmAction::ImportAutoEQ(peq) =
-                window.editor_state.pending_confirm.clone()
-            {
-                let num_bands = window.num_bands();
-                let freq_range = window.freq_range();
-                let gain_range = window.gain_range();
-                let q_range = window.q_range();
-
-                let mut filters = peq.filters;
-                let was_truncated = filters.len() > num_bands;
-                if was_truncated {
-                    filters.truncate(num_bands);
-                }
-
-                let enabled_count = filters.iter().filter(|f| f.enabled).count();
-                window.editor_state.filters = filters
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, mut f)| {
-                        f.index = i as u8;
-                        f.enabled = true;
-                        f.clamp(freq_range, gain_range, q_range);
-                        f
-                    })
-                    .collect();
-
-                // Pad if needed
-                while window.editor_state.filters.len() < num_bands {
-                    window
-                        .editor_state
-                        .filters
-                        .push(crate::models::Filter::enabled(
-                            window.editor_state.filters.len() as u8,
-                            false,
-                        ));
-                }
-
-                window.editor_state.global_gain = peq.global_gain;
-                window.editor_state.is_autoeq_active = true;
-                window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::None;
-
-                if was_truncated {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Warn,
-                        Source::AutoEQ,
-                        format!("Import truncated to {} bands", num_bands),
-                    ));
-                    window.set_status(
-                        format!(
-                            "Imported {} filters (truncated to {})",
-                            enabled_count, num_bands
-                        ),
-                        StatusSeverity::Warning,
-                    )
-                } else {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Info,
-                        Source::AutoEQ,
-                        format!("Import successful: {} filters", enabled_count),
-                    ));
-                    window.set_status(
-                        format!("Imported {} filters", enabled_count),
-                        StatusSeverity::Success,
-                    )
-                }
-            } else {
-                Task::none()
-            }
-        }
         Message::ImportClipboardFailed(msg) => {
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Error,

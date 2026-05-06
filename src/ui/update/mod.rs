@@ -62,8 +62,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ToggleDiagnostics => handle_editor(window, message),
 
         // handle_autoeq
-        Message::ConfirmImportAutoEQ
-        | Message::ImportFromClipboard
+        Message::ImportFromClipboard
         | Message::ImportClipboardReceived(..)
         | Message::ImportClipboardFailed(..)
         | Message::ExportAutoEQPressed
@@ -86,6 +85,9 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ImportFromFilePressed
         | Message::ExportToFilePressed
         | Message::FileImported(..)
-        | Message::FileExported(..) => handle_profiles(window, message),
+        | Message::FileExported(..)
+        | Message::ImportNameInput(..)
+        | Message::ConfirmImportWithName
+        | Message::ConfirmOverwriteProfile => handle_profiles(window, message),
     }
 }

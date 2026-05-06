@@ -89,6 +89,7 @@ impl MainWindow {
                 is_dirty: false,
                 is_autoeq_active: false,
                 show_diagnostics: false,
+                import_name_input: String::new(),
             },
             operation_lock: OperationLock::default(),
             worker: Some(worker),
@@ -436,7 +437,7 @@ impl MainWindow {
             .into()
     }
 
-    fn with_modal_overlay<'a>(&self, main_view: Element<'a, Message>) -> Element<'a, Message> {
+    fn with_modal_overlay<'a>(&'a self, main_view: Element<'a, Message>) -> Element<'a, Message> {
         if let Some(dialog) = match self.editor_state.pending_confirm {
             ConfirmAction::ResetFilters => Some(views::confirm_dialog::view_confirm_dialog(
                 "Reset Filters?".to_string(),
@@ -459,16 +460,33 @@ impl MainWindow {
                 Message::ConfirmElevatedConnect(device.clone()),
                 false,
             )),
-            ConfirmAction::ImportAutoEQ(ref peq) => {
-                let count = peq.filters.iter().filter(|f| f.enabled).count();
-                Some(views::confirm_dialog::view_confirm_dialog(
-                    "Import AutoEQ?".to_string(),
-                    format!("This will import {} filters and set global gain to {:.1}dB. Current editor settings will be overwritten.", count, peq.global_gain),
+            ConfirmAction::ImportAutoEQ { ref data, ref default_name } => {
+                let count = data.filters.iter().filter(|f| f.enabled).count();
+                let message = format!(
+                    "This will import {} filters and set global gain to {:.1}dB.\n\nCurrent unsaved settings will be replaced.\n\nEnter a name for this profile:",
+                    count, data.global_gain,
+                );
+                let name = if self.editor_state.import_name_input.is_empty() {
+                    default_name.as_str()
+                } else {
+                    self.editor_state.import_name_input.as_str()
+                };
+                Some(views::confirm_dialog::view_name_input_dialog(
+                    "Import Profile".to_string(),
+                    message,
+                    name,
                     "Import",
-                    Message::ConfirmImportAutoEQ,
+                    Message::ConfirmImportWithName,
                     true,
                 ))
             },
+            ConfirmAction::OverwriteProfile { ref name, .. } => Some(views::confirm_dialog::view_confirm_dialog(
+                "Overwrite Profile?".to_string(),
+                format!("Profile '{}' already exists. Overwrite?", name),
+                "Overwrite",
+                Message::ConfirmOverwriteProfile,
+                true,
+            )),
             ConfirmAction::PullDevice => Some(views::confirm_dialog::view_confirm_dialog(
                 "Sync from Device?".to_string(),
                 "You have unsaved changes. Reading from the device will replace your current editor settings with the hardware configuration. Continue?".to_string(),

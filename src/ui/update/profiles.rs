@@ -4,6 +4,99 @@ use crate::ui::messages::{Message, StatusSeverity};
 use crate::ui::state::{ConfirmAction, MainWindow};
 use iced::Task;
 
+fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
+    let num_bands = window.num_bands();
+    let freq_range = window.freq_range();
+    let gain_range = window.gain_range();
+    let q_range = window.q_range();
+
+    let mut filters = peq.filters;
+    let was_truncated = filters.len() > num_bands;
+    if was_truncated {
+        filters.truncate(num_bands);
+    }
+
+    let enabled_count = filters.iter().filter(|f| f.enabled).count();
+    window.editor_state.filters = filters
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut f)| {
+            f.index = i as u8;
+            f.enabled = true;
+            f.clamp(freq_range, gain_range, q_range);
+            f
+        })
+        .collect();
+
+    while window.editor_state.filters.len() < num_bands {
+        window
+            .editor_state
+            .filters
+            .push(crate::models::Filter::enabled(
+                window.editor_state.filters.len() as u8,
+                false,
+            ));
+    }
+
+    window.editor_state.global_gain = peq.global_gain;
+    window.editor_state.is_autoeq_active = true;
+
+    (was_truncated, enabled_count)
+}
+
+fn check_overwrite_and_save(
+    window: &mut MainWindow,
+    name: String,
+    data: PEQData,
+    reload_on_save: bool,
+) -> Task<Message> {
+    let name_exists = window.editor_state.profiles.iter().any(|p| p.name == name);
+
+    if name_exists {
+        window.editor_state.pending_confirm = ConfirmAction::OverwriteProfile { name, data };
+        return Task::none();
+    }
+
+    do_save_profile(window, name, data, reload_on_save)
+}
+
+fn do_save_profile(
+    window: &mut MainWindow,
+    name: String,
+    data: PEQData,
+    reload_on_save: bool,
+) -> Task<Message> {
+    match crate::storage::save_profile(&name, &data) {
+        Ok(_) => {
+            window.diagnostics.push(DiagnosticEvent::new(
+                LogLevel::Info,
+                Source::UI,
+                format!("Saved profile: {}", name),
+            ));
+            window.editor_state.new_profile_name = name.clone();
+            let mut tasks = Vec::new();
+            if reload_on_save {
+                tasks.push(Task::perform(
+                    async move { crate::storage::load_all_profiles() },
+                    Message::ProfilesLoaded,
+                ));
+            }
+            tasks.push(
+                window.set_status(format!("Saved profile: {}", name), StatusSeverity::Success),
+            );
+            Task::batch(tasks)
+        }
+        Err(e) => {
+            window.diagnostics.push(DiagnosticEvent::new(
+                LogLevel::Error,
+                Source::UI,
+                format!("Save failed: {}", e),
+            ));
+            window.set_status(format!("Failed to save: {}", e), StatusSeverity::Error)
+        }
+    }
+}
+
 pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::ReloadProfilesPressed => Task::perform(
@@ -140,6 +233,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             window.editor_state.new_profile_name = name;
             Task::none()
         }
+        Message::ImportNameInput(name) => {
+            window.editor_state.import_name_input = name;
+            Task::none()
+        }
         Message::SaveProfilePressed => {
             let name = window.editor_state.new_profile_name.trim().to_string();
             if name.is_empty() {
@@ -149,29 +246,117 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 filters: window.editor_state.filters.clone(),
                 global_gain: window.editor_state.global_gain,
             };
-            match crate::storage::save_profile(&name, &data) {
-                Ok(_) => {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Info,
-                        Source::UI,
-                        format!("Saved profile: {}", name),
-                    ));
-                    let reload_task = Task::perform(
-                        async move { crate::storage::load_all_profiles() },
-                        Message::ProfilesLoaded,
-                    );
-                    let status_task = window
-                        .set_status(format!("Saved profile: {}", name), StatusSeverity::Success);
-                    Task::batch(vec![reload_task, status_task])
+            check_overwrite_and_save(window, name, data, true)
+        }
+        Message::ConfirmImportWithName => {
+            if let ConfirmAction::ImportAutoEQ { data, default_name } =
+                window.editor_state.pending_confirm.clone()
+            {
+                let name = if window.editor_state.import_name_input.trim().is_empty() {
+                    default_name
+                } else {
+                    window.editor_state.import_name_input.trim().to_string()
+                };
+
+                if name.is_empty() {
+                    return window
+                        .set_status("Profile name cannot be empty", StatusSeverity::Warning);
                 }
-                Err(e) => {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Error,
-                        Source::UI,
-                        format!("Save failed: {}", e),
-                    ));
-                    window.set_status(format!("Failed to save: {}", e), StatusSeverity::Error)
+
+                let name_exists = window.editor_state.profiles.iter().any(|p| p.name == name);
+
+                if name_exists {
+                    window.editor_state.pending_confirm =
+                        ConfirmAction::OverwriteProfile { name, data };
+                    return Task::none();
                 }
+
+                match crate::storage::save_profile(&name, &data) {
+                    Ok(_) => {
+                        let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                        window.editor_state.import_name_input = String::new();
+                        window.editor_state.pending_confirm = ConfirmAction::None;
+
+                        let mut tasks = vec![Task::perform(
+                            async move { crate::storage::load_all_profiles() },
+                            Message::ProfilesLoaded,
+                        )];
+
+                        if was_truncated {
+                            window.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Warn,
+                                Source::UI,
+                                format!("Import truncated to {} bands", window.num_bands()),
+                            ));
+                            tasks.push(window.set_status(
+                                format!(
+                                    "Imported {} filters (truncated to {})",
+                                    enabled_count,
+                                    window.num_bands()
+                                ),
+                                StatusSeverity::Warning,
+                            ));
+                        } else {
+                            window.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Info,
+                                Source::UI,
+                                format!("Import successful: {} filters", enabled_count),
+                            ));
+                            tasks.push(window.set_status(
+                                format!("Imported {} filters", enabled_count),
+                                StatusSeverity::Success,
+                            ));
+                        }
+                        Task::batch(tasks)
+                    }
+                    Err(e) => {
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Error,
+                            Source::UI,
+                            format!("Import failed: {}", e),
+                        ));
+                        window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
+                    }
+                }
+            } else {
+                Task::none()
+            }
+        }
+        Message::ConfirmOverwriteProfile => {
+            if let ConfirmAction::OverwriteProfile { name, data } =
+                window.editor_state.pending_confirm.clone()
+            {
+                match crate::storage::save_profile(&name, &data) {
+                    Ok(_) => {
+                        apply_peq_to_editor(window, data);
+                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        window.editor_state.new_profile_name = name.clone();
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Info,
+                            Source::UI,
+                            format!("Overwritten profile: {}", name),
+                        ));
+                        let reload_task = Task::perform(
+                            async move { crate::storage::load_all_profiles() },
+                            Message::ProfilesLoaded,
+                        );
+                        let status_task = window.set_status(
+                            format!("Overwritten profile: {}", name),
+                            StatusSeverity::Success,
+                        );
+                        Task::batch(vec![reload_task, status_task])
+                    }
+                    Err(e) => {
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Error,
+                            Source::UI,
+                            format!("Save failed: {}", e),
+                        ));
+                        window.set_status(format!("Failed to save: {}", e), StatusSeverity::Error)
+                    }
+                }
+            } else {
+                Task::none()
             }
         }
         Message::DeleteProfilePressed => {
@@ -233,57 +418,12 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
                     Ok(profile) => {
-                        let num_bands = window.num_bands();
-                        let freq_range = window.freq_range();
-                        let gain_range = window.gain_range();
-                        let q_range = window.q_range();
-
-                        let mut filters = profile.data.filters.clone();
-                        let was_truncated = filters.len() > num_bands;
-                        if was_truncated {
-                            filters.truncate(num_bands);
-                        }
-
-                        window.editor_state.filters = filters
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, mut f)| {
-                                f.index = i as u8;
-                                f.clamp(freq_range, gain_range, q_range);
-                                f
-                            })
-                            .collect();
-
-                        while window.editor_state.filters.len() < num_bands {
-                            window
-                                .editor_state
-                                .filters
-                                .push(crate::models::Filter::enabled(
-                                    window.editor_state.filters.len() as u8,
-                                    false,
-                                ));
-                        }
-
-                        window.editor_state.profiles.push(profile.clone());
-                        window.editor_state.selected_profile_name = Some(profile.name.clone());
-                        window.editor_state.new_profile_name = profile.name.clone();
-                        window.editor_state.global_gain = profile.data.global_gain;
-                        window.editor_state.is_autoeq_active = false;
-
-                        if was_truncated {
-                            window.set_status(
-                                format!(
-                                    "Imported profile: {} (truncated to {})",
-                                    profile.name, num_bands
-                                ),
-                                StatusSeverity::Warning,
-                            )
-                        } else {
-                            window.set_status(
-                                format!("Imported profile: {}", profile.name),
-                                StatusSeverity::Success,
-                            )
-                        }
+                        window.editor_state.import_name_input = profile.name.clone();
+                        window.editor_state.pending_confirm = ConfirmAction::ImportAutoEQ {
+                            data: profile.data,
+                            default_name: profile.name,
+                        };
+                        Task::none()
                     }
                     Err(e) => {
                         window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)

@@ -122,7 +122,14 @@ pub enum ConfirmAction {
     ResetFilters,
     DeleteProfile,
     ElevatedConnect(DeviceInfo),
-    ImportAutoEQ(crate::models::PEQData),
+    ImportAutoEQ {
+        data: crate::models::PEQData,
+        default_name: String,
+    },
+    OverwriteProfile {
+        name: String,
+        data: crate::models::PEQData,
+    },
     PullDevice,
     ExitWithUnsavedChanges(iced::window::Id),
 }
@@ -142,6 +149,7 @@ pub struct EditorState {
     pub is_dirty: bool,
     pub is_autoeq_active: bool,
     pub show_diagnostics: bool,
+    pub import_name_input: String,
 }
 
 #[derive(Debug, Clone, Default)]

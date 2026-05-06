@@ -19,6 +19,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
         }
         Message::DismissConfirmDialog => {
             window.editor_state.pending_confirm = ConfirmAction::None;
+            window.editor_state.import_name_input = String::new();
             Task::none()
         }
         Message::WindowCloseRequested(id) => {
