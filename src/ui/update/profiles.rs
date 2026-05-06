@@ -163,70 +163,47 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfileSelected(name) => {
-            if let Some(profile) = window.editor_state.profiles.iter().find(|p| p.name == name) {
-                let num_bands = window.num_bands();
-                let freq_range = window.freq_range();
-                let gain_range = window.gain_range();
-                let q_range = window.q_range();
+            let (profile_name, was_truncated) =
+                match window.editor_state.profiles.iter().find(|p| p.name == name) {
+                    Some(profile) => {
+                        let profile_name = profile.name.clone();
+                        let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
+                        window.editor_state.selected_profile_name = Some(name);
+                        window.editor_state.new_profile_name = profile_name.clone();
+                        window.editor_state.is_autoeq_active = false;
+                        (profile_name, was_truncated)
+                    }
+                    None => return Task::none(),
+                };
 
-                let mut filters = profile.data.filters.clone();
-                let was_truncated = filters.len() > num_bands;
-                if was_truncated {
-                    filters.truncate(num_bands);
-                }
-
-                window.editor_state.filters = filters
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, mut f)| {
-                        f.index = i as u8;
-                        f.enabled = true;
-                        f.clamp(freq_range, gain_range, q_range);
-                        f
-                    })
-                    .collect();
-
-                while window.editor_state.filters.len() < num_bands {
-                    window
-                        .editor_state
-                        .filters
-                        .push(crate::models::Filter::enabled(
-                            window.editor_state.filters.len() as u8,
-                            false,
-                        ));
-                }
-
-                window.editor_state.global_gain = profile.data.global_gain;
-                window.editor_state.selected_profile_name = Some(name);
-                window.editor_state.new_profile_name = profile.name.clone();
-                window.editor_state.is_autoeq_active = false;
-
-                if was_truncated {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Warn,
-                        Source::UI,
-                        format!("Profile {} truncated to {} bands", profile.name, num_bands),
-                    ));
-                    window.set_status(
-                        format!(
-                            "Loaded profile: {} (truncated to {})",
-                            profile.name, num_bands
-                        ),
-                        StatusSeverity::Warning,
-                    )
-                } else {
-                    window.diagnostics.push(DiagnosticEvent::new(
-                        LogLevel::Info,
-                        Source::UI,
-                        format!("Loaded profile: {}", profile.name),
-                    ));
-                    window.set_status(
-                        format!("Loaded profile: {}", profile.name),
-                        StatusSeverity::Info,
-                    )
-                }
+            if was_truncated {
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Warn,
+                    Source::UI,
+                    format!(
+                        "Profile {} truncated to {} bands",
+                        profile_name,
+                        window.num_bands()
+                    ),
+                ));
+                window.set_status(
+                    format!(
+                        "Loaded profile: {} (truncated to {})",
+                        profile_name,
+                        window.num_bands()
+                    ),
+                    StatusSeverity::Warning,
+                )
             } else {
-                Task::none()
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::UI,
+                    format!("Loaded profile: {}", profile_name),
+                ));
+                window.set_status(
+                    format!("Loaded profile: {}", profile_name),
+                    StatusSeverity::Info,
+                )
             }
         }
         Message::ProfileNameInput(name) => {
