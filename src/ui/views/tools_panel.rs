@@ -2,7 +2,7 @@ use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8, TYPE_CAPTION};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8};
 use crate::ui::views::{action_button, icon_action_button, icon_button};
 use iced::widget::{column, container, pick_list, row, slider, text, text_input};
 use iced::{Element, Length};
@@ -12,13 +12,7 @@ pub fn view_tools_panel(state: &MainWindow, show_preamp: bool) -> Element<'_, Me
 
     // --- AUTOEQ ACTIONS ---
     let autoeq_section = column![
-        text("AUTO-EQ")
-            .size(TYPE_CAPTION)
-            .color(theme::TOKYO_NIGHT_FG)
-            .font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            }),
+        super::section_header("AUTO-EQ".to_string()),
         icon_action_button(crate::ui::tokens::ICON_IMPORT_FILE, "Import File")
             .on_press_maybe(if is_busy {
                 None
@@ -135,13 +129,7 @@ pub fn view_tools_panel(state: &MainWindow, show_preamp: bool) -> Element<'_, Me
     .align_y(iced::Alignment::Center);
 
     let preset_section = column![
-        text("PRESET")
-            .size(TYPE_CAPTION)
-            .color(theme::TOKYO_NIGHT_FG)
-            .font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            }),
+        super::section_header("PRESET".to_string()),
         select_preset.width(Length::Fill),
         profile_name_input.width(Length::Fill),
         actions_row.width(Length::Fill),
@@ -149,13 +137,7 @@ pub fn view_tools_panel(state: &MainWindow, show_preamp: bool) -> Element<'_, Me
     .spacing(SPACE_12);
 
     let preamp_section = column![
-        text(format!("PREAMP: {} dB", state.editor_state.global_gain))
-            .size(TYPE_CAPTION)
-            .color(theme::TOKYO_NIGHT_FG)
-            .font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            }),
+        super::section_header(format!("PREAMP: {} dB", state.editor_state.global_gain)),
         row![slider(
             MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
             state.editor_state.global_gain as f64,

@@ -8,9 +8,10 @@ pub mod status_banner;
 pub mod tools_panel;
 
 use crate::ui::messages::Message;
-use crate::ui::tokens::{BUTTON_HORIZONTAL_PADDING, SPACE_4, TYPE_LABEL};
+use crate::ui::theme;
+use crate::ui::tokens::{BUTTON_HORIZONTAL_PADDING, SPACE_4, TYPE_CAPTION, TYPE_LABEL};
 use iced::widget::{button, container, row, text};
-use iced::Length;
+use iced::{Element, Length};
 
 pub fn action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
     button(
@@ -64,6 +65,17 @@ pub fn toolbar_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
     )
     .padding([0.0, BUTTON_HORIZONTAL_PADDING])
     .height(Length::Fixed(36.0))
+}
+
+pub fn section_header<'a>(label: String) -> Element<'a, Message> {
+    text(label)
+        .size(TYPE_CAPTION)
+        .color(theme::TOKYO_NIGHT_FG)
+        .font(iced::Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        })
+        .into()
 }
 
 pub fn icon_action_button<'a>(icon: &'a str, label: &'a str) -> iced::widget::Button<'a, Message> {

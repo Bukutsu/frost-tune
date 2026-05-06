@@ -4,7 +4,7 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme::{
     self, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_RED, TOKYO_NIGHT_WARNING,
 };
-use crate::ui::tokens::{SPACE_12, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_TINY};
+use crate::ui::tokens::{SPACE_12, SPACE_4, SPACE_8, TYPE_TINY};
 use crate::ui::views::small_action_button;
 use iced::widget::{column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length};
@@ -72,13 +72,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     container(
         column![
             row![
-                text("DIAGNOSTICS")
-                    .size(TYPE_CAPTION)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
+                super::section_header("DIAGNOSTICS".to_string()),
                 container(text("")).width(Length::Fill),
                 summary,
                 small_action_button("Hide")
@@ -113,13 +107,7 @@ pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
     } else {
         container(
             row![
-                text("DIAGNOSTICS")
-                    .size(TYPE_CAPTION)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
+                super::section_header("DIAGNOSTICS".to_string()),
                 container(text("")).width(Length::Fill),
                 small_action_button("Show")
                     .on_press(Message::ToggleDiagnostics)
