@@ -3,7 +3,7 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8};
 use crate::ui::views::{action_button, icon_action_button, icon_button};
-use iced::widget::{column, container, pick_list, row, text, text_input};
+use iced::widget::{column, container, pick_list, row, text_input};
 use iced::{Element, Length};
 
 pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {

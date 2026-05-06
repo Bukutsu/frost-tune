@@ -166,6 +166,33 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
     .into()
 }
 
+fn render_input_field<'a>(
+    value: String,
+    is_busy: bool,
+    error: Option<&'a str>,
+    on_input: impl Fn(String) -> Message + 'a,
+    on_submit: Message,
+) -> Element<'a, Message> {
+    let input = text_input("", &value)
+        .style(theme::m3_filled_input)
+        .size(TYPE_LABEL);
+    let input = if is_busy {
+        input
+    } else {
+        input.on_input(on_input).on_submit(on_submit)
+    };
+    column![
+        input,
+        if let Some(err) = error {
+            text(err).size(TYPE_TINY).color(theme::TOKYO_NIGHT_RED)
+        } else {
+            text("").size(1)
+        }
+    ]
+    .spacing(SPACE_2)
+    .into()
+}
+
 fn render_band_row<'a>(
     i: usize,
     band: &'a crate::models::filter::Filter,
@@ -276,91 +303,48 @@ fn render_band_row<'a>(
     .width(Length::Fill)
     .style(theme::slider_style);
 
-    let freq_cell = column![
-        {
-            let input = text_input(
-                "",
-                state
-                    .editor_state
-                    .input_buffer
-                    .get_freq_input(i)
-                    .unwrap_or(&format!("{}", band.freq)),
-            )
-            .style(theme::m3_filled_input)
-            .size(TYPE_LABEL);
-            if is_busy {
-                input
-            } else {
-                input
-                    .on_input(move |s| Message::BandFreqInput(i, s))
-                    .on_submit(Message::BandFreqInputCommit(i))
-            }
-        },
-        if let Some(err) = freq_error {
-            text(err).size(TYPE_TINY).color(theme::TOKYO_NIGHT_RED)
-        } else {
-            text("").size(1)
-        }
-    ]
+    let freq_cell = column![render_input_field(
+        state
+            .editor_state
+            .input_buffer
+            .get_freq_input(i)
+            .map_or_else(|| format!("{}", band.freq), |s| s.to_string()),
+        is_busy,
+        freq_error,
+        move |s| Message::BandFreqInput(i, s),
+        Message::BandFreqInputCommit(i),
+    ),]
     .spacing(SPACE_2)
     .width(Length::Fixed(85.0));
 
     let gain_cell = column![
         gain_slider,
-        {
-            let input = text_input(
-                "",
-                state
-                    .editor_state
-                    .input_buffer
-                    .get_gain_input(i)
-                    .unwrap_or(&format!("{:.1}", band.gain)),
-            )
-            .style(theme::m3_filled_input)
-            .size(TYPE_LABEL);
-            if is_busy {
-                input
-            } else {
-                input
-                    .on_input(move |s| Message::BandGainInput(i, s))
-                    .on_submit(Message::BandGainInputCommit(i))
-            }
-        },
-        if let Some(err) = gain_error {
-            text(err).size(TYPE_TINY).color(theme::TOKYO_NIGHT_RED)
-        } else {
-            text("").size(1)
-        }
+        render_input_field(
+            state
+                .editor_state
+                .input_buffer
+                .get_gain_input(i)
+                .map_or_else(|| format!("{:.1}", band.gain), |s| s.to_string()),
+            is_busy,
+            gain_error,
+            move |s| Message::BandGainInput(i, s),
+            Message::BandGainInputCommit(i),
+        ),
     ]
     .spacing(SPACE_2)
     .width(Length::Fill);
 
-    let q_cell = column![
-        {
-            let input = text_input(
-                "",
-                state
-                    .editor_state
-                    .input_buffer
-                    .get_q_input(i)
-                    .unwrap_or(&format!("{:.2}", band.q)),
-            )
-            .style(theme::m3_filled_input)
-            .size(TYPE_LABEL);
-            if is_busy {
-                input
-            } else {
-                input
-                    .on_input(move |s| Message::BandQInput(i, s))
-                    .on_submit(Message::BandQInputCommit(i))
-            }
-        },
-        if let Some(err) = q_error {
-            text(err).size(TYPE_TINY).color(theme::TOKYO_NIGHT_RED)
-        } else {
-            text("").size(1)
-        }
-    ]
+    let q_cell = column![render_input_field(
+        state
+            .editor_state
+            .input_buffer
+            .get_q_input(i)
+            .map_or_else(|| format!("{:.2}", band.q), |s| s.to_string()),
+        is_busy,
+        q_error,
+        move |s| Message::BandQInput(i, s),
+        Message::BandQInputCommit(i),
+    ),]
     .spacing(SPACE_2)
     .width(Length::Fixed(60.0));
 

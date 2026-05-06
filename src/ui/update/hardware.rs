@@ -1,5 +1,5 @@
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
-use crate::error::{AppError, ErrorKind};
+use crate::error::ErrorKind;
 use crate::models::{OperationResult, PushPayload};
 use crate::ui::messages::{Message, StatusSeverity};
 use crate::ui::state::{ConnectionStatus, MainWindow};
