@@ -1,4 +1,4 @@
-use crate::error::AppError;
+use crate::error::{AppError, ErrorKind};
 use crate::models::constants::*;
 use crate::models::device::DeviceInfo;
 use crate::models::filter::{Filter, PEQData};
@@ -16,6 +16,30 @@ pub struct OperationResult {
     pub success: bool,
     pub data: Option<PEQData>,
     pub error: Option<AppError>,
+}
+
+impl OperationResult {
+    pub fn timed_out() -> Self {
+        OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(
+                ErrorKind::Unknown,
+                "Operation timed out after 5 seconds",
+            )),
+        }
+    }
+
+    pub fn worker_gone() -> Self {
+        OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(
+                ErrorKind::Unknown,
+                "Background worker unexpectedly terminated",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

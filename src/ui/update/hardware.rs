@@ -55,25 +55,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         global_gain: Some(global_gain),
                     };
                     let rx = worker.push_peq(payload);
-                    match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                        Ok(res) => res,
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
-                            success: false,
-                            data: None,
-                            error: Some(AppError::new(
-                                ErrorKind::Unknown,
-                                "Operation timed out after 5 seconds",
-                            )),
-                        },
-                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
-                            success: false,
-                            data: None,
-                            error: Some(AppError::new(
-                                ErrorKind::Unknown,
-                                "Background worker unexpectedly terminated",
-                            )),
-                        },
-                    }
+                    recv_operation_result(rx)
                 },
                 Message::WorkerPushed,
             );
@@ -189,6 +171,14 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
     }
 }
 
+fn recv_operation_result(rx: std::sync::mpsc::Receiver<OperationResult>) -> OperationResult {
+    match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+        Ok(res) => res,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult::timed_out(),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult::worker_gone(),
+    }
+}
+
 fn perform_pull(window: &mut MainWindow) -> Task<Message> {
     window.operation_lock.is_pulling = true;
     window.diagnostics.push(DiagnosticEvent::new(
@@ -203,25 +193,7 @@ fn perform_pull(window: &mut MainWindow) -> Task<Message> {
     let pull_task = Task::perform(
         async move {
             let rx = worker.pull_peq();
-            match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                Ok(res) => res,
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(
-                        ErrorKind::Unknown,
-                        "Operation timed out after 5 seconds",
-                    )),
-                },
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(
-                        ErrorKind::Unknown,
-                        "Background worker unexpectedly terminated",
-                    )),
-                },
-            }
+            recv_operation_result(rx)
         },
         Message::WorkerPulled,
     );
