@@ -92,21 +92,9 @@ impl Filter {
     }
 
     pub fn clamp(&mut self, freq_range: (u16, u16), gain_range: (f64, f64), q_range: (f64, f64)) {
-        if self.gain > gain_range.1 {
-            self.gain = gain_range.1;
-        } else if self.gain < gain_range.0 {
-            self.gain = gain_range.0;
-        }
-        if self.q < q_range.0 {
-            self.q = q_range.0;
-        } else if self.q > q_range.1 {
-            self.q = q_range.1;
-        }
-        if self.freq < freq_range.0 {
-            self.freq = freq_range.0;
-        } else if self.freq > freq_range.1 {
-            self.freq = freq_range.1;
-        }
+        self.gain = self.gain.clamp(gain_range.0, gain_range.1);
+        self.q = self.q.clamp(q_range.0, q_range.1);
+        self.freq = self.freq.clamp(freq_range.0, freq_range.1);
     }
 }
 
