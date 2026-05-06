@@ -29,6 +29,7 @@ fn test_worker_status_structure() {
         available_devices: vec![],
         backend_reset: false,
         generation: 42,
+        fatal_error: None,
     };
     assert!(status.connected);
     assert!(status.physically_present);

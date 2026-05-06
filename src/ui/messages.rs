@@ -82,4 +82,6 @@ pub enum Message {
 
     ClearStatusMessage(u64),
     DismissConfirmDialog,
+    WindowCloseRequested(iced::window::Id),
+    ConfirmExit(iced::window::Id),
 }

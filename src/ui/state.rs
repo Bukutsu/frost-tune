@@ -124,6 +124,7 @@ pub enum ConfirmAction {
     ElevatedConnect(DeviceInfo),
     ImportAutoEQ(crate::models::PEQData),
     PullDevice,
+    ExitWithUnsavedChanges(iced::window::Id),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -164,4 +165,6 @@ pub struct MainWindow {
     pub selected_device_index: Option<usize>,
     pub connection_generation: u64,
     pub suspend_status_polling: bool,
+    pub last_auto_reconnect_attempt: Option<std::time::Instant>,
+    pub auto_reconnect_attempts: u32,
 }

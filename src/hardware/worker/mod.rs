@@ -23,6 +23,7 @@ pub struct WorkerStatus {
     pub available_devices: Vec<DeviceInfo>,
     pub backend_reset: bool,
     pub generation: u64,
+    pub fatal_error: Option<String>,
 }
 
 pub enum UsbCommand {
@@ -49,22 +50,48 @@ impl UsbWorker {
             let mut backend: Option<TransportBackend> = None;
             let mut preferred_backend: BackendKind = BackendKind::Local;
 
-            let mut api = match hidapi::HidApi::new() {
-                Ok(a) => {
-                    log::info!("HID API initialized successfully");
-                    a
-                }
-                Err(e) => {
-                    log::error!("CRITICAL: Failed to init HID API: {}", e);
-                    return;
-                }
-            };
+            let mut api: Option<hidapi::HidApi> = None;
+            let mut api_retry_count: u32 = 0;
+            let mut last_api_retry: Option<std::time::Instant> = None;
+            let mut fatal_error: Option<String> = None;
 
             let mut last_physical_check = std::time::Instant::now();
             let check_interval = std::time::Duration::from_millis(1000);
             let mut generation: u64 = 0;
 
             loop {
+                // Retry HID API initialization if needed
+                if api.is_none() {
+                    let now = std::time::Instant::now();
+                    let should_retry = match last_api_retry {
+                        None => true,
+                        Some(last) => {
+                            let backoff = std::time::Duration::from_secs(
+                                (2u64.saturating_pow(api_retry_count)).min(30),
+                            );
+                            now.duration_since(last) >= backoff
+                        }
+                    };
+
+                    if should_retry {
+                        last_api_retry = Some(now);
+                        api_retry_count += 1;
+                        match hidapi::HidApi::new() {
+                            Ok(a) => {
+                                log::info!("HID API initialized successfully");
+                                api = Some(a);
+                                fatal_error = None;
+                                api_retry_count = 0;
+                            }
+                            Err(e) => {
+                                let msg = format!("Failed to initialize HID API: {}", e);
+                                log::error!("{} (attempt {})", msg, api_retry_count);
+                                fatal_error = Some(msg);
+                            }
+                        }
+                    }
+                }
+
                 let now = std::time::Instant::now();
                 let time_since_check = now.duration_since(last_physical_check);
                 let mut remaining_time = check_interval.saturating_sub(time_since_check);
@@ -74,74 +101,98 @@ impl UsbWorker {
                     last_physical_check = now;
                     remaining_time = check_interval;
 
-                    if let Err(e) = api.refresh_devices() {
-                        log::warn!("Failed to refresh USB device list: {}", e);
-                    }
+                    if let Some(ref mut api_ref) = api {
+                        if let Err(e) = api_ref.refresh_devices() {
+                            log::warn!("Failed to refresh USB device list: {}", e);
+                        }
 
-                    let local_physical_device = find_device_info(&api);
-                    let is_physically_connected = local_physical_device.is_some();
+                        let local_physical_device = find_device_info(api_ref);
+                        let is_physically_connected = local_physical_device.is_some();
 
-                    let mut clear_backend = false;
+                        let mut clear_backend = false;
 
-                    if let Some(current_backend) = backend.as_mut() {
-                        match current_backend {
-                            TransportBackend::Local { .. } => {
-                                if !is_physically_connected {
-                                    log::warn!("DAC physically disconnected (local backend)");
-                                    clear_backend = true;
+                        if let Some(current_backend) = backend.as_mut() {
+                            match current_backend {
+                                TransportBackend::Local { .. } => {
+                                    if !is_physically_connected {
+                                        log::warn!("DAC physically disconnected (local backend)");
+                                        clear_backend = true;
+                                    }
                                 }
-                            }
-                            #[cfg(target_os = "linux")]
-                            TransportBackend::Elevated { transport, .. } => {
-                                let ping_result = transport.round_trip(&HelperRequest::Ping);
-                                match transport.round_trip(&HelperRequest::Status) {
-                                    Ok(HelperResponse::Status {
-                                        connected,
-                                        physically_present,
-                                        ..
-                                    }) => {
-                                        if !connected || !physically_present {
-                                            log::warn!(
-                                "DAC disconnected (elevated backend status: connected={}, physically_present={})",
-                                connected,
-                                physically_present
-                            );
+                                #[cfg(target_os = "linux")]
+                                TransportBackend::Elevated { transport, .. } => {
+                                    let ping_result = transport.round_trip(&HelperRequest::Ping);
+                                    match transport.round_trip(&HelperRequest::Status) {
+                                        Ok(HelperResponse::Status {
+                                            connected,
+                                            physically_present,
+                                            ..
+                                        }) => {
+                                            if !connected || !physically_present {
+                                                log::warn!(
+                                    "DAC disconnected (elevated backend status: connected={}, physically_present={})",
+                                    connected,
+                                    physically_present
+                                );
+                                                clear_backend = true;
+                                            }
+                                        }
+                                        Ok(_) => {
+                                            clear_backend = true;
+                                        }
+                                        Err(e) => {
+                                            log::warn!("Elevated backend status failed: {}", e);
                                             clear_backend = true;
                                         }
                                     }
-                                    Ok(_) => {
-                                        clear_backend = true;
+                                    if ping_result.is_err() {
+                                        log::warn!(
+                                            "Elevated backend ping failed, may be unresponsive"
+                                        );
                                     }
-                                    Err(e) => {
-                                        log::warn!("Elevated backend status failed: {}", e);
-                                        clear_backend = true;
-                                    }
-                                }
-                                if ping_result.is_err() {
-                                    log::warn!("Elevated backend ping failed, may be unresponsive");
                                 }
                             }
                         }
-                    }
 
-                    if clear_backend {
-                        backend = None;
-                        generation = generation.saturating_add(1);
-                        backend_reset = true;
+                        if clear_backend {
+                            backend = None;
+                            generation = generation.saturating_add(1);
+                            backend_reset = true;
+                        }
+                    } else {
+                        // No HID API available: clear any stale backend
+                        if backend.is_some() {
+                            backend = None;
+                            generation = generation.saturating_add(1);
+                            backend_reset = true;
+                        }
                     }
                 }
 
                 match rx.recv_timeout(remaining_time.max(std::time::Duration::from_millis(1))) {
                     Ok(cmd) => match cmd {
                         UsbCommand::Connect(target_device, target_backend, resp) => {
-                            let preferred = target_backend.unwrap_or(preferred_backend);
-                            let result = worker_connect(
-                                &mut backend,
-                                &mut preferred_backend,
-                                &api,
-                                Some(preferred),
-                                target_device,
-                            );
+                            let result = if let Some(ref api_ref) = api {
+                                let preferred = target_backend.unwrap_or(preferred_backend);
+                                worker_connect(
+                                    &mut backend,
+                                    &mut preferred_backend,
+                                    api_ref,
+                                    Some(preferred),
+                                    target_device,
+                                )
+                            } else {
+                                ConnectionResult {
+                                    success: false,
+                                    device: target_device,
+                                    error: Some(crate::error::AppError::new(
+                                        crate::error::ErrorKind::Unknown,
+                                        fatal_error
+                                            .clone()
+                                            .unwrap_or_else(|| "HID API unavailable".into()),
+                                    )),
+                                }
+                            };
                             if result.success {
                                 generation = generation.saturating_add(1);
                             }
@@ -164,8 +215,19 @@ impl UsbWorker {
                             });
                         }
                         UsbCommand::Status(resp) => {
-                            let status =
-                                worker_status(&mut backend, &mut api, backend_reset, generation);
+                            let status = if let Some(ref mut api_ref) = api {
+                                worker_status(&mut backend, api_ref, backend_reset, generation)
+                            } else {
+                                WorkerStatus {
+                                    connected: false,
+                                    physically_present: false,
+                                    device: None,
+                                    available_devices: Vec::new(),
+                                    backend_reset,
+                                    generation,
+                                    fatal_error: fatal_error.clone(),
+                                }
+                            };
                             let _ = resp.send(status);
                         }
                         UsbCommand::PullPEQ(resp) => {
@@ -246,6 +308,7 @@ fn worker_status(
             available_devices: available_devices.clone(),
             backend_reset,
             generation,
+            fatal_error: None,
         },
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info }) => {
@@ -265,6 +328,7 @@ fn worker_status(
                         available_devices: available_devices.clone(),
                         backend_reset,
                         generation,
+                        fatal_error: None,
                     }
                 }
                 Ok(_) | Err(_) => {
@@ -276,6 +340,7 @@ fn worker_status(
                         available_devices: available_devices.clone(),
                         backend_reset: true,
                         generation,
+                        fatal_error: None,
                     }
                 }
             }
@@ -287,6 +352,7 @@ fn worker_status(
             available_devices: available_devices.clone(),
             backend_reset,
             generation,
+            fatal_error: None,
         },
     };
 

@@ -2,11 +2,12 @@ use crate::models::{
     Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_BAND_GAIN, MIN_GLOBAL_GAIN,
 };
 
-pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
+pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
     let lines: Vec<&str> = text.lines().collect();
     let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
     let mut preamp: i8 = 0;
     let mut parsed_count: usize = 0;
+    let mut warnings: Vec<String> = Vec::new();
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_num = line_idx + 1;
@@ -20,7 +21,7 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
                 let val = m.min(MAX_GLOBAL_GAIN as f64).max(MIN_GLOBAL_GAIN as f64);
                 preamp = val.round() as i8;
             } else {
-                return Err(format!("Line {}: Failed to parse preamp value", line_num));
+                warnings.push(format!("Line {}: Failed to parse preamp value", line_num));
             }
             continue;
         }
@@ -34,9 +35,15 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
                     filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
                     filters[idx].q = q.min(20.0).max(0.1);
                     parsed_count += 1;
+                } else {
+                    warnings.push(format!(
+                        "Line {}: Filter index {} out of range",
+                        line_num,
+                        idx + 1
+                    ));
                 }
             } else {
-                return Err(format!("Line {}: Failed to parse filter. Expected: Filter <N>: <ON/OFF> <Type> Fc <Hz> Gain <dB> Q <Q>", line_num));
+                warnings.push(format!("Line {}: Failed to parse filter", line_num));
             }
         }
     }
@@ -45,10 +52,13 @@ pub fn parse_autoeq_text(text: &str) -> Result<PEQData, String> {
         return Err("No valid filters found in AutoEQ text".into());
     }
 
-    Ok(PEQData {
-        filters,
-        global_gain: preamp,
-    })
+    Ok((
+        PEQData {
+            filters,
+            global_gain: preamp,
+        },
+        warnings,
+    ))
 }
 
 fn extract_number(s: &str) -> Option<f64> {
@@ -189,17 +199,19 @@ mod tests {
     #[test]
     fn test_parse_autoeq_with_preamp() {
         let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0";
-        let result = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.global_gain, -3);
         assert!(result.filters[0].enabled);
+        assert!(warnings.is_empty());
     }
 
     #[test]
     fn test_parse_autoeq_multiple_filters() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
-        let result = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
         assert!(result.filters[0].enabled);
         assert!(!result.filters[1].enabled);
+        assert!(warnings.is_empty());
     }
 
     #[test]
@@ -216,16 +228,28 @@ mod tests {
     #[test]
     fn test_parse_autoeq_clamp_gain() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 20.0 dB Q 1.0";
-        let result = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].gain, MAX_BAND_GAIN);
+        assert!(warnings.is_empty());
     }
 
     #[test]
     fn test_parse_real_file_format() {
         let text = "Preamp: -6.3 dB\nFilter 1: ON LSC Fc 36 Hz Gain -2.22 dB Q 0.857\nFilter 2: ON PK Fc 166 Hz Gain -0.79 dB Q 1.669";
-        let result = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.global_gain, -6);
         assert_eq!(result.filters[0].freq, 36);
         assert!((result.filters[0].gain - (-2.22)).abs() < 0.1);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_autoeq_lenient_with_bad_lines() {
+        let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: BAD FORMAT\nFilter 3: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters[0].freq, 100);
+        assert_eq!(result.filters[2].freq, 1000);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("Failed to parse"));
     }
 }

@@ -15,6 +15,7 @@ macro_rules! define_devices {
                 vid: $vid:expr,
                 pid: $pid:expr,
                 protocol: $proto:ident,
+                supports_per_band_enable: $supports_per_band_enable:expr,
             }
         ),* $(,)?
     ) => {
@@ -64,6 +65,14 @@ macro_rules! define_devices {
                     Device::Unknown => "Unknown Device",
                 }
             }
+
+            /// Returns whether the device supports enabling/disabling individual bands.
+            pub fn supports_per_band_enable(&self) -> bool {
+                match self {
+                    $(Device::$variant => $supports_per_band_enable,)*
+                    Device::Unknown => true,
+                }
+            }
         }
     };
 }
@@ -74,6 +83,7 @@ define_devices! {
         vid: 0x3302,
         pid: 0x43E6,
         protocol: TP35ProProtocol,
+        supports_per_band_enable: false,
     },
 
     // =========================================================================
@@ -89,6 +99,7 @@ define_devices! {
     //     vid: 0x1234, // The USB Vendor ID (hex)
     //     pid: 0x5678, // The USB Product ID (hex)
     //     protocol: ExampleDeviceProtocol, // The struct implementing `DeviceProtocol`
+    //     supports_per_band_enable: true,
     // },
 }
 

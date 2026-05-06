@@ -70,6 +70,11 @@ pub trait DeviceProtocol: Send + Sync {
         (0.1, 10.0)
     }
 
+    /// Whether the device supports enabling/disabling individual filter bands.
+    fn supports_per_band_enable(&self) -> bool {
+        true
+    }
+
     /// Default timings for reading from this device.
     fn read_timing(&self) -> ReadTiming {
         ReadTiming::default()
@@ -141,6 +146,9 @@ impl DeviceProtocol for TP35ProProtocol {
     }
     fn cmd_flash_eq(&self) -> u8 {
         CMD_FLASH_EQ
+    }
+    fn supports_per_band_enable(&self) -> bool {
+        false
     }
 
     fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8> {

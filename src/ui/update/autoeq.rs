@@ -31,10 +31,26 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
             })
         }
         Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(&text) {
-            Ok(peq) => {
+            Ok((peq, warnings)) => {
+                if !warnings.is_empty() {
+                    for w in &warnings {
+                        window.diagnostics.push(DiagnosticEvent::new(
+                            LogLevel::Warn,
+                            Source::AutoEQ,
+                            format!("Import warning: {}", w),
+                        ));
+                    }
+                }
                 window.editor_state.pending_confirm =
                     crate::ui::state::ConfirmAction::ImportAutoEQ(peq);
-                Task::none()
+                if !warnings.is_empty() {
+                    window.set_status(
+                        format!("Imported with warnings: {}", warnings.join("; ")),
+                        StatusSeverity::Warning,
+                    )
+                } else {
+                    Task::none()
+                }
             }
             Err(e) => {
                 window.diagnostics.push(DiagnosticEvent::new(

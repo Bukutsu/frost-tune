@@ -119,7 +119,12 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
                     let content = fs::read_to_string(&path)
                         .map_err(|e| format!("Failed to read profile {}: {}", name, e))?;
                     match autoeq::parse_autoeq_text(&content) {
-                        Ok(data) => {
+                        Ok((data, warnings)) => {
+                            if !warnings.is_empty() {
+                                for w in &warnings {
+                                    log::warn!("Profile {} warning: {}", name, w);
+                                }
+                            }
                             profiles.push(Profile {
                                 name: name.to_string(),
                                 data,
@@ -195,8 +200,11 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
 pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read profile file: {}", e))?;
-    let data = autoeq::parse_autoeq_text(&content)
+    let (data, warnings) = autoeq::parse_autoeq_text(&content)
         .map_err(|e| format!("Failed to parse profile: {}", e))?;
+    if !warnings.is_empty() {
+        log::warn!("Import warnings for profile: {:?}", warnings);
+    }
     let name = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -263,7 +271,15 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>, String> {
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read diagnostics log: {}", e))?;
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-    if lines.len() > limit {
+
+    const MAX_LOG_LINES: usize = 5000;
+    if lines.len() > MAX_LOG_LINES {
+        let keep_count = limit.min(2000).max(100);
+        lines = lines.split_off(lines.len() - keep_count);
+        if let Err(e) = std::fs::write(&path, lines.join("\n") + "\n") {
+            log::warn!("Failed to truncate diagnostics log: {}", e);
+        }
+    } else if lines.len() > limit {
         lines = lines.split_off(lines.len() - limit);
     }
     Ok(lines)
@@ -333,11 +349,12 @@ mod tests {
     #[test]
     fn test_import_profile() {
         let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
-        let data = autoeq::parse_autoeq_text(content).unwrap();
+        let (data, warnings) = autoeq::parse_autoeq_text(content).unwrap();
 
         assert_eq!(data.global_gain, -3);
         assert!(data.filters[0].enabled);
         assert_eq!(data.filters[0].freq, 1000);
+        assert!(warnings.is_empty());
     }
 
     #[test]

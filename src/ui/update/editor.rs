@@ -27,6 +27,9 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandEnabledToggled(index, en) => {
+            if !window.supports_per_band_enable() {
+                return Task::none();
+            }
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.enabled = en;
                 window.editor_state.is_dirty = true;
@@ -34,45 +37,60 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandFreqInput(index, s) => {
+            let filter = match window.editor_state.filters.get(index) {
+                Some(f) => f,
+                None => {
+                    log::error!("BandFreqInput: index {} out of bounds", index);
+                    return Task::none();
+                }
+            };
             let draft = window
                 .editor_state
                 .input_buffer
                 .active_draft
-                .get_or_insert_with(|| {
-                    DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap())
-                });
+                .get_or_insert_with(|| DraftFilter::from_filter(filter));
             if draft.index != index {
-                *draft = DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap());
+                *draft = DraftFilter::from_filter(filter);
             }
             draft.freq_input = s;
             draft.freq_error = None;
             Task::none()
         }
         Message::BandGainInput(index, s) => {
+            let filter = match window.editor_state.filters.get(index) {
+                Some(f) => f,
+                None => {
+                    log::error!("BandGainInput: index {} out of bounds", index);
+                    return Task::none();
+                }
+            };
             let draft = window
                 .editor_state
                 .input_buffer
                 .active_draft
-                .get_or_insert_with(|| {
-                    DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap())
-                });
+                .get_or_insert_with(|| DraftFilter::from_filter(filter));
             if draft.index != index {
-                *draft = DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap());
+                *draft = DraftFilter::from_filter(filter);
             }
             draft.gain_input = s;
             draft.gain_error = None;
             Task::none()
         }
         Message::BandQInput(index, s) => {
+            let filter = match window.editor_state.filters.get(index) {
+                Some(f) => f,
+                None => {
+                    log::error!("BandQInput: index {} out of bounds", index);
+                    return Task::none();
+                }
+            };
             let draft = window
                 .editor_state
                 .input_buffer
                 .active_draft
-                .get_or_insert_with(|| {
-                    DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap())
-                });
+                .get_or_insert_with(|| DraftFilter::from_filter(filter));
             if draft.index != index {
-                *draft = DraftFilter::from_filter(window.editor_state.filters.get(index).unwrap());
+                *draft = DraftFilter::from_filter(filter);
             }
             draft.q_input = s;
             draft.q_error = None;

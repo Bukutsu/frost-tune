@@ -10,11 +10,13 @@ use iced::{Background, Color, Element, Length, Padding};
 
 pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
+    let show_enable = state.supports_per_band_enable();
 
     responsive(move |size| {
         if size.width < 1100.0 {
             // Single column for narrow/medium widths
-            let col = render_band_column(0, &state.editor_state.filters, state, is_busy);
+            let col =
+                render_band_column(0, &state.editor_state.filters, state, is_busy, show_enable);
             container(col)
                 .padding(SPACE_12)
                 .width(Length::Fill)
@@ -23,9 +25,10 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 .into()
         } else {
             // Two columns for wide widths
-            let left_col = render_band_column(0, &state.editor_state.filters[0..5], state, is_busy);
-            let right_col =
-                render_band_column(5, &state.editor_state.filters[5..10], state, is_busy);
+            let left_filters = state.editor_state.filters.get(0..5).unwrap_or(&[]);
+            let right_filters = state.editor_state.filters.get(5..10).unwrap_or(&[]);
+            let left_col = render_band_column(0, left_filters, state, is_busy, show_enable);
+            let right_col = render_band_column(5, right_filters, state, is_busy, show_enable);
             let content = row![left_col, right_col].spacing(SPACE_32).padding(SPACE_8);
             container(content)
                 .padding(SPACE_12)
@@ -43,28 +46,37 @@ fn render_band_column<'a>(
     filters: &'a [crate::models::filter::Filter],
     state: &'a MainWindow,
     is_busy: bool,
+    show_enable: bool,
 ) -> Element<'a, Message> {
-    let mut col = column![render_header_row()].spacing(SPACE_4);
+    let mut col = column![render_header_row(show_enable)].spacing(SPACE_4);
 
     for (i, band) in filters.iter().enumerate() {
         let actual_index = start_index + i;
-        col = col.push(render_band_row(actual_index, band, state, is_busy));
+        col = col.push(render_band_row(
+            actual_index,
+            band,
+            state,
+            is_busy,
+            show_enable,
+        ));
     }
 
     col.into()
 }
 
-fn render_header_row<'a>() -> Element<'a, Message> {
-    column![
-        row![
-            text("BAND")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                })
-                .width(Length::Fixed(40.0)),
+fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
+    let mut elements: Vec<Element<'a, Message>> = vec![text("BAND")
+        .size(TYPE_TINY)
+        .color(theme::TOKYO_NIGHT_FG)
+        .font(iced::Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        })
+        .width(Length::Fixed(40.0))
+        .into()];
+
+    if show_enable {
+        elements.push(
             text("ON")
                 .size(TYPE_TINY)
                 .color(theme::TOKYO_NIGHT_FG)
@@ -72,54 +84,70 @@ fn render_header_row<'a>() -> Element<'a, Message> {
                     weight: iced::font::Weight::Bold,
                     ..Default::default()
                 })
-                .width(Length::Fixed(30.0)),
-            container(
-                text("TYPE")
-                    .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-            )
-            .padding([0.0, 5.0])
-            .width(Length::Fixed(160.0)),
-            container(
-                text("FREQ (Hz)")
-                    .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-            )
-            .padding([0.0, 5.0])
-            .width(Length::Fixed(85.0)),
-            container(
-                text("GAIN (dB)")
-                    .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-            )
-            .padding([0.0, 5.0])
-            .width(Length::Fill),
-            container(
-                text("Q")
-                    .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-            )
-            .padding([0.0, 5.0])
-            .width(Length::Fixed(60.0)),
-        ]
-        .spacing(SPACE_4)
-        .padding(Padding {
+                .width(Length::Fixed(30.0))
+                .into(),
+        );
+    }
+
+    elements.push(
+        container(
+            text("TYPE")
+                .size(TYPE_TINY)
+                .color(theme::TOKYO_NIGHT_FG)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                }),
+        )
+        .padding([0.0, 5.0])
+        .width(Length::Fixed(160.0))
+        .into(),
+    );
+    elements.push(
+        container(
+            text("FREQ (Hz)")
+                .size(TYPE_TINY)
+                .color(theme::TOKYO_NIGHT_FG)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                }),
+        )
+        .padding([0.0, 5.0])
+        .width(Length::Fixed(85.0))
+        .into(),
+    );
+    elements.push(
+        container(
+            text("GAIN (dB)")
+                .size(TYPE_TINY)
+                .color(theme::TOKYO_NIGHT_FG)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                }),
+        )
+        .padding([0.0, 5.0])
+        .width(Length::Fill)
+        .into(),
+    );
+    elements.push(
+        container(
+            text("Q")
+                .size(TYPE_TINY)
+                .color(theme::TOKYO_NIGHT_FG)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                }),
+        )
+        .padding([0.0, 5.0])
+        .width(Length::Fixed(60.0))
+        .into(),
+    );
+
+    column![
+        row(elements).spacing(SPACE_4).padding(Padding {
             top: 0.0,
             right: SPACE_4,
             bottom: SPACE_4,
@@ -143,6 +171,7 @@ fn render_band_row<'a>(
     band: &'a crate::models::filter::Filter,
     state: &'a MainWindow,
     is_busy: bool,
+    show_enable: bool,
 ) -> Element<'a, Message> {
     let freq_error = state.editor_state.input_buffer.get_freq_error(i);
     let gain_error = state.editor_state.input_buffer.get_gain_error(i);
@@ -335,40 +364,48 @@ fn render_band_row<'a>(
     .spacing(SPACE_2)
     .width(Length::Fixed(60.0));
 
-    row![
-        text(format!("{}", i + 1))
-            .size(TYPE_LABEL)
-            .color(accent_color)
-            .font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..Default::default()
-            })
-            .width(Length::Fixed(40.0)),
-        container(
-            checkbox(is_active)
-                .on_toggle(move |en| {
-                    if is_busy {
-                        Message::None
-                    } else {
-                        Message::BandEnabledToggled(i, en)
-                    }
-                })
-                .size(16)
-                .style(theme::checkbox_style)
-        )
-        .width(Length::Fixed(30.0)),
-        container(type_buttons).width(Length::Fixed(160.0)),
-        freq_cell,
-        gain_cell,
-        q_cell,
-    ]
-    .spacing(SPACE_4)
-    .align_y(iced::Alignment::Center)
-    .padding(Padding {
-        top: SPACE_2,
-        right: SPACE_4,
-        bottom: SPACE_2,
-        left: SPACE_4,
-    })
-    .into()
+    let mut elements: Vec<Element<'a, Message>> = vec![text(format!("{}", i + 1))
+        .size(TYPE_LABEL)
+        .color(accent_color)
+        .font(iced::Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        })
+        .width(Length::Fixed(40.0))
+        .into()];
+
+    if show_enable {
+        elements.push(
+            container(
+                checkbox(is_active)
+                    .on_toggle(move |en| {
+                        if is_busy {
+                            Message::None
+                        } else {
+                            Message::BandEnabledToggled(i, en)
+                        }
+                    })
+                    .size(16)
+                    .style(theme::checkbox_style),
+            )
+            .width(Length::Fixed(30.0))
+            .into(),
+        );
+    }
+
+    elements.push(container(type_buttons).width(Length::Fixed(160.0)).into());
+    elements.push(freq_cell.into());
+    elements.push(gain_cell.into());
+    elements.push(q_cell.into());
+
+    row(elements)
+        .spacing(SPACE_4)
+        .align_y(iced::Alignment::Center)
+        .padding(Padding {
+            top: SPACE_2,
+            right: SPACE_4,
+            bottom: SPACE_2,
+            left: SPACE_4,
+        })
+        .into()
 }

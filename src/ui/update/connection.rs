@@ -21,6 +21,18 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.editor_state.pending_confirm = ConfirmAction::None;
             Task::none()
         }
+        Message::WindowCloseRequested(id) => {
+            if window.editor_state.is_dirty {
+                window.editor_state.pending_confirm = ConfirmAction::ExitWithUnsavedChanges(id);
+                Task::none()
+            } else {
+                iced::window::close(id)
+            }
+        }
+        Message::ConfirmExit(id) => {
+            window.editor_state.pending_confirm = ConfirmAction::None;
+            iced::window::close(id)
+        }
         Message::DeviceSelected(index) => {
             window.selected_device_index = Some(index);
             Task::none()
@@ -145,6 +157,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             if result.success {
                 window.connection_status = ConnectionStatus::Connected;
                 window.connected_device = result.device;
+                window.disconnect_reason = DisconnectReason::None;
+                window.last_auto_reconnect_attempt = None;
+                window.auto_reconnect_attempts = 0;
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::Worker,
@@ -203,6 +218,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.connection_status = ConnectionStatus::Disconnected;
             window.connected_device = None;
             window.editor_state.pending_confirm = ConfirmAction::None;
+            if window.disconnect_reason == DisconnectReason::Manual {
+                window.last_auto_reconnect_attempt = None;
+                window.auto_reconnect_attempts = 0;
+            }
             window.set_status("Disconnected", StatusSeverity::Info)
         }
         Message::WorkerStatus(status) => {
@@ -241,6 +260,8 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             if status.connected && window.connection_status != ConnectionStatus::Connected {
                 window.connection_status = ConnectionStatus::Connected;
                 window.disconnect_reason = DisconnectReason::None;
+                window.last_auto_reconnect_attempt = None;
+                window.auto_reconnect_attempts = 0;
                 log::info!("Device connected");
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
@@ -256,6 +277,21 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     "Device disconnected (poll)",
                 ));
+            }
+
+            if let Some(ref fatal) = status.fatal_error {
+                if !matches!(window.connection_status, ConnectionStatus::Error(_)) {
+                    window.connection_status = ConnectionStatus::Error(fatal.clone());
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Error,
+                        Source::Worker,
+                        format!("Worker fatal error: {}", fatal),
+                    ));
+                    return window.set_status(
+                        format!("Hardware access error: {}", fatal),
+                        StatusSeverity::Error,
+                    );
+                }
             }
             Task::none()
         }
@@ -276,10 +312,59 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                             available_devices: Vec::new(),
                             backend_reset: false,
                             generation: 0,
+                            fatal_error: None,
                         })
                 },
                 Message::WorkerStatus,
             );
+
+            // Auto-reconnect on unexpected device loss
+            let reconnect_task = if window.disconnect_reason == DisconnectReason::DeviceLost
+                && !window.operation_lock.is_connecting
+                && window.connection_status != ConnectionStatus::Connected
+                && !window.available_devices.is_empty()
+            {
+                let should_attempt = match window.last_auto_reconnect_attempt {
+                    None => true,
+                    Some(last) => {
+                        let backoff_secs =
+                            (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
+                        std::time::Instant::now().duration_since(last)
+                            >= std::time::Duration::from_secs(backoff_secs)
+                    }
+                };
+                if should_attempt {
+                    window.last_auto_reconnect_attempt = Some(std::time::Instant::now());
+                    window.auto_reconnect_attempts += 1;
+                    window.connection_status = ConnectionStatus::Connecting;
+                    window.operation_lock.is_connecting = true;
+                    window.suspend_status_polling = true;
+                    let target_device = window.available_devices.first().cloned().unwrap();
+                    let worker = match window.worker.as_ref() {
+                        Some(w) => Arc::clone(w),
+                        None => return Task::none(),
+                    };
+                    Some(Task::perform(
+                        async move {
+                            let rx = worker.connect(Some(target_device), Some(BackendKind::Local));
+                            rx.recv_timeout(std::time::Duration::from_secs(5))
+                                .unwrap_or_else(|_| ConnectionResult {
+                                    success: false,
+                                    device: None,
+                                    error: Some(AppError::new(
+                                        ErrorKind::IpcError,
+                                        "Auto-reconnect timed out",
+                                    )),
+                                })
+                        },
+                        Message::WorkerConnected,
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
 
             // Lightweight profiles directory polling
             let mtime_task = Task::perform(
@@ -287,11 +372,14 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Message::ProfilesDirMtimeChecked,
             );
 
-            if window.suspend_status_polling {
-                mtime_task
-            } else {
-                Task::batch(vec![status_task, mtime_task])
+            let mut tasks = vec![mtime_task];
+            if !window.suspend_status_polling {
+                tasks.push(status_task);
             }
+            if let Some(task) = reconnect_task {
+                tasks.push(task);
+            }
+            Task::batch(tasks)
         }
         Message::WorkerBackendReset => {
             window.connection_status = ConnectionStatus::Error("Worker backend reset".into());

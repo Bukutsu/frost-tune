@@ -98,6 +98,8 @@ impl MainWindow {
             diagnostics,
             connection_generation: 0,
             suspend_status_polling: false,
+            last_auto_reconnect_attempt: None,
+            auto_reconnect_attempts: 0,
         };
         let load_profiles_task = Task::perform(
             async move { crate::storage::load_all_profiles() },
@@ -332,6 +334,14 @@ impl MainWindow {
             ))
     }
 
+    pub fn supports_per_band_enable(&self) -> bool {
+        self.connected_device
+            .as_ref()
+            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
+            .map(|d| d.supports_per_band_enable())
+            .unwrap_or(true)
+    }
+
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
         match bucket {
             LayoutBucket::Narrow => vec![
@@ -465,6 +475,13 @@ impl MainWindow {
                 "Discard & Read",
                 Message::ConfirmPullPressed,
                 false,
+            )),
+            ConfirmAction::ExitWithUnsavedChanges(id) => Some(views::confirm_dialog::view_confirm_dialog(
+                "Unsaved Changes".to_string(),
+                "You have unsaved EQ changes. If you exit now, your changes will be lost.".to_string(),
+                "Exit Anyway",
+                Message::ConfirmExit(id),
+                true,
             )),
             ConfirmAction::None => None,
         } {
@@ -618,7 +635,9 @@ impl MainWindow {
         async fn tick() -> Message {
             Message::Tick(std::time::Instant::now())
         }
-        time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2))
+        let tick_sub = time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2));
+        let close_sub = iced::window::close_requests().map(Message::WindowCloseRequested);
+        Subscription::batch(vec![tick_sub, close_sub])
     }
 }
 
