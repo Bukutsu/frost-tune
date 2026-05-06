@@ -4,10 +4,7 @@ use crate::diagnostics::{
 use crate::hardware::worker::UsbWorker;
 use crate::models::Filter;
 use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
-use crate::ui::state::{
-    ConfirmAction, ConnectionStatus, DisconnectReason, EditorState, InputBuffer, MainWindow,
-    OperationLock,
-};
+use crate::ui::state::{ConfirmAction, ConnectionStatus, EditorState, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
     SPACE_16, SPACE_24, SPACE_4, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX,
@@ -72,35 +69,13 @@ impl MainWindow {
         let default_filters: Vec<Filter> =
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
         let window = MainWindow {
-            connection_status: ConnectionStatus::Disconnected,
-            disconnect_reason: DisconnectReason::None,
             editor_state: EditorState {
-                filters: default_filters.clone(),
-                global_gain: 0,
-                status_message: None,
-                diagnostics_errors_only: false,
-                profiles: Vec::new(),
-                selected_profile_name: None,
-                new_profile_name: String::new(),
-                input_buffer: InputBuffer::default(),
-
-                pending_confirm: ConfirmAction::None,
-                profiles_dir_mtime: None,
-                is_dirty: false,
-                is_autoeq_active: false,
-                show_diagnostics: false,
-                import_name_input: String::new(),
+                filters: default_filters,
+                ..Default::default()
             },
-            operation_lock: OperationLock::default(),
             worker: Some(worker),
-            connected_device: None,
-            available_devices: Vec::new(),
-            selected_device_index: None,
             diagnostics,
-            connection_generation: 0,
-            suspend_status_polling: false,
-            last_auto_reconnect_attempt: None,
-            auto_reconnect_attempts: 0,
+            ..Default::default()
         };
         let load_profiles_task = Task::perform(
             async move { crate::storage::load_all_profiles() },
@@ -372,22 +347,7 @@ impl MainWindow {
                 views::graph_panel::view_graph(self),
                 views::preamp::view_preamp(self),
                 views::bands::view_bands(self),
-                views::tools_panel::view_tools_panel(self, false),
-                views::diagnostics::view_diagnostics_section(self),
-            ]
-            .spacing(SPACE_16)
-            .width(Length::Fill),
-        )
-        .into()
-    }
-
-    fn view_medium(&self) -> Element<'_, Message> {
-        scrollable(
-            column![
-                views::graph_panel::view_graph(self),
-                views::preamp::view_preamp(self),
-                views::bands::view_bands(self),
-                views::tools_panel::view_tools_panel(self, false),
+                views::tools_panel::view_tools_panel(self),
                 views::diagnostics::view_diagnostics_section(self),
             ]
             .spacing(SPACE_16)
@@ -415,7 +375,7 @@ impl MainWindow {
         let right_sidebar = container(
             scrollable(
                 column![
-                    views::tools_panel::view_tools_panel(self, false),
+                    views::tools_panel::view_tools_panel(self),
                     views::diagnostics::view_diagnostics_section(self),
                 ]
                 .spacing(SPACE_16)
@@ -619,7 +579,7 @@ impl MainWindow {
                             .width(Length::Fill)
                             .height(Length::Fill)
                             .into(),
-                        LayoutBucket::Medium => container(self.view_medium())
+                        LayoutBucket::Medium => container(self.view_narrow())
                             .padding(SPACE_24)
                             .width(Length::Fill)
                             .height(Length::Fill)

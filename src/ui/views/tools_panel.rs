@@ -1,13 +1,12 @@
-use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_8};
 use crate::ui::views::{action_button, icon_action_button, icon_button};
-use iced::widget::{column, container, pick_list, row, slider, text, text_input};
+use iced::widget::{column, container, pick_list, row, text, text_input};
 use iced::{Element, Length};
 
-pub fn view_tools_panel(state: &MainWindow, show_preamp: bool) -> Element<'_, Message> {
+pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
 
     // --- AUTOEQ ACTIONS ---
@@ -136,33 +135,7 @@ pub fn view_tools_panel(state: &MainWindow, show_preamp: bool) -> Element<'_, Me
     ]
     .spacing(SPACE_12);
 
-    let preamp_section = column![
-        super::section_header(format!("PREAMP: {} dB", state.editor_state.global_gain)),
-        row![slider(
-            MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
-            state.editor_state.global_gain as f64,
-            move |v| {
-                if is_busy {
-                    Message::None
-                } else {
-                    Message::GlobalGainChanged(v as i8)
-                }
-            }
-        )
-        .width(Length::Fill)
-        .style(theme::slider_style),]
-        .spacing(SPACE_12)
-        .align_y(iced::Alignment::Center),
-    ]
-    .spacing(SPACE_8);
-
-    let sections = if show_preamp {
-        column![preamp_section, autoeq_section, preset_section].spacing(SPACE_16)
-    } else {
-        column![autoeq_section, preset_section].spacing(SPACE_16)
-    };
-
-    container(sections)
+    container(column![autoeq_section, preset_section].spacing(SPACE_16))
         .padding(SPACE_16)
         .style(theme::card_style)
         .width(Length::Fill)
