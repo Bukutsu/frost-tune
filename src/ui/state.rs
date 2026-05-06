@@ -39,46 +39,50 @@ pub struct InputBuffer {
 }
 
 impl InputBuffer {
-    pub fn get_freq_input(&self, band_index: usize) -> Option<&str> {
+    fn get_input_for(
+        &self,
+        band_index: usize,
+        f: impl FnOnce(&DraftFilter) -> &str,
+    ) -> Option<&str> {
         self.active_draft
             .as_ref()
             .filter(|d| d.index == band_index)
-            .map(|d| d.freq_input.as_str())
+            .map(f)
+    }
+
+    fn get_error_for(
+        &self,
+        band_index: usize,
+        f: impl FnOnce(&DraftFilter) -> &Option<String>,
+    ) -> Option<&str> {
+        self.active_draft
+            .as_ref()
+            .filter(|d| d.index == band_index)
+            .and_then(|d| f(d).as_deref())
+    }
+
+    pub fn get_freq_input(&self, band_index: usize) -> Option<&str> {
+        self.get_input_for(band_index, |d| d.freq_input.as_str())
     }
 
     pub fn get_gain_input(&self, band_index: usize) -> Option<&str> {
-        self.active_draft
-            .as_ref()
-            .filter(|d| d.index == band_index)
-            .map(|d| d.gain_input.as_str())
+        self.get_input_for(band_index, |d| d.gain_input.as_str())
     }
 
     pub fn get_q_input(&self, band_index: usize) -> Option<&str> {
-        self.active_draft
-            .as_ref()
-            .filter(|d| d.index == band_index)
-            .map(|d| d.q_input.as_str())
+        self.get_input_for(band_index, |d| d.q_input.as_str())
     }
 
     pub fn get_freq_error(&self, band_index: usize) -> Option<&str> {
-        self.active_draft
-            .as_ref()
-            .filter(|d| d.index == band_index)
-            .and_then(|d| d.freq_error.as_ref().map(|s| s.as_str()))
+        self.get_error_for(band_index, |d| &d.freq_error)
     }
 
     pub fn get_gain_error(&self, band_index: usize) -> Option<&str> {
-        self.active_draft
-            .as_ref()
-            .filter(|d| d.index == band_index)
-            .and_then(|d| d.gain_error.as_ref().map(|s| s.as_str()))
+        self.get_error_for(band_index, |d| &d.gain_error)
     }
 
     pub fn get_q_error(&self, band_index: usize) -> Option<&str> {
-        self.active_draft
-            .as_ref()
-            .filter(|d| d.index == band_index)
-            .and_then(|d| d.q_error.as_ref().map(|s| s.as_str()))
+        self.get_error_for(band_index, |d| &d.q_error)
     }
 
     pub fn has_errors(&self) -> bool {
