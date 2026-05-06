@@ -36,7 +36,7 @@ pub fn view_confirm_dialog<'a>(
         .padding(SPACE_16),
     )
     .style(theme::card_style)
-    .width(Length::Fixed(400.0))
+    .width(Length::Fixed(360.0))
     .center_x(Length::Fill)
     .into()
 }
