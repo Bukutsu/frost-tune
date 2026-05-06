@@ -249,14 +249,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             check_overwrite_and_save(window, name, data, true)
         }
         Message::ConfirmImportWithName => {
-            if let ConfirmAction::ImportAutoEQ { data, default_name } =
+            if let ConfirmAction::ImportAutoEQ { data, .. } =
                 window.editor_state.pending_confirm.clone()
             {
-                let name = if window.editor_state.import_name_input.trim().is_empty() {
-                    default_name
-                } else {
-                    window.editor_state.import_name_input.trim().to_string()
-                };
+                let name = window.editor_state.import_name_input.trim().to_string();
 
                 if name.is_empty() {
                     return window
@@ -418,7 +414,6 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
                     Ok(profile) => {
-                        window.editor_state.import_name_input = profile.name.clone();
                         window.editor_state.pending_confirm = ConfirmAction::ImportAutoEQ {
                             data: profile.data,
                             default_name: profile.name,

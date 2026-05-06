@@ -466,15 +466,11 @@ impl MainWindow {
                     "This will import {} filters and set global gain to {:.1}dB.\n\nCurrent unsaved settings will be replaced.\n\nEnter a name for this profile:",
                     count, data.global_gain,
                 );
-                let name = if self.editor_state.import_name_input.is_empty() {
-                    default_name.as_str()
-                } else {
-                    self.editor_state.import_name_input.as_str()
-                };
                 Some(views::confirm_dialog::view_name_input_dialog(
                     "Import Profile".to_string(),
                     message,
-                    name,
+                    self.editor_state.import_name_input.as_str(),
+                    default_name.as_str(),
                     "Import",
                     Message::ConfirmImportWithName,
                     true,

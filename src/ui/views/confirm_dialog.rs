@@ -45,6 +45,7 @@ pub fn view_name_input_dialog<'a>(
     title: String,
     message: String,
     input_value: &'a str,
+    input_placeholder: &'a str,
     confirm_label: &'static str,
     confirm_msg: Message,
     is_danger: bool,
@@ -55,7 +56,7 @@ pub fn view_name_input_dialog<'a>(
         theme::pill_primary_button
     };
 
-    let input = text_input("Profile name...", input_value)
+    let input = text_input(input_placeholder, input_value)
         .on_input(Message::ImportNameInput)
         .on_submit(confirm_msg.clone())
         .style(theme::m3_filled_input)
@@ -80,7 +81,7 @@ pub fn view_name_input_dialog<'a>(
         .padding(SPACE_16),
     )
     .style(theme::card_style)
-    .width(Length::Fixed(400.0))
+    .width(Length::Fixed(360.0))
     .center_x(Length::Fill)
     .into()
 }

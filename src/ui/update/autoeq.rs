@@ -41,7 +41,6 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         ));
                     }
                 }
-                window.editor_state.import_name_input = "Imported Profile".to_string();
                 window.editor_state.pending_confirm =
                     crate::ui::state::ConfirmAction::ImportAutoEQ {
                         data: peq,
