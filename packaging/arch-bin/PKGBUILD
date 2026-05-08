@@ -1,0 +1,26 @@
+# Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
+pkgname=frost-tune-bin
+pkgver=0.8.0
+pkgrel=1
+pkgdesc="Native parametric EQ editor for USB DACs (pre-built binary)"
+arch=('x86_64')
+url="https://github.com/Bukutsu/frost-tune"
+license=('MIT')
+depends=('polkit')
+provides=('frost-tune')
+conflicts=('frost-tune')
+install=frost-tune-bin.install
+source=(
+    "$pkgname-$pkgver::$url/releases/download/v$pkgver/frost-tune-v$pkgver-x86_64-unknown-linux-gnu"
+    "frost-tune.desktop::$url/releases/download/v$pkgver/frost-tune.desktop"
+    "frost-tune.svg::$url/releases/download/v$pkgver/frost-tune.svg"
+)
+sha256sums=('cddf198e553cec0ea5bcab44dc01e40f07353f23d6ab3ee7bf1fb5ee80350178'
+            'e81ec1bc7edd6d2450e909c0c7c5617b8b736665b9931c65c4ec618167cfbc78'
+            '5c359ec57e4f88bdaa5be69f07f3d2c4433f4b273b27c97fdf3f756b6d1e62fc')
+
+package() {
+    install -Dm755 "$srcdir/$pkgname-$pkgver" "$pkgdir/usr/bin/frost-tune"
+    install -Dm644 "$srcdir/frost-tune.desktop" "$pkgdir/usr/share/applications/frost-tune.desktop"
+    install -Dm644 "$srcdir/frost-tune.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/frost-tune.svg"
+}
