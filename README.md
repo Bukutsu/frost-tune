@@ -45,6 +45,27 @@ cd frost-tune
 cargo run --release
 ```
 
+### Arch Linux
+
+Two PKGBUILDs are available in the repository:
+
+**Source build** (compiles from source):
+
+```bash
+git clone https://github.com/Bukutsu/frost-tune.git
+cd frost-tune/packaging/arch
+makepkg -si
+```
+
+**Binary package** (pre-built, requires a matching GitHub release):
+
+```bash
+git clone https://github.com/Bukutsu/frost-tune.git
+cd frost-tune/packaging/arch-bin
+makepkg -si
+```
+
+Both packages install the `.desktop` file and SVG icon, and run post-install hooks to update the desktop database and icon cache.
 ## Security
 
 Accessing USB HID devices typically requires root privileges. Frost-Tune handles this by running a copy of itself with elevated permissions via `pkexec`. This means **the entire binary executes as root** while communicating with your device — not just a minimal helper.
