@@ -1,10 +1,7 @@
-use crate::hardware::dsp::{
-    calculate_total_response, get_biquad_coefficients, get_magnitude_response_with_coeffs,
-};
+use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
 use crate::models::Filter;
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
-
 use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
 
 #[derive(Debug, Clone, Copy)]
@@ -121,6 +118,18 @@ impl<Message> Program<Message> for EqGraph {
             }
         });
 
+        let coeffs: Vec<Option<(f64, f64, f64, f64, f64, f64)>> = self
+            .filters
+            .iter()
+            .map(|f| {
+                if f.freq == 0 || !f.enabled {
+                    None
+                } else {
+                    Some(get_biquad_coefficients(f))
+                }
+            })
+            .collect();
+
         let curve = self.curve_cache.draw(renderer, bounds.size(), |frame| {
             let points_count = 300;
             let min_f_log = 20.0f64.log10();
@@ -132,37 +141,49 @@ impl<Message> Program<Message> for EqGraph {
                 test_freqs.push(10.0f64.powf(f_log));
             }
 
-            let responses = calculate_total_response(&self.filters, self.global_gain, &test_freqs);
+            let responses: Vec<f64> = test_freqs
+                .iter()
+                .map(|&f| {
+                    let mut total_db = self.global_gain as f64;
+                    for c in &coeffs {
+                        if let Some((b0, b1, b2, a0, a1, a2)) = c {
+                            total_db +=
+                                get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                        }
+                    }
+                    total_db
+                })
+                .collect();
 
             let min_db = -18.0;
             let max_db = 18.0;
             let db_range = max_db - min_db;
 
-            for filter in &self.filters {
-                if filter.freq == 0 || !filter.enabled {
-                    continue;
-                }
-                let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter);
-                let band_path = Path::new(|builder| {
-                    for (i, &f) in test_freqs.iter().enumerate() {
-                        let db = get_magnitude_response_with_coeffs(b0, b1, b2, a0, a1, a2, f);
-                        let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
-                        let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
-                        let p = Point::new(x, y);
-                        if i == 0 {
-                            builder.move_to(p);
-                        } else {
-                            builder.line_to(p);
+            for c in &coeffs {
+                if let Some((b0, b1, b2, a0, a1, a2)) = c {
+                    let band_path = Path::new(|builder| {
+                        for (i, &f) in test_freqs.iter().enumerate() {
+                            let db = get_magnitude_response_with_coeffs(
+                                *b0, *b1, *b2, *a0, *a1, *a2, f,
+                            );
+                            let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
+                            let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
+                            let p = Point::new(x, y);
+                            if i == 0 {
+                                builder.move_to(p);
+                            } else {
+                                builder.line_to(p);
+                            }
                         }
-                    }
-                });
+                    });
 
-                frame.stroke(
-                    &band_path,
-                    Stroke::default()
-                        .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
-                        .with_width(1.0),
-                );
+                    frame.stroke(
+                        &band_path,
+                        Stroke::default()
+                            .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
+                            .with_width(1.0),
+                    );
+                }
             }
 
             let path = Path::new(|builder| {

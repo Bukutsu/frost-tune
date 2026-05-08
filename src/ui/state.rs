@@ -154,8 +154,11 @@ pub struct EditorState {
     pub is_autoeq_active: bool,
     pub show_diagnostics: bool,
     pub import_name_input: String,
+    pub undo_stack: Vec<crate::models::PEQData>,
+    pub redo_stack: Vec<crate::models::PEQData>,
+    pub profile_search: String,
+    pub snap_to_iso_enabled: bool,
 }
-
 #[derive(Debug, Clone, Default)]
 pub struct OperationLock {
     pub is_pulling: bool,
@@ -179,4 +182,5 @@ pub struct MainWindow {
     pub suspend_status_polling: bool,
     pub last_auto_reconnect_attempt: Option<std::time::Instant>,
     pub auto_reconnect_attempts: u32,
+    pub last_profile_check: Option<std::time::Instant>,
 }

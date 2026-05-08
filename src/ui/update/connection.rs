@@ -34,6 +34,39 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.editor_state.pending_confirm = ConfirmAction::None;
             iced::window::close(id)
         }
+
+        Message::SaveAndExit(id) => {
+            let save_name = if !window.editor_state.new_profile_name.trim().is_empty() {
+                Some(window.editor_state.new_profile_name.clone())
+            } else {
+                window.editor_state.selected_profile_name.clone()
+            };
+
+            if let Some(name) = save_name {
+                let peq_data = crate::models::PEQData {
+                    filters: window.editor_state.filters.clone(),
+                    global_gain: window.editor_state.global_gain,
+                };
+                match crate::storage::save_profile(&name, &peq_data) {
+                    Ok(()) => {
+                        window.editor_state.is_dirty = false;
+                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        return iced::window::close(id);
+                    }
+                    Err(e) => {
+                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        return window.set_status(
+                            format!("Save failed: {}", e),
+                            StatusSeverity::Error,
+                        );
+                    }
+                }
+            }
+            window.set_status(
+                "Enter a profile name first, then try Save & Exit again.",
+                StatusSeverity::Warning,
+            )
+        }
         Message::DeviceSelected(index) => {
             window.selected_device_index = Some(index);
             Task::none()
@@ -367,13 +400,29 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 None
             };
 
-            // Lightweight profiles directory polling
-            let mtime_task = Task::perform(
-                async move { crate::storage::get_profiles_dir_mtime() },
-                Message::ProfilesDirMtimeChecked,
-            );
+            let profile_check_interval = if window.connection_status == ConnectionStatus::Connected {
+                std::time::Duration::from_secs(10)
+            } else {
+                std::time::Duration::from_secs(30)
+            };
 
-            let mut tasks = vec![mtime_task];
+            let should_check_profiles = match window.last_profile_check {
+                None => true,
+                Some(last) => {
+                    std::time::Instant::now().duration_since(last) >= profile_check_interval
+                }
+            };
+
+            let mut tasks: Vec<Task<Message>> = Vec::new();
+
+            if should_check_profiles {
+                window.last_profile_check = Some(std::time::Instant::now());
+                let mtime_task = Task::perform(
+                    async move { crate::storage::get_profiles_dir_mtime() },
+                    Message::ProfilesDirMtimeChecked,
+                );
+                tasks.push(mtime_task);
+            }
             if !window.suspend_status_polling {
                 tasks.push(status_task);
             }

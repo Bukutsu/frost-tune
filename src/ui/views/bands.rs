@@ -4,7 +4,7 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{SPACE_12, SPACE_2, SPACE_32, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TINY};
 use iced::widget::{
-    button, checkbox, column, container, responsive, row, slider, text, text_input,
+    button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
 };
 use iced::{Background, Color, Element, Length, Padding};
 
@@ -105,13 +105,18 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
     );
     elements.push(
         container(
-            text("FREQ (Hz)")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                }),
+            tooltip(
+                text("FREQ (Hz)")
+                    .size(TYPE_TINY)
+                    .color(theme::TOKYO_NIGHT_FG)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Center frequency of the filter band"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
         )
         .padding([0.0, 5.0])
         .width(Length::Fixed(85.0))
@@ -119,13 +124,18 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
     );
     elements.push(
         container(
-            text("GAIN (dB)")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                }),
+            tooltip(
+                text("GAIN (dB)")
+                    .size(TYPE_TINY)
+                    .color(theme::TOKYO_NIGHT_FG)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Boost or cut level. Range: +/-10 dB"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
         )
         .padding([0.0, 5.0])
         .width(Length::Fill)
@@ -133,13 +143,18 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
     );
     elements.push(
         container(
-            text("Q")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                }),
+            tooltip(
+                text("Q")
+                    .size(TYPE_TINY)
+                    .color(theme::TOKYO_NIGHT_FG)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Quality factor. Lower = wider, higher = narrower"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
         )
         .padding([0.0, 5.0])
         .width(Length::Fixed(60.0))
@@ -317,9 +332,9 @@ fn render_band_row<'a>(
     .spacing(SPACE_2)
     .width(Length::Fixed(85.0));
 
-    let gain_cell = column![
-        gain_slider,
-        render_input_field(
+    let gain_cell = row![
+        gain_slider.width(Length::Fill),
+        container(render_input_field(
             state
                 .editor_state
                 .input_buffer
@@ -329,9 +344,11 @@ fn render_band_row<'a>(
             gain_error,
             move |s| Message::BandGainInput(i, s),
             Message::BandGainInputCommit(i),
-        ),
+        ))
+        .width(Length::Fixed(55.0)),
     ]
-    .spacing(SPACE_2)
+    .spacing(SPACE_4)
+    .align_y(iced::Alignment::Center)
     .width(Length::Fill);
 
     let q_cell = column![render_input_field(

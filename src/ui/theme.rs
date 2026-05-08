@@ -133,6 +133,28 @@ pub fn pill_text_button(theme: &Theme, status: button::Status) -> button::Style 
     enforce_disabled_button_contrast(style, status)
 }
 
+pub fn profile_row_style(
+    _theme: &Theme,
+    status: button::Status,
+    is_selected: bool,
+) -> button::Style {
+    let mut style = button::text(_theme, status);
+    style.border.radius = INPUT_RADIUS.into();
+    style.border.width = 0.0;
+
+    if is_selected {
+        style.background = Some(Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT));
+        style.text_color = TOKYO_NIGHT_BLUE;
+    } else if matches!(status, button::Status::Hovered) {
+        style.background = Some(Background::Color(Color {
+            a: 0.05,
+            ..TOKYO_NIGHT_FG
+        }));
+    }
+
+    enforce_disabled_button_contrast(style, status)
+}
+
 pub fn pill_outlined_primary_button(_theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(_theme, status);
     let (text_alpha, border_alpha, bg_alpha) = match status {

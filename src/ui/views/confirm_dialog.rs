@@ -57,6 +57,40 @@ pub fn view_confirm_dialog<'a>(
     dialog_container(title, message, confirm_label, confirm_msg, is_danger, None)
 }
 
+pub fn view_exit_dialog<'a>(
+    title: String,
+    message: String,
+    save_label: &'static str,
+    save_msg: Message,
+    exit_label: &'static str,
+    exit_msg: Message,
+) -> Element<'a, Message> {
+    container(
+        column![
+            text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
+            text(message).size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED),
+            row![
+                action_button("Cancel")
+                    .on_press(Message::DismissConfirmDialog)
+                    .style(theme::pill_secondary_button),
+                action_button(exit_label)
+                    .on_press(exit_msg)
+                    .style(theme::pill_danger_button),
+                action_button(save_label)
+                    .on_press(save_msg)
+                    .style(theme::pill_primary_button),
+            ]
+            .spacing(SPACE_12),
+        ]
+        .spacing(SPACE_12)
+        .padding(SPACE_16),
+    )
+    .style(theme::card_style)
+    .width(Length::Fixed(400.0))
+    .center_x(Length::Fill)
+    .into()
+}
+
 pub fn view_name_input_dialog<'a>(
     title: String,
     message: String,

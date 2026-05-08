@@ -8,6 +8,7 @@ use std::path::PathBuf;
 pub struct Profile {
     pub name: String,
     pub data: PEQData,
+    pub modified: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,9 +126,18 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
                                     log::warn!("Profile {} warning: {}", name, w);
                                 }
                             }
+                            let modified = fs::metadata(&path)
+                                .ok()
+                                .and_then(|m| m.modified().ok())
+                                .map(|t| {
+                                    chrono::DateTime::<chrono::Local>::from(t)
+                                        .format("%Y-%m-%d %H:%M")
+                                        .to_string()
+                                });
                             profiles.push(Profile {
                                 name: name.to_string(),
                                 data,
+                                modified,
                             });
                         }
                         Err(e) => {
@@ -210,7 +220,7 @@ pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
         .and_then(|s| s.to_str())
         .unwrap_or("Imported Profile")
         .to_string();
-    Ok(Profile { name, data })
+    Ok(Profile { name, data, modified: None })
 }
 
 pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<(), String> {

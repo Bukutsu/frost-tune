@@ -170,6 +170,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
                         window.editor_state.selected_profile_name = Some(name);
                         window.editor_state.new_profile_name = profile_name.clone();
+                        window.editor_state.profile_search.clear();
                         window.editor_state.is_autoeq_active = false;
                         (profile_name, was_truncated)
                     }
@@ -438,6 +439,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             } else {
                 Task::none()
             }
+        }
+        Message::ProfileSearchInput(query) => {
+            window.editor_state.profile_search = query;
+            Task::none()
         }
         _ => Task::none(),
     }

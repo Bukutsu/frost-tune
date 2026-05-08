@@ -86,4 +86,13 @@ pub enum Message {
     DismissConfirmDialog,
     WindowCloseRequested(iced::window::Id),
     ConfirmExit(iced::window::Id),
+    SaveAndExit(iced::window::Id),
+
+    Undo,
+    Redo,
+
+
+
+    ToggleSnapToIso(bool),
+    ProfileSearchInput(String),
 }

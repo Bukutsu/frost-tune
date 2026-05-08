@@ -45,13 +45,20 @@ pub fn parse_freq_string(s: &str) -> Option<u16> {
     }
 
     let mut multiplier = 1.0;
-    let mut num_str = s.as_str();
+    let mut num_str: &str = &s;
 
-    if s.ends_with('k') {
+    if let Some(stripped) = s.strip_suffix("khz") {
         multiplier = 1000.0;
-        num_str = &s[..s.len() - 1].trim();
-    } else if s.ends_with("hz") {
-        num_str = &s[..s.len() - 2].trim();
+        num_str = stripped.trim();
+    } else if let Some(stripped) = s.strip_suffix("hz") {
+        num_str = stripped.trim();
+    } else if let Some(stripped) = s.strip_suffix('k') {
+        multiplier = 1000.0;
+        num_str = stripped.trim();
+    }
+
+    if num_str.is_empty() {
+        return None;
     }
 
     if let Ok(v) = num_str.parse::<f64>() {
@@ -71,6 +78,7 @@ impl MainWindow {
         let window = MainWindow {
             editor_state: EditorState {
                 filters: default_filters,
+                snap_to_iso_enabled: true,
                 ..Default::default()
             },
             worker: Some(worker),
@@ -356,6 +364,37 @@ impl MainWindow {
         .into()
     }
 
+    fn view_medium(&self) -> Element<'_, Message> {
+        let graph_section = container(views::graph_panel::view_graph(self))
+            .height(Length::Fixed(220.0))
+            .width(Length::Fill);
+
+        let left_column = column![
+            graph_section,
+            views::preamp::view_preamp(self),
+            scrollable(views::bands::view_bands(self))
+                .height(Length::Fill)
+                .width(Length::Fill),
+        ]
+        .spacing(SPACE_8)
+        .width(Length::FillPortion(3));
+
+        let right_column = scrollable(
+            column![
+                views::tools_panel::view_tools_panel(self),
+                views::diagnostics::view_diagnostics_section(self),
+            ]
+            .spacing(SPACE_16),
+        )
+        .width(Length::FillPortion(2));
+
+        row![left_column, right_column]
+            .spacing(SPACE_16)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
     fn view_wide(&self) -> Element<'_, Message> {
         let left_content = column![
             views::graph_panel::view_graph_fill(self),
@@ -450,12 +489,13 @@ impl MainWindow {
                 Message::ConfirmPullPressed,
                 false,
             )),
-            ConfirmAction::ExitWithUnsavedChanges(id) => Some(views::confirm_dialog::view_confirm_dialog(
+            ConfirmAction::ExitWithUnsavedChanges(id) => Some(views::confirm_dialog::view_exit_dialog(
                 "Unsaved Changes".to_string(),
-                "You have unsaved EQ changes. If you exit now, your changes will be lost.".to_string(),
+                "You have unsaved EQ changes. Save before exiting?".to_string(),
+                "Save & Exit",
+                Message::SaveAndExit(id),
                 "Exit Anyway",
                 Message::ConfirmExit(id),
-                true,
             )),
             ConfirmAction::None => None,
         } {
@@ -579,8 +619,8 @@ impl MainWindow {
                             .width(Length::Fill)
                             .height(Length::Fill)
                             .into(),
-                        LayoutBucket::Medium => container(self.view_narrow())
-                            .padding(SPACE_24)
+                        LayoutBucket::Medium => container(self.view_medium())
+                            .padding(SPACE_16)
                             .width(Length::Fill)
                             .height(Length::Fill)
                             .into(),
@@ -603,6 +643,7 @@ impl MainWindow {
     }
 
     fn subscription(&self) -> Subscription<Message> {
+        use iced::keyboard;
         use iced::time;
         use std::pin::Pin;
         use std::time::Duration;
@@ -611,7 +652,20 @@ impl MainWindow {
         }
         let tick_sub = time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2));
         let close_sub = iced::window::close_requests().map(Message::WindowCloseRequested);
-        Subscription::batch(vec![tick_sub, close_sub])
+        let keyboard_sub = keyboard::listen().filter_map(|event| {
+            if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
+                if modifiers.control() {
+                    if modifiers.shift() && key == keyboard::Key::Character("Z".into()) {
+                        return Some(Message::Redo);
+                    }
+                    if key == keyboard::Key::Character("z".into()) {
+                        return Some(Message::Undo);
+                    }
+                }
+            }
+            None
+        });
+        Subscription::batch(vec![tick_sub, close_sub, keyboard_sub])
     }
 }
 

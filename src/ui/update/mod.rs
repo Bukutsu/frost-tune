@@ -31,7 +31,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ProfilesDirMtimeChecked(_)
         | Message::WorkerBackendReset
         | Message::WindowCloseRequested(_)
-        | Message::ConfirmExit(_) => handle_connection(window, message),
+        | Message::ConfirmExit(_)
+        | Message::SaveAndExit(_) => handle_connection(window, message),
 
         // handle_hardware
         Message::PullPressed
@@ -59,7 +60,10 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::GlobalGainChanged(..)
         | Message::ResetFiltersPressed
         | Message::ConfirmResetFilters
-        | Message::ToggleDiagnostics => handle_editor(window, message),
+        | Message::ToggleDiagnostics
+        | Message::Undo
+        | Message::Redo
+        | Message::ToggleSnapToIso(_) => handle_editor(window, message),
 
         // handle_autoeq
         Message::ImportFromClipboard
@@ -88,6 +92,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::FileExported(..)
         | Message::ImportNameInput(..)
         | Message::ConfirmImportWithName
-        | Message::ConfirmOverwriteProfile => handle_profiles(window, message),
+        | Message::ConfirmOverwriteProfile
+        | Message::ProfileSearchInput(..) => handle_profiles(window, message),
     }
 }

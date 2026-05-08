@@ -5,9 +5,24 @@ use crate::ui::messages::{Message, StatusSeverity};
 use crate::ui::state::{ConfirmAction, DraftFilter, MainWindow};
 use iced::Task;
 
+
+const MAX_UNDO: usize = 50;
+
+fn push_undo(window: &mut MainWindow) {
+    let current = PEQData {
+        filters: window.editor_state.filters.clone(),
+        global_gain: window.editor_state.global_gain,
+    };
+    window.editor_state.undo_stack.push(current);
+    if window.editor_state.undo_stack.len() > MAX_UNDO {
+        window.editor_state.undo_stack.remove(0);
+    }
+    window.editor_state.redo_stack.clear();
+}
 pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::BandFreqChanged(index, freq) => {
+            push_undo(window);
             let freq_range = window.freq_range();
             let gain_range = window.gain_range();
             let q_range = window.q_range();
@@ -20,6 +35,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandTypeChanged(index, t) => {
+            push_undo(window);
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.filter_type = t;
                 window.editor_state.is_dirty = true;
@@ -30,6 +46,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             if !window.supports_per_band_enable() {
                 return Task::none();
             }
+            push_undo(window);
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.enabled = en;
                 window.editor_state.is_dirty = true;
@@ -100,6 +117,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             let (min_freq, max_freq) = window.freq_range();
             if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
                 if draft.index == index {
+                    push_undo(window);
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Some(v) = parse_freq_string(&draft.freq_input) {
                             band.freq = v.clamp(min_freq, max_freq);
@@ -120,6 +138,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             let (min_gain, max_gain) = window.gain_range();
             if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
                 if draft.index == index {
+                    push_undo(window);
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Ok(v) = draft.gain_input.trim().parse::<f64>() {
                             if v >= min_gain && v <= max_gain {
@@ -146,6 +165,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             let (min_q, max_q) = window.q_range();
             if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
                 if draft.index == index {
+                    push_undo(window);
                     if let Some(band) = window.editor_state.filters.get_mut(index) {
                         if let Ok(v) = draft.q_input.trim().parse::<f64>() {
                             if v >= min_q && v <= max_q {
@@ -192,9 +212,14 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandFreqSliderChanged(index, v) => {
+            push_undo(window);
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 let hz = 10f64.powf(v).round() as u16;
-                band.freq = snap_freq_to_iso(hz);
+                band.freq = if window.editor_state.snap_to_iso_enabled {
+                    snap_freq_to_iso(hz)
+                } else {
+                    hz
+                };
                 window.editor_state.is_dirty = true;
                 if let Some(draft) = window.editor_state.input_buffer.active_draft.as_mut() {
                     if draft.index == index {
@@ -206,6 +231,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
         }
         Message::BandGainChanged(index, v) => {
             let (min_gain, max_gain) = window.gain_range();
+            push_undo(window);
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 band.gain = v.clamp(min_gain, max_gain);
                 band.enabled = true;
@@ -219,6 +245,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandQChanged(index, v) => {
+            push_undo(window);
             if let Some(band) = window.editor_state.filters.get_mut(index) {
                 let q_val = 10f64.powf(v);
                 band.q = snap_q_to_iso(q_val);
@@ -232,6 +259,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::GlobalGainChanged(gain) => {
+            push_undo(window);
             window.editor_state.global_gain = gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN);
             window.editor_state.is_dirty = true;
             Task::none()
@@ -246,6 +274,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.pending_confirm,
                 ConfirmAction::ResetFilters
             ) {
+            push_undo(window);
                 window.editor_state.filters.clear();
                 for i in 0..num_bands {
                     window
@@ -270,6 +299,40 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
         }
         Message::ToggleDiagnostics => {
             window.editor_state.show_diagnostics = !window.editor_state.show_diagnostics;
+            Task::none()
+        }
+
+        Message::Undo => {
+            if let Some(prev) = window.editor_state.undo_stack.pop() {
+                let current = crate::models::PEQData {
+                    filters: window.editor_state.filters.clone(),
+                    global_gain: window.editor_state.global_gain,
+                };
+                window.editor_state.redo_stack.push(current);
+                window.editor_state.filters = prev.filters;
+                window.editor_state.global_gain = prev.global_gain;
+                window.editor_state.is_dirty = true;
+                window.editor_state.input_buffer.active_draft = None;
+            }
+            Task::none()
+        }
+        Message::Redo => {
+            if let Some(next) = window.editor_state.redo_stack.pop() {
+                let current = crate::models::PEQData {
+                    filters: window.editor_state.filters.clone(),
+                    global_gain: window.editor_state.global_gain,
+                };
+                window.editor_state.undo_stack.push(current);
+                window.editor_state.filters = next.filters;
+                window.editor_state.global_gain = next.global_gain;
+                window.editor_state.is_dirty = true;
+                window.editor_state.input_buffer.active_draft = None;
+            }
+            Task::none()
+        }
+
+        Message::ToggleSnapToIso(enabled) => {
+            window.editor_state.snap_to_iso_enabled = enabled;
             Task::none()
         }
         _ => Task::none(),
