@@ -8,3 +8,5 @@
 .vscode/
 .gemini/mcp/
 mcp_error.log
+graphify-out/
+!graphify-out/GRAPH_REPORT.md
