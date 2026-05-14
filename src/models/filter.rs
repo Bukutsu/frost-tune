@@ -110,7 +110,7 @@ pub fn snap_freq_to_iso(freq: u16) -> u16 {
         .iter()
         .min_by_key(|&&f| (f as i32 - freq as i32).abs())
         .copied()
-        .unwrap_or(freq.min(MAX_FREQ).max(MIN_FREQ))
+        .unwrap_or(freq.clamp(MIN_FREQ, MAX_FREQ))
 }
 
 pub fn snap_q_to_iso(q: f64) -> f64 {

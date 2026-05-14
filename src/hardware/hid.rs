@@ -139,7 +139,7 @@ pub fn pull_peq_internal(
         }
         filter_responses[i as usize] = response;
 
-        delay_ms(cfg.inter_filter_ms as u64);
+        delay_ms(cfg.inter_filter_ms);
     }
 
     if had_mismatch {

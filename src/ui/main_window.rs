@@ -63,7 +63,7 @@ pub fn parse_freq_string(s: &str) -> Option<u16> {
 
     if let Ok(v) = num_str.parse::<f64>() {
         let hz = (v * multiplier).round() as u16;
-        if hz >= 20 && hz <= 20000 {
+        if (20..=20000).contains(&hz) {
             return Some(hz);
         }
     }
@@ -645,12 +645,12 @@ impl MainWindow {
     fn subscription(&self) -> Subscription<Message> {
         use iced::keyboard;
         use iced::time;
-        use std::pin::Pin;
+
         use std::time::Duration;
         async fn tick() -> Message {
             Message::Tick(std::time::Instant::now())
         }
-        let tick_sub = time::repeat(|| Pin::from(Box::pin(tick())), Duration::from_secs(2));
+        let tick_sub = time::repeat(|| Box::pin(tick()), Duration::from_secs(2));
         let close_sub = iced::window::close_requests().map(Message::WindowCloseRequested);
         let keyboard_sub = keyboard::listen().filter_map(|event| {
             if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {

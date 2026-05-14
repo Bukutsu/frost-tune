@@ -88,7 +88,7 @@ pub fn push_with_verify(
 
     for attempt in 0..3 {
         let backoff_ms = 200 * (2u64.pow(attempt as u32));
-        delay_ms(backoff_ms as u64);
+        delay_ms(backoff_ms);
         match pull_peq_data(device, proto, true) {
             Ok(read_back) => {
                 if compare_peq(

@@ -413,7 +413,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 async move {
                     rfd::AsyncFileDialog::new()
                         .add_filter("Frost-Tune Profile", &["json", "txt"])
-                        .set_file_name(&format!("{}.txt", name))
+                        .set_file_name(format!("{}.txt", name))
                         .save_file()
                         .await
                 },

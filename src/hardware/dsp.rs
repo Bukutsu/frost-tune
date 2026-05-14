@@ -55,8 +55,8 @@ pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> Vec<u8> {
     for (i, &value) in quantizer_data.iter().enumerate() {
         b_arr[i * 4] = (value & 0xFF) as u8;
         b_arr[i * 4 + 1] = ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8;
-        b_arr[i * 4 + 2] = ((value >> BYTE_BIT_SHIFT * 2) & 0xFF) as u8;
-        b_arr[i * 4 + 3] = ((value >> BYTE_BIT_SHIFT * 3) & 0xFF) as u8;
+        b_arr[i * 4 + 2] = ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8;
+        b_arr[i * 4 + 3] = ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8;
     }
 
     b_arr
@@ -199,6 +199,8 @@ pub fn get_magnitude_response_with_coeffs(
     10.0 * (num_mag_sq / den_mag_sq).log10()
 }
 
+type BiquadCoeffs = (f64, f64, f64, f64, f64, f64);
+
 pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
     if filter.freq == 0 || !filter.enabled {
         return 0.0;
@@ -208,7 +210,7 @@ pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
 }
 
 pub fn calculate_total_response(filters: &[Filter], global_gain: i8, freqs: &[f64]) -> Vec<f64> {
-    let precomputed_coeffs: Vec<Option<(f64, f64, f64, f64, f64, f64)>> = filters
+    let precomputed_coeffs: Vec<Option<BiquadCoeffs>> = filters
         .iter()
         .map(|f| {
             if f.freq == 0 || !f.enabled {
@@ -223,10 +225,8 @@ pub fn calculate_total_response(filters: &[Filter], global_gain: i8, freqs: &[f6
         .iter()
         .map(|&f| {
             let mut total_db = global_gain as f64;
-            for coeffs in &precomputed_coeffs {
-                if let Some((b0, b1, b2, a0, a1, a2)) = coeffs {
-                    total_db += get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
-                }
+            for (b0, b1, b2, a0, a1, a2) in precomputed_coeffs.iter().flatten() {
+                total_db += get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
             }
             total_db
         })

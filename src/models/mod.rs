@@ -134,9 +134,9 @@ mod tests {
 
     #[test]
     fn test_default_filter_has_correct_index() {
-        for i in 0..10 {
+        for i in 0u8..10 {
             let filter = Filter::enabled(i, true);
-            assert_eq!(filter.index, i as u8);
+            assert_eq!(filter.index, i);
         }
     }
 

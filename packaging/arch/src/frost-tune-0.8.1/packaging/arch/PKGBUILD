@@ -1,0 +1,28 @@
+# Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
+pkgname=frost-tune
+pkgver=0.8.0
+pkgrel=1
+pkgdesc="Native parametric EQ editor for USB DACs (source build)"
+arch=('x86_64')
+url="https://github.com/Bukutsu/frost-tune"
+license=('MIT')
+depends=('polkit')
+makedepends=('rust' 'cargo' 'desktop-file-utils' 'mold')
+provides=('frost-tune')
+conflicts=('frost-tune-bin')
+install=frost-tune.install
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
+    cargo build --release --locked
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+    install -Dm644 "assets/frost-tune.desktop" "$pkgdir/usr/share/applications/frost-tune.desktop"
+    install -Dm644 "assets/frost-tune.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/frost-tune.svg"
+}

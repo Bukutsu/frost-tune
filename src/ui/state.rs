@@ -5,32 +5,22 @@ use crate::storage::Profile;
 use crate::ui::messages::StatusMessage;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ConnectionStatus {
+    #[default]
     Disconnected,
     Connecting,
     Connected,
     Error(String),
 }
 
-impl Default for ConnectionStatus {
-    fn default() -> Self {
-        ConnectionStatus::Disconnected
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum DisconnectReason {
+    #[default]
     None,
     Manual,
     DeviceLost,
     Error(String),
-}
-
-impl Default for DisconnectReason {
-    fn default() -> Self {
-        DisconnectReason::None
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -86,7 +76,7 @@ impl InputBuffer {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.active_draft.as_ref().map_or(false, |d| d.has_errors())
+        self.active_draft.as_ref().is_some_and(|d| d.has_errors())
     }
 }
 

@@ -4,6 +4,8 @@ use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
 
+type BiquadCoeffs = (f64, f64, f64, f64, f64, f64);
+
 #[derive(Debug, Clone, Copy)]
 pub struct GraphLabelLayout {
     pub title_pos: Point,
@@ -118,7 +120,7 @@ impl<Message> Program<Message> for EqGraph {
             }
         });
 
-        let coeffs: Vec<Option<(f64, f64, f64, f64, f64, f64)>> = self
+        let coeffs: Vec<Option<BiquadCoeffs>> = self
             .filters
             .iter()
             .map(|f| {
@@ -145,11 +147,9 @@ impl<Message> Program<Message> for EqGraph {
                 .iter()
                 .map(|&f| {
                     let mut total_db = self.global_gain as f64;
-                    for c in &coeffs {
-                        if let Some((b0, b1, b2, a0, a1, a2)) = c {
-                            total_db +=
-                                get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
-                        }
+                    for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
+                        total_db +=
+                            get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
                     }
                     total_db
                 })
@@ -159,30 +159,28 @@ impl<Message> Program<Message> for EqGraph {
             let max_db = 18.0;
             let db_range = max_db - min_db;
 
-            for c in &coeffs {
-                if let Some((b0, b1, b2, a0, a1, a2)) = c {
-                    let band_path = Path::new(|builder| {
-                        for (i, &f) in test_freqs.iter().enumerate() {
-                            let db =
-                                get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
-                            let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
-                            let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
-                            let p = Point::new(x, y);
-                            if i == 0 {
-                                builder.move_to(p);
-                            } else {
-                                builder.line_to(p);
-                            }
+            for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
+                let band_path = Path::new(|builder| {
+                    for (i, &f) in test_freqs.iter().enumerate() {
+                        let db =
+                            get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                        let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
+                        let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
+                        let p = Point::new(x, y);
+                        if i == 0 {
+                            builder.move_to(p);
+                        } else {
+                            builder.line_to(p);
                         }
-                    });
+                    }
+                });
 
-                    frame.stroke(
-                        &band_path,
-                        Stroke::default()
-                            .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
-                            .with_width(1.0),
-                    );
-                }
+                frame.stroke(
+                    &band_path,
+                    Stroke::default()
+                        .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
+                        .with_width(1.0),
+                );
             }
 
             let path = Path::new(|builder| {

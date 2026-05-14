@@ -59,12 +59,8 @@ impl PushPayload {
                 (crate::models::MIN_Q, crate::models::MAX_Q),
             );
         }
-        if let Some(ref mut gain) = self.global_gain {
-            if *gain > MAX_GLOBAL_GAIN {
-                *gain = MAX_GLOBAL_GAIN;
-            } else if *gain < MIN_GLOBAL_GAIN {
-                *gain = MIN_GLOBAL_GAIN;
-            }
+        if let Some(gain) = self.global_gain {
+            self.global_gain = Some(gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN));
         }
     }
 
@@ -97,7 +93,7 @@ impl PushPayload {
             }
         }
         if let Some(gain) = self.global_gain {
-            if gain < MIN_GLOBAL_GAIN || gain > MAX_GLOBAL_GAIN {
+            if !(MIN_GLOBAL_GAIN..=MAX_GLOBAL_GAIN).contains(&gain) {
                 return Err(format!("Global gain out of range: {}", gain));
             }
         }

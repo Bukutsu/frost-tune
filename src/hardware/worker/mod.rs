@@ -265,12 +265,12 @@ impl WorkerState {
                     let _ = resp.send(result);
                 }
                 UsbCommand::Disconnect(resp) => {
-                    if let Some(current) = self.backend.as_mut() {
-                        #[cfg(target_os = "linux")]
-                        if let TransportBackend::Elevated { transport, .. } = current {
-                            let _ = transport.round_trip(&HelperRequest::Disconnect);
-                            transport.shutdown();
-                        }
+                    #[cfg(target_os = "linux")]
+                    if let Some(TransportBackend::Elevated { transport, .. }) =
+                        self.backend.as_mut()
+                    {
+                        let _ = transport.round_trip(&HelperRequest::Disconnect);
+                        transport.shutdown();
                     }
                     self.backend = None;
                     self.generation = self.generation.saturating_add(1);

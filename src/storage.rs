@@ -11,19 +11,10 @@ pub struct Profile {
     pub modified: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UiPreferences {
     pub advanced_filters_expanded: bool,
     pub diagnostics_expanded: bool,
-}
-
-impl Default for UiPreferences {
-    fn default() -> Self {
-        Self {
-            advanced_filters_expanded: false,
-            diagnostics_expanded: false,
-        }
-    }
 }
 
 fn get_base_dir() -> Result<PathBuf, String> {
@@ -112,38 +103,36 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
     let entries =
         fs::read_dir(dir).map_err(|e| format!("Failed to read profiles directory: {}", e))?;
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "txt") {
-                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    let content = fs::read_to_string(&path)
-                        .map_err(|e| format!("Failed to read profile {}: {}", name, e))?;
-                    match autoeq::parse_autoeq_text(&content) {
-                        Ok((data, warnings)) => {
-                            if !warnings.is_empty() {
-                                for w in &warnings {
-                                    log::warn!("Profile {} warning: {}", name, w);
-                                }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "txt") {
+            if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                let content = fs::read_to_string(&path)
+                    .map_err(|e| format!("Failed to read profile {}: {}", name, e))?;
+                match autoeq::parse_autoeq_text(&content) {
+                    Ok((data, warnings)) => {
+                        if !warnings.is_empty() {
+                            for w in &warnings {
+                                log::warn!("Profile {} warning: {}", name, w);
                             }
-                            let modified = fs::metadata(&path)
-                                .ok()
-                                .and_then(|m| m.modified().ok())
-                                .map(|t| {
-                                    chrono::DateTime::<chrono::Local>::from(t)
-                                        .format("%Y-%m-%d %H:%M")
-                                        .to_string()
-                                });
-                            profiles.push(Profile {
-                                name: name.to_string(),
-                                data,
-                                modified,
+                        }
+                        let modified = fs::metadata(&path)
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .map(|t| {
+                                chrono::DateTime::<chrono::Local>::from(t)
+                                    .format("%Y-%m-%d %H:%M")
+                                    .to_string()
                             });
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to parse profile {}: {}", name, e);
-                            errors.push(format!("Profile '{}' failed to parse: {}", name, e));
-                        }
+                        profiles.push(Profile {
+                            name: name.to_string(),
+                            data,
+                            modified,
+                        });
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to parse profile {}: {}", name, e);
+                        errors.push(format!("Profile '{}' failed to parse: {}", name, e));
                     }
                 }
             }
@@ -151,7 +140,7 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
     }
 
     // Sort profiles by name
-    profiles.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    profiles.sort_by_key(|a| a.name.to_lowercase());
 
     Ok((profiles, errors))
 }
@@ -288,7 +277,7 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>, String> {
 
     const MAX_LOG_LINES: usize = 5000;
     if lines.len() > MAX_LOG_LINES {
-        let keep_count = limit.min(2000).max(100);
+        let keep_count = limit.clamp(100, 2000);
         lines = lines.split_off(lines.len() - keep_count);
         if let Err(e) = std::fs::write(&path, lines.join("\n") + "\n") {
             log::warn!("Failed to truncate diagnostics log: {}", e);

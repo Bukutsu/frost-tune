@@ -2,7 +2,6 @@ use frost_tune::error::{AppError, ErrorKind};
 use frost_tune::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
 use frost_tune::hardware::worker::{UsbWorker, WorkerStatus};
 use frost_tune::models::DeviceInfo;
-use serde_json;
 
 #[test]
 fn test_worker_new_and_status() {

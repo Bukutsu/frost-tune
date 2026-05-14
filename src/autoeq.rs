@@ -33,8 +33,8 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
                     filters[idx].enabled = enabled;
                     filters[idx].filter_type = filter_type;
                     filters[idx].freq = (freq.min(MAX_FREQ as f64).max(MIN_FREQ as f64)) as u16;
-                    filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
-                    filters[idx].q = q.min(MAX_Q).max(MIN_Q);
+                    filters[idx].gain = gain.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
+                    filters[idx].q = q.clamp(MIN_Q, MAX_Q);
                     parsed_count += 1;
                 } else {
                     warnings.push(format!(

@@ -57,7 +57,7 @@ fn handle_connect(
     device_type: &mut Device,
 ) -> HelperResponse {
     let _ = api.refresh_devices();
-    match find_device_info(&api) {
+    match find_device_info(api) {
         Some(found) => {
             let found_type = Device::from_vid_pid(found.vendor_id(), found.product_id());
             if found_type == Device::Unknown {
@@ -66,7 +66,7 @@ fn handle_connect(
                     error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                 }
             } else {
-                match found.open_device(&api) {
+                match found.open_device(api) {
                     Ok(opened) => {
                         let info = device_info_from_hid(&found);
                         *device = Some(opened);
