@@ -13,8 +13,7 @@ Frost-Tune is a native parametric EQ editor for USB DACs, built with Rust and th
 
 ```
 frost-tune/
-├── packaging/arch/      # Arch Linux PKGBUILD
-│   └── PKGBUILD
+├── PKGBUILD             # Arch Linux PKGBUILD
 ├── src/
 │   ├── main.rs              # Entry point
 │   ├── lib.rs               # Library root
@@ -75,7 +74,7 @@ cargo check --all-targets        # Fast build check
 cargo run --release              # Start the app with optimizations
 
 # Package for Arch Linux
-cd packaging/arch && makepkg -si
+makepkg -si
 ```
 
 ## Code Standards
