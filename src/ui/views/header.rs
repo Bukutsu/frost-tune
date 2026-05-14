@@ -3,8 +3,7 @@ use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
 use crate::ui::theme::{self, TOKYO_NIGHT_PRIMARY};
 use crate::ui::tokens::{
-    SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY,
-    TYPE_TITLE,
+    SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;

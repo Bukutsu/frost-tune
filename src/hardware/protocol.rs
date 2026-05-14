@@ -1,10 +1,10 @@
 use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
-pub use crate::hardware::packet_format::{
-    REPORT_ID, READ, WRITE, END, FILTER_SLOT, CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES,
-    CMD_TEMP_WRITE, CMD_VERSION, OFFSET_CMD_TYPE, OFFSET_CMD, OFFSET_NONCE, OFFSET_INDEX,
-    OFFSET_BIQUAD_START, OFFSET_SLOT, OFFSET_GAIN_VALUE,
-};
 use crate::hardware::packet_format::{ReadTiming, WriteTiming};
+pub use crate::hardware::packet_format::{
+    CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, FILTER_SLOT,
+    OFFSET_BIQUAD_START, OFFSET_CMD, OFFSET_CMD_TYPE, OFFSET_GAIN_VALUE, OFFSET_INDEX,
+    OFFSET_NONCE, OFFSET_SLOT, READ, REPORT_ID, WRITE,
+};
 use crate::models::Filter;
 
 /// Trait defining hardware-specific packet layouts and constants.

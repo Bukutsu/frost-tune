@@ -5,7 +5,6 @@ use crate::ui::messages::{Message, StatusSeverity};
 use crate::ui::state::{ConfirmAction, DraftFilter, MainWindow};
 use iced::Task;
 
-
 const MAX_UNDO: usize = 50;
 
 fn push_undo(window: &mut MainWindow) {
@@ -255,7 +254,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.pending_confirm,
                 ConfirmAction::ResetFilters
             ) {
-            push_undo(window);
+                push_undo(window);
                 window.editor_state.filters.clear();
                 for i in 0..num_bands {
                     window

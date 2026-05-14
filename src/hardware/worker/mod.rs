@@ -82,8 +82,9 @@ impl WorkerState {
             let should_retry = match self.last_api_retry {
                 None => true,
                 Some(last) => {
-                    let backoff =
-                        std::time::Duration::from_secs((2u64.saturating_pow(self.api_retry_count)).min(30));
+                    let backoff = std::time::Duration::from_secs(
+                        (2u64.saturating_pow(self.api_retry_count)).min(30),
+                    );
                     now.duration_since(last) >= backoff
                 }
             };
@@ -153,7 +154,8 @@ impl WorkerState {
                                     None => true,
                                     Some(last) => {
                                         let backoff = std::time::Duration::from_secs(
-                                            (2u64.saturating_pow(self.elevated_respawn_attempts)).min(30),
+                                            (2u64.saturating_pow(self.elevated_respawn_attempts))
+                                                .min(30),
                                         );
                                         std::time::Instant::now().duration_since(last) >= backoff
                                     }
@@ -212,9 +214,7 @@ impl WorkerState {
                                 self.elevated_respawn_attempts = 0;
                                 self.last_elevated_respawn = None;
                                 if ping_result.is_err() {
-                                    log::warn!(
-                                        "Elevated backend ping failed, may be unresponsive"
-                                    );
+                                    log::warn!("Elevated backend ping failed, may be unresponsive");
                                 }
                             }
                         }

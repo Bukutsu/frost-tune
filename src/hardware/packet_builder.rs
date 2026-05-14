@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::hardware::hid::{delay_ms, send_report};
-use crate::hardware::packet_format::{END, READ, WriteTiming};
+use crate::hardware::packet_format::{WriteTiming, END, READ};
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::Filter;
 use hidapi::HidDevice;

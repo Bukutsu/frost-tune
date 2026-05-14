@@ -40,7 +40,9 @@ fn push_logic(
 }
 
 #[cfg(target_os = "linux")]
-fn require_device(device: &Option<hidapi::HidDevice>) -> Result<&hidapi::HidDevice, HelperResponse> {
+fn require_device(
+    device: &Option<hidapi::HidDevice>,
+) -> Result<&hidapi::HidDevice, HelperResponse> {
     device.as_ref().ok_or_else(|| HelperResponse::Error {
         kind: ErrorKind::NotConnected,
         error: AppError::new(ErrorKind::NotConnected, "Not connected"),
@@ -61,10 +63,7 @@ fn handle_connect(
             if found_type == Device::Unknown {
                 HelperResponse::Error {
                     kind: ErrorKind::HardwareError,
-                    error: AppError::new(
-                        ErrorKind::HardwareError,
-                        "Unsupported DAC device",
-                    ),
+                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                 }
             } else {
                 match found.open_device(&api) {
@@ -77,10 +76,7 @@ fn handle_connect(
                     }
                     Err(e) => HelperResponse::Error {
                         kind: ErrorKind::PermissionDenied,
-                        error: AppError::new(
-                            ErrorKind::PermissionDenied,
-                            e.to_string(),
-                        ),
+                        error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
                     },
                 }
             }
@@ -224,51 +220,47 @@ pub fn run() -> crate::error::Result<()> {
                 version: IPC_VERSION.to_string(),
             },
             HelperRequest::Ping => HelperResponse::Pong,
-            HelperRequest::PullPeq { strict } => {
-                match require_device(&device) {
-                    Ok(d) => match pull_logic(d, device_type, strict) {
-                        Ok(peq) => match serde_json::to_value(peq) {
-                            Ok(value) => HelperResponse::Pulled { data: value },
-                            Err(e) => HelperResponse::Error {
-                                kind: ErrorKind::ParseError,
-                                error: AppError::new(
-                                    ErrorKind::ParseError,
-                                    format!("Serialization failed: {}", e),
-                                ),
-                            },
-                        },
+            HelperRequest::PullPeq { strict } => match require_device(&device) {
+                Ok(d) => match pull_logic(d, device_type, strict) {
+                    Ok(peq) => match serde_json::to_value(peq) {
+                        Ok(value) => HelperResponse::Pulled { data: value },
                         Err(e) => HelperResponse::Error {
-                            kind: e.kind,
-                            error: e,
+                            kind: ErrorKind::ParseError,
+                            error: AppError::new(
+                                ErrorKind::ParseError,
+                                format!("Serialization failed: {}", e),
+                            ),
                         },
                     },
-                    Err(response) => response,
-                }
-            }
+                    Err(e) => HelperResponse::Error {
+                        kind: e.kind,
+                        error: e,
+                    },
+                },
+                Err(response) => response,
+            },
             HelperRequest::PushPeq {
                 filters,
                 global_gain,
-            } => {
-                match require_device(&device) {
-                    Ok(d) => match push_logic(d, device_type, filters, global_gain) {
-                        Ok(peq) => match serde_json::to_value(peq) {
-                            Ok(value) => HelperResponse::Pushed { data: value },
-                            Err(e) => HelperResponse::Error {
-                                kind: ErrorKind::ParseError,
-                                error: AppError::new(
-                                    ErrorKind::ParseError,
-                                    format!("Serialization failed: {}", e),
-                                ),
-                            },
-                        },
+            } => match require_device(&device) {
+                Ok(d) => match push_logic(d, device_type, filters, global_gain) {
+                    Ok(peq) => match serde_json::to_value(peq) {
+                        Ok(value) => HelperResponse::Pushed { data: value },
                         Err(e) => HelperResponse::Error {
-                            kind: e.kind,
-                            error: e,
+                            kind: ErrorKind::ParseError,
+                            error: AppError::new(
+                                ErrorKind::ParseError,
+                                format!("Serialization failed: {}", e),
+                            ),
                         },
                     },
-                    Err(response) => response,
-                }
-            }
+                    Err(e) => HelperResponse::Error {
+                        kind: e.kind,
+                        error: e,
+                    },
+                },
+                Err(response) => response,
+            },
             HelperRequest::Shutdown => {
                 write_response(&mut stdout_lock, &HelperResponse::Ok)?;
                 break;

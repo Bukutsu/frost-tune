@@ -91,8 +91,6 @@ pub enum Message {
     Undo,
     Redo,
 
-
-
     ToggleSnapToIso(bool),
     ProfileSearchInput(String),
 }

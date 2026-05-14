@@ -1,6 +1,6 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::{init_device_session, NUM_FILTERS};
-use crate::hardware::packet_format::{READ, REPORT_ID, ReadTiming};
+use crate::hardware::packet_format::{ReadTiming, READ, REPORT_ID};
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Device, DeviceInfo, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};

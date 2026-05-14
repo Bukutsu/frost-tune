@@ -1,6 +1,6 @@
 use crate::models::{
-    Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_BAND_GAIN, MIN_GLOBAL_GAIN,
-    MAX_FREQ, MIN_FREQ, MAX_Q, MIN_Q,
+    Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN, MAX_Q, MIN_BAND_GAIN,
+    MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q,
 };
 
 pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {

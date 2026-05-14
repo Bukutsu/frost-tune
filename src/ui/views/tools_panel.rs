@@ -33,7 +33,10 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             .height(1.0)
             .width(Length::Fill)
             .style(|_| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color { a: 0.15, ..theme::TOKYO_NIGHT_MUTED })),
+                background: Some(iced::Background::Color(iced::Color {
+                    a: 0.15,
+                    ..theme::TOKYO_NIGHT_MUTED
+                })),
                 ..Default::default()
             }),
         icon_action_button(crate::ui::tokens::ICON_EXPORT_FILE, "Export File")
@@ -69,18 +72,19 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         })
         .collect();
 
-    let selected_profile_modified = state
-        .editor_state
-        .selected_profile_name
-        .as_ref()
-        .and_then(|name| {
-            state
-                .editor_state
-                .profiles
-                .iter()
-                .find(|p| &p.name == name)
-                .and_then(|p| p.modified.as_deref())
-        });
+    let selected_profile_modified =
+        state
+            .editor_state
+            .selected_profile_name
+            .as_ref()
+            .and_then(|name| {
+                state
+                    .editor_state
+                    .profiles
+                    .iter()
+                    .find(|p| &p.name == name)
+                    .and_then(|p| p.modified.as_deref())
+            });
 
     let search_input = {
         let input = text_input("Search profiles...", &state.editor_state.profile_search)
@@ -164,8 +168,6 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         }
     };
 
-
-
     let undo_redo_row = row![
         action_button("Undo")
             .on_press_maybe(if is_busy || state.editor_state.undo_stack.is_empty() {
@@ -234,7 +236,6 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         ]
         .spacing(SPACE_8)
         .align_y(iced::Alignment::Center),
-
         profile_name_input.width(Length::Fill),
         undo_redo_row.width(Length::Fill),
         actions_row.width(Length::Fill),

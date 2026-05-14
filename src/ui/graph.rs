@@ -1,8 +1,8 @@
 use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
 use crate::models::Filter;
+use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
-use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GraphLabelLayout {
@@ -163,9 +163,8 @@ impl<Message> Program<Message> for EqGraph {
                 if let Some((b0, b1, b2, a0, a1, a2)) = c {
                     let band_path = Path::new(|builder| {
                         for (i, &f) in test_freqs.iter().enumerate() {
-                            let db = get_magnitude_response_with_coeffs(
-                                *b0, *b1, *b2, *a0, *a1, *a2, f,
-                            );
+                            let db =
+                                get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
                             let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
                             let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
                             let p = Point::new(x, y);

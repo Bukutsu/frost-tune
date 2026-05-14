@@ -220,7 +220,11 @@ pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
         .and_then(|s| s.to_str())
         .unwrap_or("Imported Profile")
         .to_string();
-    Ok(Profile { name, data, modified: None })
+    Ok(Profile {
+        name,
+        data,
+        modified: None,
+    })
 }
 
 pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<(), String> {

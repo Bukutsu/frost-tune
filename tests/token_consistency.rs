@@ -1,5 +1,7 @@
 use frost_tune::ui::theme::{self, SURFACE_BG, TOKYO_NIGHT_BG_HIGHLIGHT};
-use frost_tune::ui::tokens::{BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, BUTTON_PILL_RADIUS, INPUT_RADIUS, SPACE_8, TYPE_BODY};
+use frost_tune::ui::tokens::{
+    BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, BUTTON_PILL_RADIUS, INPUT_RADIUS, SPACE_8, TYPE_BODY,
+};
 use iced::widget::button;
 
 fn linear_channel(c: f32) -> f32 {

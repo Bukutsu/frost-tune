@@ -43,8 +43,7 @@ fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
         let should_attempt = match window.last_auto_reconnect_attempt {
             None => true,
             Some(last) => {
-                let backoff_secs =
-                    (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
+                let backoff_secs = (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
                 std::time::Instant::now().duration_since(last)
                     >= std::time::Duration::from_secs(backoff_secs)
             }
@@ -85,9 +84,7 @@ fn maybe_check_profiles(window: &mut MainWindow) -> Option<Task<Message>> {
 
     let should_check_profiles = match window.last_profile_check {
         None => true,
-        Some(last) => {
-            std::time::Instant::now().duration_since(last) >= profile_check_interval
-        }
+        Some(last) => std::time::Instant::now().duration_since(last) >= profile_check_interval,
     };
 
     if should_check_profiles {
@@ -149,10 +146,8 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     }
                     Err(e) => {
                         window.editor_state.pending_confirm = ConfirmAction::None;
-                        return window.set_status(
-                            format!("Save failed: {}", e),
-                            StatusSeverity::Error,
-                        );
+                        return window
+                            .set_status(format!("Save failed: {}", e), StatusSeverity::Error);
                     }
                 }
             }
@@ -185,7 +180,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 async move {
                     let rx = worker.connect(Some(device), Some(BackendKind::Local));
                     rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| timed_out_connection_result("Connection request timed out"))
+                        .unwrap_or_else(|_| {
+                            timed_out_connection_result("Connection request timed out")
+                        })
                 },
                 Message::WorkerConnected,
             )
@@ -216,7 +213,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
 
                     let rx = worker.connect(Some(device), backend);
                     rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| timed_out_connection_result("Connection request timed out"))
+                        .unwrap_or_else(|_| {
+                            timed_out_connection_result("Connection request timed out")
+                        })
                 },
                 Message::WorkerConnected,
             );
