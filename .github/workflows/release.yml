@@ -133,18 +133,59 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          cargo install cargo-deb@3.7.0 --locked
-          cargo deb
-          cp "target/debian/frost-tune_${{ needs.sync-versions.outputs.release_version }}-1_amd64.deb" \
-             "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-amd64.deb"
+          PKG_ROOT="$(mktemp -d)"
+          mkdir -p "$PKG_ROOT/DEBIAN"
+          mkdir -p "$PKG_ROOT/usr/bin"
+          mkdir -p "$PKG_ROOT/usr/share/applications"
+          mkdir -p "$PKG_ROOT/usr/share/icons/hicolor/scalable/apps"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$PKG_ROOT/usr/bin/"
+          cp assets/frost-tune.desktop "$PKG_ROOT/usr/share/applications/"
+          cp assets/frost-tune.svg "$PKG_ROOT/usr/share/icons/hicolor/scalable/apps/"
+          cat > "$PKG_ROOT/DEBIAN/control" << EOF
+          Package: frost-tune
+          Version: ${{ needs.sync-versions.outputs.release_version }}
+          Architecture: amd64
+          Maintainer: Bukutsu
+          Depends: polkit
+          Section: sound
+          Priority: optional
+          Homepage: https://github.com/Bukutsu/frost-tune
+          Description: Native parametric EQ editor for USB DACs
+           A graphical parametric EQ editor for USB DACs with hardware
+           HID communication, 10-band EQ, and AutoEQ profile support.
+          EOF
+          dpkg-deb --build "$PKG_ROOT" \
+            "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-amd64.deb" >/dev/null
 
       - name: Build RPM package
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          cargo install cargo-generate-rpm@0.21.0 --locked
-          cargo generate-rpm
-          cp "target/generate-rpm/frost-tune-${{ needs.sync-versions.outputs.release_version }}-1.x86_64.rpm" \
+          sudo apt-get update -qq && sudo apt-get install -y -qq rpm
+          RPM_ROOT="$(mktemp -d)"
+          mkdir -p "$RPM_ROOT/SOURCES" "$RPM_ROOT/SPECS" "$RPM_ROOT/BUILD" "$RPM_ROOT/RPMS/x86_64"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$RPM_ROOT/SOURCES/"
+          cat > "$RPM_ROOT/SPECS/frost-tune.spec" << EOF
+          Name: frost-tune
+          Version: ${{ needs.sync-versions.outputs.release_version }}
+          Release: 1
+          Summary: Native parametric EQ editor for USB DACs
+          License: MIT
+          URL: https://github.com/Bukutsu/frost-tune
+          BuildArch: x86_64
+          Requires: polkit
+          AutoReqProv: no
+          %description
+          A graphical parametric EQ editor for USB DACs with hardware
+          HID communication, 10-band EQ, and AutoEQ profile support.
+          %install
+          mkdir -p %{buildroot}%{_bindir}
+          cp %{_sourcedir}/frost-tune %{buildroot}%{_bindir}/
+          %files
+          %{_bindir}/frost-tune
+          EOF
+          rpmbuild -bb --define "_topdir $RPM_ROOT" "$RPM_ROOT/SPECS/frost-tune.spec"
+          cp "$RPM_ROOT/RPMS/x86_64/frost-tune-${{ needs.sync-versions.outputs.release_version }}-1.x86_64.rpm" \
              "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-x86_64.rpm"
 
       - name: Copy binary
