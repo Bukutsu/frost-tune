@@ -9,61 +9,129 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 3
+  RUSTFLAGS: -D warnings
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test (Linux)
+  fmt:
+    name: Format Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+  clippy:
+    name: Clippy Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: mozilla-actions/sccache-action@v0.0.7
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "frost-tune-v1"
+          cache-all-crates: true
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - run: cargo clippy --all-targets -- -D warnings
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable sccache (best effort)
-        shell: bash
-        run: |
-          export RUSTC_WRAPPER=sccache
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-          sccache --stop-server || true
-          if ! sccache --start-server; then
-            echo "sccache backend unavailable, falling back to direct rustc"
-            export RUSTC_WRAPPER=
-            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
-          fi
+  test:
+    name: Test Suite (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "frost-tune-rust-v1"
-          key: "${{ runner.os }}-x86_64-unknown-linux-gnu-check"
-          cache-on-failure: true
+          shared-key: "frost-tune-v1"
+          cache-all-crates: true
           save-if: ${{ github.event_name != 'pull_request' }}
           cache-directories: |
             ~/.cache/sccache
 
-      - name: Build check (fallback if sccache fails)
-        shell: bash
+      - name: Enable sccache
         run: |
-          if ! cargo check --all-targets; then
-            echo "Build check failed, retrying without sccache"
-            RUSTC_WRAPPER= cargo check --all-targets
-          fi
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
-      - name: Test suite (fallback if sccache fails)
-        shell: bash
-        run: |
-          if ! cargo test --all-targets; then
-            echo "Test run failed, retrying without sccache"
-            RUSTC_WRAPPER= cargo test --all-targets
-          fi
+      - name: Run tests
+        run: cargo test --all-targets --verbose
+
+      - name: Run doc tests
+        run: cargo test --doc --verbose
 
       - name: sccache stats
+        if: always()
         run: sccache --show-stats || true
+
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "frost-tune-v1"
+          cache-all-crates: true
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-directories: |
+            ~/.cache/sccache
+
+      - name: Enable sccache
+        run: |
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
+      - run: cargo build --all-targets --verbose
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
+
+  ci-result:
+    name: CI Result
+    runs-on: ubuntu-latest
+    needs: [fmt, clippy, audit, test, build]
+    if: always()
+    steps:
+      - name: Decide whether CI passed
+        run: |
+          if [[ "${{ needs.fmt.result }}" != "success" ||
+                "${{ needs.clippy.result }}" != "success" ||
+                "${{ needs.audit.result }}" != "success" ||
+                "${{ needs.test.result }}" != "success" ||
+                "${{ needs.build.result }}" != "success" ]]; then
+            echo "❌ CI Failed"
+            exit 1
+          fi
+          echo "✅ CI Passed"
