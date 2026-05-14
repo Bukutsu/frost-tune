@@ -84,11 +84,11 @@ pub fn worker_connect(
                 *preferred_backend = BackendKind::Elevated;
                 let info = connected.device_info();
                 *backend = Some(connected);
-                ConnectionResult {
+                return ConnectionResult {
                     success: true,
                     device: Some(info),
                     error: None,
-                }
+                };
             }
             Err(elevated_err) => {
                 let local = try_connect_local(api, target_device.clone());
@@ -97,28 +97,39 @@ pub fn worker_connect(
                         *preferred_backend = BackendKind::Local;
                         let info = connected.device_info();
                         *backend = Some(connected);
-                        ConnectionResult {
+                        return ConnectionResult {
                             success: true,
                             device: Some(info),
                             error: None,
-                        }
+                        };
                     }
-                    Ok(None) => ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(AppError::new(
-                            ErrorKind::NotConnected,
-                            "Device not found. Is it plugged in?",
-                        )),
-                    },
-                    Err(_local_err) => ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(elevated_err),
-                    },
+                    Ok(None) => {
+                        return ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(AppError::new(
+                                ErrorKind::NotConnected,
+                                "Device not found. Is it plugged in?",
+                            )),
+                        };
+                    }
+                    Err(_local_err) => {
+                        return ConnectionResult {
+                            success: false,
+                            device: None,
+                            error: Some(elevated_err),
+                        };
+                    }
                 }
             }
         }
+    }
+
+    #[allow(unreachable_code)]
+    ConnectionResult {
+        success: false,
+        device: None,
+        error: Some(AppError::new(ErrorKind::Unknown, "Connect failed")),
     }
 }
 
