@@ -28,6 +28,14 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             })
             .style(theme::pill_outlined_primary_button)
             .width(Length::Fill),
+        // Divider between import and export groups
+        container(text(""))
+            .height(1.0)
+            .width(Length::Fill)
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(iced::Color { a: 0.15, ..theme::TOKYO_NIGHT_MUTED })),
+                ..Default::default()
+            }),
         icon_action_button(crate::ui::tokens::ICON_EXPORT_FILE, "Export File")
             .on_press_maybe(if is_busy {
                 None
@@ -189,7 +197,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             } else {
                 Some(Message::SaveProfilePressed)
             })
-            .style(theme::pill_outlined_primary_button),
+            .style(theme::pill_primary_button),
         if !is_busy && state.editor_state.selected_profile_name.is_some() {
             action_button("Delete")
                 .on_press(Message::DeleteProfilePressed)

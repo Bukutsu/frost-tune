@@ -552,8 +552,8 @@ impl MainWindow {
                         .size(TYPE_BODY)
                         .color(crate::ui::theme::TOKYO_NIGHT_FG),
                     text(format!(
-                        "VID: {:04X}  PID: {:04X}  Path: {}",
-                        dev.vendor_id, dev.product_id, dev.path
+                        "VID: {:04X}  PID: {:04X}",
+                        dev.vendor_id, dev.product_id
                     ))
                     .size(TYPE_CAPTION)
                     .color(crate::ui::theme::TOKYO_NIGHT_MUTED)

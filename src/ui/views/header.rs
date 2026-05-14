@@ -1,9 +1,9 @@
 use crate::models::Device;
 use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
-use crate::ui::theme::{self, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_PRIMARY};
+use crate::ui::theme::{self, TOKYO_NIGHT_PRIMARY};
 use crate::ui::tokens::{
-    SPACE_12, SPACE_16, SPACE_2, SPACE_4, SPACE_6, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY,
+    SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY,
     TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
@@ -126,9 +126,9 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         }),
     };
 
-    let device_info = if let Some(ref dev) = state.connected_device {
+    let device_info: Element<'_, Message> = if let Some(ref dev) = state.connected_device {
         let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
-        row![
+        tooltip(
             text(device_type.name())
                 .size(TYPE_BODY)
                 .color(TOKYO_NIGHT_PRIMARY)
@@ -137,18 +137,16 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                     ..Default::default()
                 }),
             text(format!(
-                " (VID:{:04X} PID:{:04X})",
-                dev.vendor_id, dev.product_id
+                "VID:{:04X}  PID:{:04X}  Path: {}",
+                dev.vendor_id, dev.product_id, dev.path
             ))
-            .size(TYPE_CAPTION)
-            .color(TOKYO_NIGHT_MUTED),
-        ]
-        .align_y(iced::Alignment::Center)
-        .spacing(SPACE_4)
+            .size(TYPE_CAPTION),
+            tooltip::Position::Bottom,
+        )
+        .style(theme::tooltip_style)
+        .into()
     } else {
-        row![text("No device detected")
-            .size(TYPE_BODY)
-            .color(TOKYO_NIGHT_MUTED)]
+        row![].into()
     };
 
     container(

@@ -248,7 +248,7 @@ fn render_band_row<'a>(
                 .center_y(Length::Fill),
             )
             .width(Length::Fixed(28.0))
-            .height(Length::Fixed(20.0))
+            .height(Length::Fixed(26.0))
             .padding(0)
             .style(move |_theme, status| {
                 let base = if is_selected {

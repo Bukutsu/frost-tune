@@ -43,7 +43,6 @@ fn dialog_container<'a>(
     container(col.spacing(SPACE_12).padding(SPACE_16))
         .style(theme::card_style)
         .width(Length::Fixed(360.0))
-        .center_x(Length::Fill)
         .into()
 }
 
@@ -87,7 +86,6 @@ pub fn view_exit_dialog<'a>(
     )
     .style(theme::card_style)
     .width(Length::Fixed(400.0))
-    .center_x(Length::Fill)
     .into()
 }
 
