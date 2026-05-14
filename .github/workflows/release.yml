@@ -246,7 +246,7 @@ jobs:
     needs: [sync-versions, build-release-artifacts]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: frost-tune-*
           path: artifacts
