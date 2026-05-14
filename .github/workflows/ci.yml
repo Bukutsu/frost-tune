@@ -35,7 +35,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: mozilla-actions/sccache-action@v0.0.7
+      - uses: mozilla-actions/sccache-action@v0.0.10
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "frost-tune-v1"
@@ -60,7 +60,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: mozilla-actions/sccache-action@v0.0.7
+      - uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
@@ -95,7 +95,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: mozilla-actions/sccache-action@v0.0.7
+      - uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
