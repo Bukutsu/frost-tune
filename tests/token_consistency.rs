@@ -35,14 +35,16 @@ fn test_token_consistency() {
 
 #[test]
 fn test_band_density() {
-    assert!(BAND_ROW_MIN_HEIGHT >= 40.0);
-    assert_eq!(BAND_ROW_MIN_HEIGHT % 4.0, 0.0);
-    assert_eq!(BAND_ROW_PADDING % 4.0, 0.0);
+    const _: () = {
+        const _: () = assert!(BAND_ROW_MIN_HEIGHT >= 40.0);
+        const _: () = assert!(BAND_ROW_MIN_HEIGHT % 4.0 == 0.0);
+        const _: () = assert!(BAND_ROW_PADDING % 4.0 == 0.0);
+    };
 }
 
 #[test]
 fn test_shape_semantics_tokens() {
-    assert!(BUTTON_PILL_RADIUS >= 999.0);
+    const _: () = assert!(BUTTON_PILL_RADIUS >= 999.0);
     assert!((4.0..=8.0).contains(&INPUT_RADIUS));
 }
 
