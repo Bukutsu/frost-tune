@@ -4,6 +4,13 @@ use crate::ui::messages::{Message, StatusSeverity};
 use crate::ui::state::{ConfirmAction, MainWindow};
 use iced::Task;
 
+fn reload_profiles_task() -> Task<Message> {
+    Task::perform(
+        async move { crate::storage::load_all_profiles() },
+        Message::ProfilesLoaded,
+    )
+}
+
 fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
     let num_bands = window.num_bands();
     let freq_range = window.freq_range();
@@ -76,10 +83,7 @@ fn do_save_profile(
             window.editor_state.new_profile_name = name.clone();
             let mut tasks = Vec::new();
             if reload_on_save {
-                tasks.push(Task::perform(
-                    async move { crate::storage::load_all_profiles() },
-                    Message::ProfilesLoaded,
-                ));
+                tasks.push(reload_profiles_task());
             }
             tasks.push(
                 window.set_status(format!("Saved profile: {}", name), StatusSeverity::Success),
@@ -99,10 +103,7 @@ fn do_save_profile(
 
 pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::ReloadProfilesPressed => Task::perform(
-            async move { crate::storage::load_all_profiles() },
-            Message::ProfilesLoaded,
-        ),
+        Message::ReloadProfilesPressed => reload_profiles_task(),
         Message::OpenProfilesDirPressed => {
             if let Err(e) = crate::storage::open_profiles_dir() {
                 window.set_status(
@@ -251,10 +252,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         window.editor_state.import_name_input = String::new();
                         window.editor_state.pending_confirm = ConfirmAction::None;
 
-                        let mut tasks = vec![Task::perform(
-                            async move { crate::storage::load_all_profiles() },
-                            Message::ProfilesLoaded,
-                        )];
+                        let mut tasks = vec![reload_profiles_task()];
 
                         if was_truncated {
                             window.diagnostics.push(DiagnosticEvent::new(
@@ -310,10 +308,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             Source::UI,
                             format!("Overwritten profile: {}", name),
                         ));
-                        let reload_task = Task::perform(
-                            async move { crate::storage::load_all_profiles() },
-                            Message::ProfilesLoaded,
-                        );
+                        let reload_task = reload_profiles_task();
                         let status_task = window.set_status(
                             format!("Overwritten profile: {}", name),
                             StatusSeverity::Success,
@@ -355,10 +350,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             Source::UI,
                             format!("Deleted profile: {}", name),
                         ));
-                        let reload_task = Task::perform(
-                            async move { crate::storage::load_all_profiles() },
-                            Message::ProfilesLoaded,
-                        );
+                        let reload_task = reload_profiles_task();
                         let status_task = window.set_status(
                             format!("Deleted profile: {}", name),
                             StatusSeverity::Success,

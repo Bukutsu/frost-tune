@@ -1,5 +1,6 @@
 use crate::models::{
     Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_GLOBAL_GAIN, MIN_BAND_GAIN, MIN_GLOBAL_GAIN,
+    MAX_FREQ, MIN_FREQ, MAX_Q, MIN_Q,
 };
 
 pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
@@ -31,9 +32,9 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
                 if idx < 10 {
                     filters[idx].enabled = enabled;
                     filters[idx].filter_type = filter_type;
-                    filters[idx].freq = (freq.min(20000.0).max(20.0)) as u16;
+                    filters[idx].freq = (freq.min(MAX_FREQ as f64).max(MIN_FREQ as f64)) as u16;
                     filters[idx].gain = gain.min(MAX_BAND_GAIN).max(MIN_BAND_GAIN);
-                    filters[idx].q = q.min(20.0).max(0.1);
+                    filters[idx].q = q.min(MAX_Q).max(MIN_Q);
                     parsed_count += 1;
                 } else {
                     warnings.push(format!(
@@ -85,6 +86,7 @@ fn extract_number(s: &str) -> Option<f64> {
 fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f64)> {
     let regex_match = line.find("Filter")?;
     let rest = &line[regex_match..];
+    let rest_upper = rest.to_uppercase();
 
     let idx_str: &str = rest.get(7..)?;
     let idx: usize = idx_str
@@ -94,22 +96,21 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
         .ok()?;
     let idx = idx.saturating_sub(1);
 
-    let on_off = if rest.to_uppercase().contains("ON") {
+    let on_off = if rest_upper.contains("ON") {
         true
-    } else if rest.to_uppercase().contains("OFF") {
+    } else if rest_upper.contains("OFF") {
         false
     } else {
         return None;
     };
 
-    let filter_type = if rest.to_uppercase().contains("LSQ") || rest.to_uppercase().contains("LSC")
-    {
+    let filter_type = if rest_upper.contains("LSQ") || rest_upper.contains("LSC") {
         FilterType::LowShelf
-    } else if rest.to_uppercase().contains("HSQ") || rest.to_uppercase().contains("HSC") {
+    } else if rest_upper.contains("HSQ") || rest_upper.contains("HSC") {
         FilterType::HighShelf
-    } else if rest.to_uppercase().contains("HP") {
+    } else if rest_upper.contains("HP") {
         FilterType::HighPass
-    } else if rest.to_uppercase().contains("LP") {
+    } else if rest_upper.contains("LP") {
         FilterType::LowPass
     } else {
         FilterType::Peak
@@ -171,13 +172,7 @@ pub fn peq_to_autoeq(peq: &PEQData) -> String {
 
     for (i, f) in peq.filters.iter().enumerate() {
         let on_off = if f.enabled { "ON" } else { "OFF" };
-        let type_str = match f.filter_type {
-            FilterType::LowShelf => "LSQ",
-            FilterType::Peak => "PK",
-            FilterType::HighShelf => "HSQ",
-            FilterType::HighPass => "HP",
-            FilterType::LowPass => "LP",
-        };
+        let type_str = f.filter_type.short_label();
         lines.push(format!(
             "Filter {}: {} {} Fc {} Hz Gain {:.2} dB Q {:.3}",
             i + 1,

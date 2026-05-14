@@ -2,7 +2,7 @@ use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_16};
+use crate::ui::tokens::{CARD_RADIUS, SPACE_12, SPACE_16};
 use iced::widget::{canvas, container, responsive};
 use iced::{Element, Length, Padding};
 
@@ -69,7 +69,7 @@ fn graph_container_style(_theme: &iced::Theme) -> container::Style {
                 ..theme::TOKYO_NIGHT_TERMINAL_BLACK
             },
             width: 1.0,
-            radius: theme::CARD_RADIUS.into(),
+            radius: CARD_RADIUS.into(),
         },
         ..Default::default()
     }

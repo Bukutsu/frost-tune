@@ -45,10 +45,17 @@ pub const TYPE_LABEL: f32 = 13.0;
 pub const TYPE_CAPTION: f32 = 11.0;
 pub const TYPE_TINY: f32 = 9.0;
 
-// Control metrics.
+// Control metrics and shape.
 pub const BUTTON_VERTICAL_PADDING: f32 = 10.0;
 pub const BUTTON_HORIZONTAL_PADDING: f32 = 16.0;
 pub const INPUT_HEIGHT: f32 = 36.0;
+pub const CARD_RADIUS: f32 = 16.0;
+pub const HEADER_CARD_RADIUS: f32 = 24.0;
+pub const BUTTON_PILL_RADIUS: f32 = 999.0;
+pub const INPUT_RADIUS: f32 = 6.0;
+pub const BAND_ROW_MIN_HEIGHT: f32 = 40.0;
+pub const BAND_ROW_PADDING: f32 = 8.0;
+pub const BAND_LABEL_WIDTH: f32 = 20.0;
 
 // Icons
 pub const ICON_FONT: iced::Font = iced::Font::with_name("Material Icons");

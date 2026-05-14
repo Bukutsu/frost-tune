@@ -7,6 +7,100 @@ use crate::ui::state::{ConfirmAction, ConnectionStatus, DisconnectReason, MainWi
 use iced::Task;
 use std::sync::Arc;
 
+fn timed_out_connection_result(error_message: &str) -> ConnectionResult {
+    ConnectionResult {
+        success: false,
+        device: None,
+        error: Some(AppError::new(ErrorKind::IpcError, error_message)),
+    }
+}
+
+fn poll_worker_status(worker: Arc<crate::hardware::worker::UsbWorker>) -> Task<Message> {
+    Task::perform(
+        async move {
+            let rx = worker.status();
+            rx.recv_timeout(std::time::Duration::from_secs(2))
+                .unwrap_or(WorkerStatus {
+                    connected: false,
+                    physically_present: false,
+                    device: None,
+                    available_devices: Vec::new(),
+                    backend_reset: false,
+                    generation: 0,
+                    fatal_error: None,
+                })
+        },
+        Message::WorkerStatus,
+    )
+}
+
+fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
+    if window.disconnect_reason == DisconnectReason::DeviceLost
+        && !window.operation_lock.is_connecting
+        && window.connection_status != ConnectionStatus::Connected
+        && !window.available_devices.is_empty()
+    {
+        let should_attempt = match window.last_auto_reconnect_attempt {
+            None => true,
+            Some(last) => {
+                let backoff_secs =
+                    (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
+                std::time::Instant::now().duration_since(last)
+                    >= std::time::Duration::from_secs(backoff_secs)
+            }
+        };
+        if should_attempt {
+            window.last_auto_reconnect_attempt = Some(std::time::Instant::now());
+            window.auto_reconnect_attempts += 1;
+            window.connection_status = ConnectionStatus::Connecting;
+            window.operation_lock.is_connecting = true;
+            window.suspend_status_polling = true;
+            let target_device = window.available_devices.first().cloned().unwrap();
+            let worker = match window.worker.as_ref() {
+                Some(w) => Arc::clone(w),
+                None => return None,
+            };
+            Some(Task::perform(
+                async move {
+                    let rx = worker.connect(Some(target_device), Some(BackendKind::Local));
+                    rx.recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap_or_else(|_| timed_out_connection_result("Auto-reconnect timed out"))
+                },
+                Message::WorkerConnected,
+            ))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+fn maybe_check_profiles(window: &mut MainWindow) -> Option<Task<Message>> {
+    let profile_check_interval = if window.connection_status == ConnectionStatus::Connected {
+        std::time::Duration::from_secs(10)
+    } else {
+        std::time::Duration::from_secs(30)
+    };
+
+    let should_check_profiles = match window.last_profile_check {
+        None => true,
+        Some(last) => {
+            std::time::Instant::now().duration_since(last) >= profile_check_interval
+        }
+    };
+
+    if should_check_profiles {
+        window.last_profile_check = Some(std::time::Instant::now());
+        Some(Task::perform(
+            async move { crate::storage::get_profiles_dir_mtime() },
+            Message::ProfilesDirMtimeChecked,
+        ))
+    } else {
+        None
+    }
+}
+
 pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::ClearStatusMessage(id) => {
@@ -91,14 +185,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 async move {
                     let rx = worker.connect(Some(device), Some(BackendKind::Local));
                     rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| ConnectionResult {
-                            success: false,
-                            device: None,
-                            error: Some(AppError::new(
-                                ErrorKind::IpcError,
-                                "Connection request timed out",
-                            )),
-                        })
+                        .unwrap_or_else(|_| timed_out_connection_result("Connection request timed out"))
                 },
                 Message::WorkerConnected,
             )
@@ -129,14 +216,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
 
                     let rx = worker.connect(Some(device), backend);
                     rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or(ConnectionResult {
-                            success: false,
-                            device: None,
-                            error: Some(AppError::new(
-                                ErrorKind::IpcError,
-                                "Connection request timed out",
-                            )),
-                        })
+                        .unwrap_or_else(|_| timed_out_connection_result("Connection request timed out"))
                 },
                 Message::WorkerConnected,
             );
@@ -335,93 +415,14 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 None => return Task::none(),
             };
             let worker = Arc::clone(worker);
-            let status_task = Task::perform(
-                async move {
-                    let rx = worker.status();
-                    rx.recv_timeout(std::time::Duration::from_secs(2))
-                        .unwrap_or(WorkerStatus {
-                            connected: false,
-                            physically_present: false,
-                            device: None,
-                            available_devices: Vec::new(),
-                            backend_reset: false,
-                            generation: 0,
-                            fatal_error: None,
-                        })
-                },
-                Message::WorkerStatus,
-            );
-
-            // Auto-reconnect on unexpected device loss
-            let reconnect_task = if window.disconnect_reason == DisconnectReason::DeviceLost
-                && !window.operation_lock.is_connecting
-                && window.connection_status != ConnectionStatus::Connected
-                && !window.available_devices.is_empty()
-            {
-                let should_attempt = match window.last_auto_reconnect_attempt {
-                    None => true,
-                    Some(last) => {
-                        let backoff_secs =
-                            (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
-                        std::time::Instant::now().duration_since(last)
-                            >= std::time::Duration::from_secs(backoff_secs)
-                    }
-                };
-                if should_attempt {
-                    window.last_auto_reconnect_attempt = Some(std::time::Instant::now());
-                    window.auto_reconnect_attempts += 1;
-                    window.connection_status = ConnectionStatus::Connecting;
-                    window.operation_lock.is_connecting = true;
-                    window.suspend_status_polling = true;
-                    let target_device = window.available_devices.first().cloned().unwrap();
-                    let worker = match window.worker.as_ref() {
-                        Some(w) => Arc::clone(w),
-                        None => return Task::none(),
-                    };
-                    Some(Task::perform(
-                        async move {
-                            let rx = worker.connect(Some(target_device), Some(BackendKind::Local));
-                            rx.recv_timeout(std::time::Duration::from_secs(5))
-                                .unwrap_or_else(|_| ConnectionResult {
-                                    success: false,
-                                    device: None,
-                                    error: Some(AppError::new(
-                                        ErrorKind::IpcError,
-                                        "Auto-reconnect timed out",
-                                    )),
-                                })
-                        },
-                        Message::WorkerConnected,
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let profile_check_interval = if window.connection_status == ConnectionStatus::Connected {
-                std::time::Duration::from_secs(10)
-            } else {
-                std::time::Duration::from_secs(30)
-            };
-
-            let should_check_profiles = match window.last_profile_check {
-                None => true,
-                Some(last) => {
-                    std::time::Instant::now().duration_since(last) >= profile_check_interval
-                }
-            };
+            let status_task = poll_worker_status(worker);
+            let reconnect_task = maybe_reconnect(window);
+            let profile_task = maybe_check_profiles(window);
 
             let mut tasks: Vec<Task<Message>> = Vec::new();
 
-            if should_check_profiles {
-                window.last_profile_check = Some(std::time::Instant::now());
-                let mtime_task = Task::perform(
-                    async move { crate::storage::get_profiles_dir_mtime() },
-                    Message::ProfilesDirMtimeChecked,
-                );
-                tasks.push(mtime_task);
+            if let Some(task) = profile_task {
+                tasks.push(task);
             }
             if !window.suspend_status_polling {
                 tasks.push(status_task);

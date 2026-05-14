@@ -1,17 +1,9 @@
+use crate::ui::tokens::{BUTTON_PILL_RADIUS, CARD_RADIUS, INPUT_RADIUS};
 use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
 use iced::{color, Background, Border, Color, Theme};
 
-pub const SPACE_8: f32 = 8.0;
-pub const TYPE_BODY: f32 = 16.0;
 pub const SURFACE_BG: Color = TOKYO_NIGHT_BG_HIGHLIGHT;
-pub const BAND_ROW_MIN_HEIGHT: f32 = 40.0;
-pub const BAND_ROW_PADDING: f32 = 8.0;
-pub const BAND_LABEL_WIDTH: f32 = 20.0;
-pub const CARD_RADIUS: f32 = 16.0;
-pub const HEADER_CARD_RADIUS: f32 = 24.0;
-pub const BUTTON_PILL_RADIUS: f32 = 999.0;
-pub const INPUT_RADIUS: f32 = 6.0;
 
 // Official Tokyo Night palette (origin: folke/tokyonight.nvim)
 pub const TOKYO_NIGHT_BG: Color = color!(0x1a1b26);

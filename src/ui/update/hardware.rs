@@ -6,14 +6,17 @@ use crate::ui::state::{ConnectionStatus, MainWindow};
 use iced::Task;
 use std::sync::Arc;
 
+fn is_hw_busy(window: &MainWindow) -> bool {
+    window.worker.is_none()
+        || window.operation_lock.is_pulling
+        || window.operation_lock.is_pushing
+        || window.operation_lock.is_connecting
+}
+
 pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::PullPressed => {
-            if window.worker.is_none()
-                || window.operation_lock.is_pulling
-                || window.operation_lock.is_pushing
-                || window.operation_lock.is_connecting
-            {
+            if is_hw_busy(window) {
                 return Task::none();
             }
 
@@ -29,11 +32,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             perform_pull(window)
         }
         Message::PushPressed => {
-            if window.worker.is_none()
-                || window.operation_lock.is_pulling
-                || window.operation_lock.is_pushing
-                || window.operation_lock.is_connecting
-            {
+            if is_hw_busy(window) {
                 return Task::none();
             }
             window.operation_lock.is_pushing = true;

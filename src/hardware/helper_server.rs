@@ -40,6 +40,62 @@ fn push_logic(
 }
 
 #[cfg(target_os = "linux")]
+fn require_device(device: &Option<hidapi::HidDevice>) -> Result<&hidapi::HidDevice, HelperResponse> {
+    device.as_ref().ok_or_else(|| HelperResponse::Error {
+        kind: ErrorKind::NotConnected,
+        error: AppError::new(ErrorKind::NotConnected, "Not connected"),
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn handle_connect(
+    api: &mut hidapi::HidApi,
+    device: &mut Option<hidapi::HidDevice>,
+    device_info: &mut Option<DeviceInfo>,
+    device_type: &mut Device,
+) -> HelperResponse {
+    let _ = api.refresh_devices();
+    match find_device_info(&api) {
+        Some(found) => {
+            let found_type = Device::from_vid_pid(found.vendor_id(), found.product_id());
+            if found_type == Device::Unknown {
+                HelperResponse::Error {
+                    kind: ErrorKind::HardwareError,
+                    error: AppError::new(
+                        ErrorKind::HardwareError,
+                        "Unsupported DAC device",
+                    ),
+                }
+            } else {
+                match found.open_device(&api) {
+                    Ok(opened) => {
+                        let info = device_info_from_hid(&found);
+                        *device = Some(opened);
+                        *device_type = found_type;
+                        *device_info = Some(info.clone());
+                        HelperResponse::Connected { device: Some(info) }
+                    }
+                    Err(e) => HelperResponse::Error {
+                        kind: ErrorKind::PermissionDenied,
+                        error: AppError::new(
+                            ErrorKind::PermissionDenied,
+                            e.to_string(),
+                        ),
+                    },
+                }
+            }
+        }
+        None => HelperResponse::Error {
+            kind: ErrorKind::NotConnected,
+            error: AppError::new(
+                ErrorKind::NotConnected,
+                "Device not found. Is it plugged in?",
+            ),
+        },
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn write_response(
     stdout: &mut io::StdoutLock<'_>,
     response: &HelperResponse,
@@ -140,46 +196,7 @@ pub fn run() -> crate::error::Result<()> {
                         device: device_info.clone(),
                     }
                 } else {
-                    let _ = api.refresh_devices();
-                    match find_device_info(&api) {
-                        Some(found) => {
-                            let found_type =
-                                Device::from_vid_pid(found.vendor_id(), found.product_id());
-                            if found_type == Device::Unknown {
-                                HelperResponse::Error {
-                                    kind: ErrorKind::HardwareError,
-                                    error: AppError::new(
-                                        ErrorKind::HardwareError,
-                                        "Unsupported DAC device",
-                                    ),
-                                }
-                            } else {
-                                match found.open_device(&api) {
-                                    Ok(opened) => {
-                                        let info = device_info_from_hid(&found);
-                                        device = Some(opened);
-                                        device_type = found_type;
-                                        device_info = Some(info.clone());
-                                        HelperResponse::Connected { device: Some(info) }
-                                    }
-                                    Err(e) => HelperResponse::Error {
-                                        kind: ErrorKind::PermissionDenied,
-                                        error: AppError::new(
-                                            ErrorKind::PermissionDenied,
-                                            e.to_string(),
-                                        ),
-                                    },
-                                }
-                            }
-                        }
-                        None => HelperResponse::Error {
-                            kind: ErrorKind::NotConnected,
-                            error: AppError::new(
-                                ErrorKind::NotConnected,
-                                "Device not found. Is it plugged in?",
-                            ),
-                        },
-                    }
+                    handle_connect(&mut api, &mut device, &mut device_info, &mut device_type)
                 }
             }
             HelperRequest::Disconnect => {
@@ -208,8 +225,8 @@ pub fn run() -> crate::error::Result<()> {
             },
             HelperRequest::Ping => HelperResponse::Pong,
             HelperRequest::PullPeq { strict } => {
-                if let Some(d) = &device {
-                    match pull_logic(d, device_type, strict) {
+                match require_device(&device) {
+                    Ok(d) => match pull_logic(d, device_type, strict) {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {
@@ -224,20 +241,16 @@ pub fn run() -> crate::error::Result<()> {
                             kind: e.kind,
                             error: e,
                         },
-                    }
-                } else {
-                    HelperResponse::Error {
-                        kind: ErrorKind::NotConnected,
-                        error: AppError::new(ErrorKind::NotConnected, "Not connected"),
-                    }
+                    },
+                    Err(response) => response,
                 }
             }
             HelperRequest::PushPeq {
                 filters,
                 global_gain,
             } => {
-                if let Some(d) = &device {
-                    match push_logic(d, device_type, filters, global_gain) {
+                match require_device(&device) {
+                    Ok(d) => match push_logic(d, device_type, filters, global_gain) {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {
@@ -252,12 +265,8 @@ pub fn run() -> crate::error::Result<()> {
                             kind: e.kind,
                             error: e,
                         },
-                    }
-                } else {
-                    HelperResponse::Error {
-                        kind: ErrorKind::NotConnected,
-                        error: AppError::new(ErrorKind::NotConnected, "Not connected"),
-                    }
+                    },
+                    Err(response) => response,
                 }
             }
             HelperRequest::Shutdown => {

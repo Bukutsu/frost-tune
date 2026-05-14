@@ -1,31 +1,12 @@
 use crate::error::Result;
 use crate::hardware::hid::{delay_ms, send_report};
-use crate::hardware::protocol::{DeviceProtocol, END, READ};
+use crate::hardware::packet_format::{END, READ, WriteTiming};
+use crate::hardware::protocol::DeviceProtocol;
 use crate::models::Filter;
 use hidapi::HidDevice;
 
 pub const NUM_FILTERS: u8 = 10;
 
-#[derive(Debug, Clone)]
-pub struct WriteTiming {
-    pub per_filter_ms: u64,
-    pub flood_delay_ms: u64,
-    pub batch_ms: u64,
-    pub global_gain_ms: u64,
-    pub commit_ms: u64,
-}
-
-impl Default for WriteTiming {
-    fn default() -> Self {
-        Self {
-            per_filter_ms: 80,
-            flood_delay_ms: 5,
-            batch_ms: 100,
-            global_gain_ms: 50,
-            commit_ms: 500,
-        }
-    }
-}
 pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<()> {
     crate::hardware::hid::reset_nonce();
     send_report(

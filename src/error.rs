@@ -88,11 +88,3 @@ impl ErrorKind {
         }
     }
 }
-
-pub const DEVICE_NOT_FOUND: &str = "Device not found. Is it plugged in?";
-pub const PERMISSION_DENIED: &str = "Access denied. Check USB permissions.";
-pub const DEVICE_BUSY: &str = "Device is busy.";
-pub const READ_TIMEOUT: &str = "USB read timeout.";
-pub const WRITE_ERROR: &str = "USB write failed.";
-pub const PARSE_ERROR: &str = "Failed to parse filter data.";
-pub const VERIFY_FAILED: &str = "Verification failed. Changes not applied.";

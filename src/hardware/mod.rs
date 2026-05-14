@@ -20,10 +20,12 @@ pub mod helper_server;
 pub mod hid;
 pub mod operations;
 pub mod packet_builder;
+pub mod packet_format;
 pub mod pipeline;
 pub mod protocol;
 pub mod worker;
 
 pub use dsp::*;
+pub use packet_format::{ReadTiming, WriteTiming};
 pub use protocol::*;
 pub use worker::*;

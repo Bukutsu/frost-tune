@@ -1,6 +1,7 @@
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::{init_device_session, NUM_FILTERS};
-use crate::hardware::protocol::{DeviceProtocol, READ, REPORT_ID};
+use crate::hardware::packet_format::{READ, REPORT_ID, ReadTiming};
+use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Device, DeviceInfo, Filter, PEQData};
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -91,29 +92,6 @@ pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Re
                 ErrorKind::WriteError,
                 format!("HID Write failed: {}", e),
             )),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ReadTiming {
-    pub post_version_ms: u64,
-    pub filter_request_ms: u64,
-    pub inter_filter_ms: u64,
-    pub post_filter_read_ms: u64,
-    pub post_global_gain_ms: u64,
-    pub read_timeout_ms: u32,
-}
-
-impl Default for ReadTiming {
-    fn default() -> Self {
-        Self {
-            post_version_ms: 50,
-            filter_request_ms: 10,
-            inter_filter_ms: 10,
-            post_filter_read_ms: 40,
-            post_global_gain_ms: 25,
-            read_timeout_ms: 60,
         }
     }
 }
