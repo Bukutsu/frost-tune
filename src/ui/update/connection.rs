@@ -156,10 +156,6 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 StatusSeverity::Warning,
             )
         }
-        Message::DeviceSelected(index) => {
-            window.selected_device_index = Some(index);
-            Task::none()
-        }
         Message::ConnectPressed(device) => {
             if window.worker.is_none() {
                 return Task::none();
@@ -176,40 +172,12 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 Some(w) => Arc::clone(w),
                 None => return Task::none(),
             };
-            Task::perform(
-                async move {
-                    let rx = worker.connect(Some(device), Some(BackendKind::Local));
-                    rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| {
-                            timed_out_connection_result("Connection request timed out")
-                        })
-                },
-                Message::WorkerConnected,
-            )
-        }
-        Message::ConfirmElevatedConnect(device) => {
-            window.editor_state.pending_confirm = ConfirmAction::None;
-            if window.worker.is_none() {
-                return Task::none();
-            }
-            window.connection_status = ConnectionStatus::Connecting;
-            window.operation_lock.is_connecting = true;
-            window.suspend_status_polling = true;
-            window.diagnostics.push(DiagnosticEvent::new(
-                LogLevel::Info,
-                Source::UI,
-                format!("Elevated connect confirmed for {}", device.path),
-            ));
-            let worker = match window.worker.as_ref() {
-                Some(w) => Arc::clone(w),
-                None => return Task::none(),
-            };
             let connect_task = Task::perform(
                 async move {
                     #[cfg(target_os = "linux")]
                     let backend = Some(BackendKind::Elevated);
                     #[cfg(not(target_os = "linux"))]
-                    let backend = None;
+                    let backend = Some(BackendKind::Local);
 
                     let rx = worker.connect(Some(device), backend);
                     rx.recv_timeout(std::time::Duration::from_secs(5))
@@ -286,16 +254,6 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 let err = result
                     .error
                     .unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
-                if err.kind == ErrorKind::PolkitAuthRequired
-                    || err.kind == ErrorKind::PermissionDenied
-                {
-                    if let Some(device) = result.device {
-                        window.editor_state.pending_confirm =
-                            ConfirmAction::ElevatedConnect(device);
-                        window.connection_status = ConnectionStatus::Disconnected;
-                        return Task::none();
-                    }
-                }
                 let user_error = match err.kind {
                     ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
                     _ => err.user_message().to_string(),
@@ -352,11 +310,6 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.connection_generation = status.generation;
             if window.available_devices != status.available_devices {
                 window.available_devices = status.available_devices.clone();
-            }
-            if let Some(idx) = window.selected_device_index {
-                if idx >= window.available_devices.len() {
-                    window.selected_device_index = None;
-                }
             }
 
             // Ignore contradictory status updates during manual transition

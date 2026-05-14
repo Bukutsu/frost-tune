@@ -12,49 +12,44 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     // --- AUTOEQ ACTIONS ---
     let autoeq_section = column![
         super::section_header("AUTO-EQ".to_string()),
-        icon_action_button(crate::ui::tokens::ICON_IMPORT_FILE, "Import File")
-            .on_press_maybe(if is_busy {
-                None
-            } else {
-                Some(Message::ImportFromFilePressed)
-            })
-            .style(theme::pill_outlined_primary_button)
-            .width(Length::Fill),
-        icon_action_button(crate::ui::tokens::ICON_IMPORT_CLIPBOARD, "Paste")
-            .on_press_maybe(if is_busy {
-                None
-            } else {
-                Some(Message::ImportFromClipboard)
-            })
-            .style(theme::pill_outlined_primary_button)
-            .width(Length::Fill),
-        // Divider between import and export groups
-        container(text(""))
-            .height(1.0)
-            .width(Length::Fill)
-            .style(|_| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color {
-                    a: 0.15,
-                    ..theme::TOKYO_NIGHT_MUTED
-                })),
-                ..Default::default()
-            }),
-        icon_action_button(crate::ui::tokens::ICON_EXPORT_FILE, "Export File")
-            .on_press_maybe(if is_busy {
-                None
-            } else {
-                Some(Message::ExportToFilePressed)
-            })
-            .style(theme::pill_secondary_button)
-            .width(Length::Fill),
-        icon_action_button(crate::ui::tokens::ICON_EXPORT_CLIPBOARD, "Copy")
-            .on_press_maybe(if is_busy {
-                None
-            } else {
-                Some(Message::ExportAutoEQPressed)
-            })
-            .style(theme::pill_secondary_button)
-            .width(Length::Fill),
+        row![
+            icon_action_button(crate::ui::tokens::ICON_IMPORT_FILE, "Import File")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ImportFromFilePressed)
+                })
+                .style(theme::pill_outlined_primary_button)
+                .width(Length::Fill),
+            icon_action_button(crate::ui::tokens::ICON_IMPORT_CLIPBOARD, "Paste")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ImportFromClipboard)
+                })
+                .style(theme::pill_outlined_primary_button)
+                .width(Length::Fill),
+        ]
+        .spacing(SPACE_8),
+        row![
+            icon_action_button(crate::ui::tokens::ICON_EXPORT_FILE, "Export File")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ExportToFilePressed)
+                })
+                .style(theme::pill_secondary_button)
+                .width(Length::Fill),
+            icon_action_button(crate::ui::tokens::ICON_EXPORT_CLIPBOARD, "Copy")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ExportAutoEQPressed)
+                })
+                .style(theme::pill_secondary_button)
+                .width(Length::Fill),
+        ]
+        .spacing(SPACE_8),
     ]
     .spacing(SPACE_8);
 
@@ -151,10 +146,28 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             })
             .collect();
 
-        scrollable(column(rows).spacing(SPACE_2))
-            .height(Length::Fixed(200.0))
-            .width(Length::Fill)
-            .into()
+        container(
+            scrollable(column(rows).spacing(SPACE_2))
+                .height(Length::Fixed(200.0))
+                .width(Length::Fill),
+        )
+        .style(|_theme: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(iced::Color {
+                a: 0.2,
+                ..theme::TOKYO_NIGHT_BG_HIGHLIGHT
+            })),
+            border: iced::Border {
+                color: iced::Color {
+                    a: 0.3,
+                    ..theme::TOKYO_NIGHT_MUTED
+                },
+                width: 1.0,
+                radius: 8.0.into(),
+            },
+            ..Default::default()
+        })
+        .padding(crate::ui::tokens::SPACE_4)
+        .into()
     };
 
     let profile_name_input = {
@@ -184,7 +197,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             })
             .style(theme::pill_secondary_button),
     ]
-    .spacing(SPACE_8);
+    .spacing(SPACE_8)
+    .align_y(iced::Alignment::Center);
+
     let actions_row = row![
         action_button("Reset")
             .on_press_maybe(if is_busy {
@@ -208,7 +223,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             action_button("Delete").style(theme::pill_danger_button)
         },
     ]
-    .spacing(SPACE_12)
+    .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
     let preset_section = column![

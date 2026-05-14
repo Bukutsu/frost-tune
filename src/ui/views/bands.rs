@@ -208,27 +208,12 @@ fn render_input_field<'a>(
     .into()
 }
 
-fn render_band_row<'a>(
+fn render_type_buttons<'a>(
     i: usize,
-    band: &'a crate::models::filter::Filter,
-    state: &'a MainWindow,
+    band: &crate::models::filter::Filter,
     is_busy: bool,
-    show_enable: bool,
 ) -> Element<'a, Message> {
-    let freq_error = state.editor_state.input_buffer.get_freq_error(i);
-    let gain_error = state.editor_state.input_buffer.get_gain_error(i);
-    let q_error = state.editor_state.input_buffer.get_q_error(i);
-
-    let is_active = band.enabled;
-    let accent_color = if is_active {
-        theme::TOKYO_NIGHT_PRIMARY
-    } else {
-        theme::TOKYO_NIGHT_MUTED
-    };
-
-    let gain_range = state.gain_range();
-
-    let type_buttons = row(FilterType::ALL
+    row(FilterType::ALL
         .iter()
         .map(|&ft| {
             let is_selected = band.filter_type == ft;
@@ -305,9 +290,42 @@ fn render_band_row<'a>(
             }
         })
         .collect::<Vec<Element<Message>>>())
-    .spacing(SPACE_2);
+    .spacing(SPACE_2)
+    .into()
+}
 
-    let gain_slider = slider(gain_range.0..=gain_range.1, band.gain, move |v| {
+fn render_freq_cell<'a>(
+    i: usize,
+    band: &crate::models::filter::Filter,
+    state: &'a MainWindow,
+    is_busy: bool,
+    freq_error: Option<&'a str>,
+) -> Element<'a, Message> {
+    column![render_input_field(
+        state
+            .editor_state
+            .input_buffer
+            .get_freq_input(i)
+            .map_or_else(|| format!("{}", band.freq), |s| s.to_string()),
+        is_busy,
+        freq_error,
+        move |s| Message::BandFreqInput(i, s),
+        Message::BandFreqInputCommit(i),
+    )]
+    .spacing(SPACE_2)
+    .width(Length::Fixed(85.0))
+    .into()
+}
+
+fn render_gain_cell<'a>(
+    i: usize,
+    band: &crate::models::filter::Filter,
+    state: &'a MainWindow,
+    is_busy: bool,
+    gain_error: Option<&'a str>,
+) -> Element<'a, Message> {
+    let gain_range = state.gain_range();
+    let slider = slider(gain_range.0..=gain_range.1, band.gain, move |v| {
         if is_busy {
             Message::None
         } else {
@@ -318,22 +336,8 @@ fn render_band_row<'a>(
     .width(Length::Fill)
     .style(theme::slider_style);
 
-    let freq_cell = column![render_input_field(
-        state
-            .editor_state
-            .input_buffer
-            .get_freq_input(i)
-            .map_or_else(|| format!("{}", band.freq), |s| s.to_string()),
-        is_busy,
-        freq_error,
-        move |s| Message::BandFreqInput(i, s),
-        Message::BandFreqInputCommit(i),
-    ),]
-    .spacing(SPACE_2)
-    .width(Length::Fixed(85.0));
-
-    let gain_cell = row![
-        gain_slider.width(Length::Fill),
+    row![
+        slider,
         container(render_input_field(
             state
                 .editor_state
@@ -349,9 +353,18 @@ fn render_band_row<'a>(
     ]
     .spacing(SPACE_4)
     .align_y(iced::Alignment::Center)
-    .width(Length::Fill);
+    .width(Length::Fill)
+    .into()
+}
 
-    let q_cell = column![render_input_field(
+fn render_q_cell<'a>(
+    i: usize,
+    band: &crate::models::filter::Filter,
+    state: &'a MainWindow,
+    is_busy: bool,
+    q_error: Option<&'a str>,
+) -> Element<'a, Message> {
+    column![render_input_field(
         state
             .editor_state
             .input_buffer
@@ -361,9 +374,29 @@ fn render_band_row<'a>(
         q_error,
         move |s| Message::BandQInput(i, s),
         Message::BandQInputCommit(i),
-    ),]
+    )]
     .spacing(SPACE_2)
-    .width(Length::Fixed(60.0));
+    .width(Length::Fixed(60.0))
+    .into()
+}
+
+fn render_band_row<'a>(
+    i: usize,
+    band: &'a crate::models::filter::Filter,
+    state: &'a MainWindow,
+    is_busy: bool,
+    show_enable: bool,
+) -> Element<'a, Message> {
+    let freq_error = state.editor_state.input_buffer.get_freq_error(i);
+    let gain_error = state.editor_state.input_buffer.get_gain_error(i);
+    let q_error = state.editor_state.input_buffer.get_q_error(i);
+
+    let is_active = band.enabled;
+    let accent_color = if is_active {
+        theme::TOKYO_NIGHT_PRIMARY
+    } else {
+        theme::TOKYO_NIGHT_MUTED
+    };
 
     let mut elements: Vec<Element<'a, Message>> = vec![text(format!("{}", i + 1))
         .size(TYPE_LABEL)
@@ -394,10 +427,14 @@ fn render_band_row<'a>(
         );
     }
 
-    elements.push(container(type_buttons).width(Length::Fixed(160.0)).into());
-    elements.push(freq_cell.into());
-    elements.push(gain_cell.into());
-    elements.push(q_cell.into());
+    elements.push(
+        container(render_type_buttons(i, band, is_busy))
+            .width(Length::Fixed(160.0))
+            .into(),
+    );
+    elements.push(render_freq_cell(i, band, state, is_busy, freq_error));
+    elements.push(render_gain_cell(i, band, state, is_busy, gain_error));
+    elements.push(render_q_cell(i, band, state, is_busy, q_error));
 
     row(elements)
         .spacing(SPACE_4)

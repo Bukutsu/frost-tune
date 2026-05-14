@@ -50,6 +50,29 @@ fn cancel_band_draft_input(window: &mut MainWindow, index: usize) {
         }
     }
 }
+
+fn commit_band_field(
+    window: &mut MainWindow,
+    index: usize,
+    parse_and_apply: impl FnOnce(&mut Filter, &mut DraftFilter) -> bool,
+) -> Task<Message> {
+    if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
+        if draft.index == index {
+            push_undo(window);
+            if let Some(band) = window.editor_state.filters.get_mut(index) {
+                if parse_and_apply(band, &mut draft) {
+                    window.editor_state.is_dirty = true;
+                } else {
+                    window.editor_state.input_buffer.active_draft = Some(draft);
+                }
+            }
+        } else {
+            window.editor_state.input_buffer.active_draft = Some(draft);
+        }
+    }
+    Task::none()
+}
+
 pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::BandFreqChanged(index, freq) => {
@@ -106,78 +129,57 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandFreqInputCommit(index) => {
-            let (min_freq, max_freq) = window.freq_range();
-            if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
-                if draft.index == index {
-                    push_undo(window);
-                    if let Some(band) = window.editor_state.filters.get_mut(index) {
-                        if let Some(v) = parse_freq_string(&draft.freq_input) {
-                            band.freq = v.clamp(min_freq, max_freq);
-                            band.enabled = true;
-                            window.editor_state.is_dirty = true;
-                        } else {
-                            draft.freq_error = Some(format!("Freq: {}-{} Hz", min_freq, max_freq));
-                            window.editor_state.input_buffer.active_draft = Some(draft);
-                        }
-                    }
+            let (min, max) = window.freq_range();
+            commit_band_field(window, index, move |band, draft| {
+                if let Some(v) = parse_freq_string(&draft.freq_input) {
+                    band.freq = v.clamp(min, max);
+                    band.enabled = true;
+                    true
                 } else {
-                    window.editor_state.input_buffer.active_draft = Some(draft);
+                    draft.freq_error = Some(format!("Freq: {}-{} Hz", min, max));
+                    false
                 }
-            }
-            Task::none()
+            })
         }
         Message::BandGainInputCommit(index) => {
-            let (min_gain, max_gain) = window.gain_range();
-            if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
-                if draft.index == index {
-                    push_undo(window);
-                    if let Some(band) = window.editor_state.filters.get_mut(index) {
-                        if let Ok(v) = draft.gain_input.trim().parse::<f64>() {
-                            if v >= min_gain && v <= max_gain {
-                                band.gain = v;
-                                band.enabled = true;
-                                window.editor_state.is_dirty = true;
-                            } else {
-                                draft.gain_error =
-                                    Some(format!("Gain: {:.0} to {:.0}", min_gain, max_gain));
-                                window.editor_state.input_buffer.active_draft = Some(draft);
-                            }
-                        } else {
-                            draft.gain_error = Some("Gain: enter number".to_string());
-                            window.editor_state.input_buffer.active_draft = Some(draft);
-                        }
+            let (min, max) = window.gain_range();
+            commit_band_field(window, index, move |band, draft| {
+                match draft.gain_input.trim().parse::<f64>() {
+                    Ok(v) if v >= min && v <= max => {
+                        band.gain = v;
+                        band.enabled = true;
+                        true
                     }
-                } else {
-                    window.editor_state.input_buffer.active_draft = Some(draft);
+                    Ok(_) => {
+                        draft.gain_error = Some(format!("Gain: {:.0} to {:.0}", min, max));
+                        false
+                    }
+                    Err(_) => {
+                        draft.gain_error = Some("Gain: enter number".to_string());
+                        false
+                    }
                 }
-            }
-            Task::none()
+            })
         }
         Message::BandQInputCommit(index) => {
-            let (min_q, max_q) = window.q_range();
-            if let Some(mut draft) = window.editor_state.input_buffer.active_draft.take() {
-                if draft.index == index {
-                    push_undo(window);
-                    if let Some(band) = window.editor_state.filters.get_mut(index) {
-                        if let Ok(v) = draft.q_input.trim().parse::<f64>() {
-                            if v >= min_q && v <= max_q {
-                                band.q = v;
-                                band.enabled = true;
-                                window.editor_state.is_dirty = true;
-                            } else {
-                                draft.q_error = Some(format!("Q: {:.1} to {:.1}", min_q, max_q));
-                                window.editor_state.input_buffer.active_draft = Some(draft);
-                            }
-                        } else {
-                            draft.q_error = Some("Q: enter number".to_string());
-                            window.editor_state.input_buffer.active_draft = Some(draft);
-                        }
+            let (min, max) = window.q_range();
+            commit_band_field(window, index, move |band, draft| {
+                match draft.q_input.trim().parse::<f64>() {
+                    Ok(v) if v >= min && v <= max => {
+                        band.q = v;
+                        band.enabled = true;
+                        true
                     }
-                } else {
-                    window.editor_state.input_buffer.active_draft = Some(draft);
+                    Ok(_) => {
+                        draft.q_error = Some(format!("Q: {:.1} to {:.1}", min, max));
+                        false
+                    }
+                    Err(_) => {
+                        draft.q_error = Some("Q: enter number".to_string());
+                        false
+                    }
                 }
-            }
-            Task::none()
+            })
         }
         Message::BandFreqInputCancel(index) => {
             cancel_band_draft_input(window, index);

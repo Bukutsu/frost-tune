@@ -452,13 +452,6 @@ impl MainWindow {
                 Message::ConfirmDeleteProfile,
                 true,
             )),
-            ConfirmAction::ElevatedConnect(ref device) => Some(views::confirm_dialog::view_confirm_dialog(
-                "Temporary Root Access Required".to_string(),
-                format!("Connecting to {}.\n\nOn Linux, temporary root access is required to communicate with USB devices. You will be prompted for your password.", device.manufacturer.as_deref().unwrap_or("Unknown Device")),
-                "Continue",
-                Message::ConfirmElevatedConnect(device.clone()),
-                false,
-            )),
             ConfirmAction::ImportAutoEQ { ref data, ref default_name } => {
                 let count = data.filters.iter().filter(|f| f.enabled).count();
                 let message = format!(
@@ -530,21 +523,7 @@ impl MainWindow {
                     .color(crate::ui::theme::TOKYO_NIGHT_MUTED),
             );
         } else {
-            for (i, dev) in self.available_devices.iter().enumerate() {
-                let is_selected = self.selected_device_index == Some(i);
-
-                let bg_color = if is_selected {
-                    crate::ui::theme::TOKYO_NIGHT_BG_HIGHLIGHT
-                } else {
-                    crate::ui::theme::TOKYO_NIGHT_BG_DARK
-                };
-
-                let border_color = if is_selected {
-                    crate::ui::theme::TOKYO_NIGHT_PRIMARY
-                } else {
-                    iced::Color::TRANSPARENT
-                };
-
+            for dev in self.available_devices.iter() {
                 let dev_type = crate::models::Device::from_vid_pid(dev.vendor_id, dev.product_id);
 
                 let dev_row = row![column![
@@ -563,38 +542,23 @@ impl MainWindow {
                 let dev_btn =
                     iced::widget::button(container(dev_row).padding(SPACE_16).width(Length::Fill))
                         .style(move |_theme, _status| iced::widget::button::Style {
-                            background: Some(bg_color.into()),
+                            background: Some(crate::ui::theme::TOKYO_NIGHT_BG_DARK.into()),
                             border: iced::Border {
                                 radius: 8.0.into(),
                                 width: 1.0,
-                                color: border_color,
+                                color: iced::Color::TRANSPARENT,
                             },
                             text_color: crate::ui::theme::TOKYO_NIGHT_FG,
                             ..Default::default()
                         })
-                        .on_press(Message::DeviceSelected(i))
+                        .on_press(Message::ConnectPressed(dev.clone()))
                         .width(Length::Fill);
 
                 devices_col = devices_col.push(dev_btn);
             }
         }
 
-        let mut connect_col = column![devices_col].spacing(SPACE_24);
-
-        if let Some(idx) = self.selected_device_index {
-            if let Some(dev) = self.available_devices.get(idx) {
-                let connect_btn = container(
-                    crate::ui::views::action_button("Connect")
-                        .style(crate::ui::theme::pill_primary_button)
-                        .on_press(Message::ConnectPressed(dev.clone())),
-                )
-                .width(Length::Fixed(200.0))
-                .center_x(Length::Fill);
-                connect_col = connect_col.push(connect_btn);
-            }
-        }
-
-        container(scrollable(connect_col))
+        container(scrollable(devices_col))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)

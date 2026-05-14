@@ -1,4 +1,4 @@
-use frost_tune::ui::theme::{self, SURFACE_BG, TOKYO_NIGHT_BG_HIGHLIGHT};
+use frost_tune::ui::theme;
 use frost_tune::ui::tokens::{
     BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, BUTTON_PILL_RADIUS, INPUT_RADIUS, SPACE_8, TYPE_BODY,
 };
@@ -30,7 +30,6 @@ fn contrast_ratio(a: iced::Color, b: iced::Color) -> f32 {
 fn test_token_consistency() {
     assert_eq!(SPACE_8, 8.0);
     assert_eq!(TYPE_BODY, 16.0);
-    assert_eq!(SURFACE_BG, TOKYO_NIGHT_BG_HIGHLIGHT);
 }
 
 #[test]

@@ -115,7 +115,6 @@ pub enum ConfirmAction {
     None,
     ResetFilters,
     DeleteProfile,
-    ElevatedConnect(DeviceInfo),
     ImportAutoEQ {
         data: crate::models::PEQData,
         default_name: String,
@@ -167,7 +166,6 @@ pub struct MainWindow {
     pub diagnostics: DiagnosticsStore,
     pub connected_device: Option<DeviceInfo>,
     pub available_devices: Vec<DeviceInfo>,
-    pub selected_device_index: Option<usize>,
     pub connection_generation: u64,
     pub suspend_status_polling: bool,
     pub last_auto_reconnect_attempt: Option<std::time::Instant>,

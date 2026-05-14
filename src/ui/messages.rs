@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use crate::hardware::worker::WorkerStatus;
 use crate::models::{ConnectionResult, DeviceInfo, OperationResult};
 use crate::storage::Profile;
@@ -21,9 +22,7 @@ pub struct StatusMessage {
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
-    DeviceSelected(usize),
     ConnectPressed(DeviceInfo),
-    ConfirmElevatedConnect(DeviceInfo),
     DisconnectPressed,
     PullPressed,
     ConfirmPullPressed,
@@ -66,7 +65,7 @@ pub enum Message {
     ToggleDiagnosticsErrorsOnly(bool),
     ExportDiagnosticsToFile,
     DiagnosticsExported(String),
-    ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), String>),
+    ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), AppError>),
     ProfilesDirMtimeChecked(Option<std::time::SystemTime>),
     WorkerBackendReset,
     ReloadProfilesPressed,

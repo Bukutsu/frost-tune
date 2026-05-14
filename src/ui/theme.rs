@@ -3,8 +3,6 @@ use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
 use iced::{color, Background, Border, Color, Theme};
 
-pub const SURFACE_BG: Color = TOKYO_NIGHT_BG_HIGHLIGHT;
-
 // Official Tokyo Night palette (origin: folke/tokyonight.nvim)
 pub const TOKYO_NIGHT_BG: Color = color!(0x1a1b26);
 pub const TOKYO_NIGHT_BG_DARK: Color = color!(0x16161e);

@@ -2,16 +2,20 @@ use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_8};
-use iced::widget::{column, container, row, slider};
+use crate::ui::tokens::SPACE_12;
+use iced::widget::{container, row, slider};
 use iced::{Element, Length};
 
 pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
 
-    let preamp_section = column![
-        super::section_header(format!("PREAMP: {} dB", state.editor_state.global_gain)),
-        row![slider(
+    let preamp_section = row![
+        container(super::section_header(format!(
+            "PREAMP: {} dB",
+            state.editor_state.global_gain
+        )))
+        .width(Length::Fixed(120.0)),
+        slider(
             MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
             state.editor_state.global_gain as f64,
             move |v| {
@@ -23,11 +27,10 @@ pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
             }
         )
         .width(Length::Fill)
-        .style(theme::slider_style),]
-        .spacing(SPACE_12)
-        .align_y(iced::Alignment::Center),
+        .style(theme::slider_style),
     ]
-    .spacing(SPACE_8);
+    .spacing(SPACE_12)
+    .align_y(iced::Alignment::Center);
 
     container(preamp_section)
         .padding(SPACE_12)

@@ -1,4 +1,5 @@
 use crate::autoeq;
+use crate::error::{AppError, ErrorKind, Result};
 use crate::models::PEQData;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -17,61 +18,90 @@ pub struct UiPreferences {
     pub diagnostics_expanded: bool,
 }
 
-fn get_base_dir() -> Result<PathBuf, String> {
+fn get_base_dir() -> Result<PathBuf> {
     let base_dir = dirs::data_dir()
-        .ok_or("Failed to get standard data directory")?
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorKind::StorageError,
+                "Failed to get standard data directory",
+            )
+        })?
         .join("frost-tune");
 
     if !base_dir.exists() {
-        fs::create_dir_all(&base_dir)
-            .map_err(|e| format!("Failed to create application data directory: {}", e))?;
+        fs::create_dir_all(&base_dir).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to create application data directory: {}", e),
+            )
+        })?;
     }
 
     Ok(base_dir)
 }
 
-fn get_profiles_dir() -> Result<PathBuf, String> {
+fn get_profiles_dir() -> Result<PathBuf> {
     let profiles_dir = get_base_dir()?.join("profiles");
 
     if !profiles_dir.exists() {
-        fs::create_dir_all(&profiles_dir)
-            .map_err(|e| format!("Failed to create profiles directory: {}", e))?;
+        fs::create_dir_all(&profiles_dir).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to create profiles directory: {}", e),
+            )
+        })?;
     }
 
     Ok(profiles_dir)
 }
 
-fn get_ui_preferences_path() -> Result<PathBuf, String> {
+fn get_ui_preferences_path() -> Result<PathBuf> {
     Ok(get_base_dir()?.join("ui_preferences.json"))
 }
 
-pub fn get_diagnostics_log_path() -> Result<PathBuf, String> {
+pub fn get_diagnostics_log_path() -> Result<PathBuf> {
     Ok(get_base_dir()?.join("diagnostics.log"))
 }
 
-pub fn load_ui_preferences() -> Result<UiPreferences, String> {
+pub fn load_ui_preferences() -> Result<UiPreferences> {
     let path = get_ui_preferences_path()?;
     if !path.exists() {
         return Ok(UiPreferences::default());
     }
 
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read UI preferences: {}", e))?;
+    let content = fs::read_to_string(&path).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to read UI preferences: {}", e),
+        )
+    })?;
 
-    serde_json::from_str::<UiPreferences>(&content)
-        .map_err(|e| format!("Failed to parse UI preferences: {}", e))
+    serde_json::from_str::<UiPreferences>(&content).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to parse UI preferences: {}", e),
+        )
+    })
 }
 
-pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
+pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<()> {
     let path = get_ui_preferences_path()?;
-    let content = serde_json::to_string_pretty(prefs)
-        .map_err(|e| format!("Failed to serialize UI preferences: {}", e))?;
+    let content = serde_json::to_string_pretty(prefs).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to serialize UI preferences: {}", e),
+        )
+    })?;
 
     let base_dir = get_base_dir()?;
     let tmp_path = base_dir.join(".ui_preferences.json.tmp");
 
-    fs::write(&tmp_path, content)
-        .map_err(|e| format!("Failed to write temp UI preferences: {}", e))?;
+    fs::write(&tmp_path, content).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to write temp UI preferences: {}", e),
+        )
+    })?;
     fs::rename(&tmp_path, &path).map_err(|e| {
         if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
             log::warn!(
@@ -79,7 +109,10 @@ pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<(), String> {
                 cleanup_err
             );
         }
-        format!("Failed to finalize UI preferences save: {}", e)
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to finalize UI preferences save: {}", e),
+        )
     })?;
 
     if let Ok(dir_file) = fs::File::open(&base_dir) {
@@ -95,20 +128,28 @@ pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
         .and_then(|dir| fs::metadata(dir).ok().and_then(|m| m.modified().ok()))
 }
 
-pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>), String> {
+pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
     let dir = get_profiles_dir()?;
     let mut profiles = Vec::new();
     let mut errors = Vec::new();
 
-    let entries =
-        fs::read_dir(dir).map_err(|e| format!("Failed to read profiles directory: {}", e))?;
+    let entries = fs::read_dir(dir).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to read profiles directory: {}", e),
+        )
+    })?;
 
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "txt") {
             if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                let content = fs::read_to_string(&path)
-                    .map_err(|e| format!("Failed to read profile {}: {}", name, e))?;
+                let content = fs::read_to_string(&path).map_err(|e| {
+                    AppError::new(
+                        ErrorKind::StorageError,
+                        format!("Failed to read profile {}: {}", name, e),
+                    )
+                })?;
                 match autoeq::parse_autoeq_text(&content) {
                     Ok((data, warnings)) => {
                         if !warnings.is_empty() {
@@ -151,13 +192,16 @@ fn sanitize_name(name: &str) -> String {
         .collect()
 }
 
-pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
+pub fn save_profile(name: &str, data: &PEQData) -> Result<()> {
     let dir = get_profiles_dir()?;
 
     let sanitized_name = sanitize_name(name);
 
     if sanitized_name.is_empty() {
-        return Err("Invalid profile name".into());
+        return Err(AppError::new(
+            ErrorKind::StorageError,
+            "Invalid profile name",
+        ));
     }
 
     let filename = format!("{}.txt", sanitized_name);
@@ -165,7 +209,12 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     let tmp_path = dir.join(format!(".{}.tmp", sanitized_name));
 
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(&tmp_path, &content).map_err(|e| format!("Failed to write temp profile: {}", e))?;
+    fs::write(&tmp_path, &content).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to write temp profile: {}", e),
+        )
+    })?;
     fs::rename(&tmp_path, &path).map_err(|e| {
         if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
             log::warn!(
@@ -173,7 +222,10 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
                 cleanup_err
             );
         }
-        format!("Failed to finalize profile save: {}", e)
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to finalize profile save: {}", e),
+        )
     })?;
 
     if let Ok(dir_file) = fs::File::open(&dir) {
@@ -183,24 +235,37 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<(), String> {
     Ok(())
 }
 
-pub fn delete_profile(name: &str) -> Result<(), String> {
+pub fn delete_profile(name: &str) -> Result<()> {
     let dir = get_profiles_dir()?;
     let sanitized_name = sanitize_name(name);
     let filename = format!("{}.txt", sanitized_name);
     let path = dir.join(filename);
 
     if path.exists() {
-        fs::remove_file(path).map_err(|e| format!("Failed to delete profile: {}", e))?;
+        fs::remove_file(path).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to delete profile: {}", e),
+            )
+        })?;
     }
 
     Ok(())
 }
 
-pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read profile file: {}", e))?;
-    let (data, warnings) = autoeq::parse_autoeq_text(&content)
-        .map_err(|e| format!("Failed to parse profile: {}", e))?;
+pub fn import_profile(path: &std::path::Path) -> Result<Profile> {
+    let content = fs::read_to_string(path).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to read profile file: {}", e),
+        )
+    })?;
+    let (data, warnings) = autoeq::parse_autoeq_text(&content).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to parse profile: {}", e),
+        )
+    })?;
     if !warnings.is_empty() {
         log::warn!("Import warnings for profile: {:?}", warnings);
     }
@@ -216,12 +281,17 @@ pub fn import_profile(path: &std::path::Path) -> Result<Profile, String> {
     })
 }
 
-pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<(), String> {
+pub fn export_profile(path: &std::path::Path, data: &PEQData) -> Result<()> {
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(path, content).map_err(|e| format!("Failed to write profile file: {}", e))
+    fs::write(path, content).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to write profile file: {}", e),
+        )
+    })
 }
 
-pub fn open_profiles_dir() -> Result<(), String> {
+pub fn open_profiles_dir() -> Result<()> {
     let dir = get_profiles_dir()?;
 
     #[cfg(target_os = "windows")]
@@ -229,7 +299,12 @@ pub fn open_profiles_dir() -> Result<(), String> {
         std::process::Command::new("explorer")
             .arg(dir)
             .spawn()
-            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+            .map_err(|e| {
+                AppError::new(
+                    ErrorKind::StorageError,
+                    format!("Failed to open explorer: {}", e),
+                )
+            })?;
     }
 
     #[cfg(target_os = "macos")]
@@ -237,7 +312,12 @@ pub fn open_profiles_dir() -> Result<(), String> {
         std::process::Command::new("open")
             .arg(dir)
             .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
+            .map_err(|e| {
+                AppError::new(
+                    ErrorKind::StorageError,
+                    format!("Failed to open folder: {}", e),
+                )
+            })?;
     }
 
     #[cfg(target_os = "linux")]
@@ -245,34 +325,56 @@ pub fn open_profiles_dir() -> Result<(), String> {
         std::process::Command::new("xdg-open")
             .arg(dir)
             .spawn()
-            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+            .map_err(|e| {
+                AppError::new(
+                    ErrorKind::StorageError,
+                    format!("Failed to open file manager: {}", e),
+                )
+            })?;
     }
 
     Ok(())
 }
 
-pub fn append_diagnostics_log(line: &str) -> Result<(), String> {
+pub fn append_diagnostics_log(line: &str) -> Result<()> {
     let path = get_diagnostics_log_path()?;
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&path)
-        .map_err(|e| format!("Failed to open diagnostics log: {}", e))?;
+        .map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to open diagnostics log: {}", e),
+            )
+        })?;
     use std::io::Write;
-    file.write_all(line.as_bytes())
-        .map_err(|e| format!("Failed to write diagnostics log: {}", e))?;
-    file.write_all(b"\n")
-        .map_err(|e| format!("Failed to finalize diagnostics log: {}", e))?;
+    file.write_all(line.as_bytes()).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to write diagnostics log: {}", e),
+        )
+    })?;
+    file.write_all(b"\n").map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to finalize diagnostics log: {}", e),
+        )
+    })?;
     Ok(())
 }
 
-pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>, String> {
+pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>> {
     let path = get_diagnostics_log_path()?;
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read diagnostics log: {}", e))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to read diagnostics log: {}", e),
+        )
+    })?;
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
     const MAX_LOG_LINES: usize = 5000;

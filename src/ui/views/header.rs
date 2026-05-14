@@ -10,6 +10,32 @@ use iced::font::Weight;
 use iced::widget::{column, container, row, text, tooltip};
 use iced::{Element, Font, Length};
 
+fn sync_toolbar_button<'a>(
+    label: &'a str,
+    on_press: Message,
+    action: &'a str,
+    state: &'a MainWindow,
+    is_busy: bool,
+    is_connected: bool,
+) -> Element<'a, Message> {
+    if !is_busy && is_connected {
+        Element::from(
+            toolbar_button(label)
+                .on_press(on_press)
+                .style(theme::pill_secondary_button),
+        )
+    } else {
+        let btn = toolbar_button(label).style(theme::pill_secondary_button);
+        if let Some(reason) = state.disabled_reason_for_action(action) {
+            Element::from(
+                tooltip(btn, text(reason), tooltip::Position::Bottom).style(theme::tooltip_style),
+            )
+        } else {
+            Element::from(btn)
+        }
+    }
+}
+
 pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling
         || state.operation_lock.is_pushing
@@ -19,23 +45,14 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     let is_connected = state.connection_status == ConnectionStatus::Connected;
 
     let sync_buttons = row![
-        if !is_busy && is_connected {
-            Element::from(
-                toolbar_button("Read")
-                    .on_press(Message::PullPressed)
-                    .style(theme::pill_secondary_button),
-            )
-        } else {
-            let btn = toolbar_button("Read").style(theme::pill_secondary_button);
-            if let Some(reason) = state.disabled_reason_for_action("read") {
-                Element::from(
-                    tooltip(btn, text(reason), tooltip::Position::Bottom)
-                        .style(theme::tooltip_style),
-                )
-            } else {
-                Element::from(btn)
-            }
-        },
+        sync_toolbar_button(
+            "Read",
+            Message::PullPressed,
+            "read",
+            state,
+            is_busy,
+            is_connected
+        ),
         if !is_busy && is_connected && !state.editor_state.input_buffer.has_errors() {
             Element::from(
                 toolbar_button("Write")
@@ -60,23 +77,14 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                 Element::from(btn)
             }
         },
-        if !is_busy && is_connected {
-            Element::from(
-                toolbar_button("Disconnect")
-                    .on_press(Message::DisconnectPressed)
-                    .style(theme::pill_secondary_button),
-            )
-        } else {
-            let btn = toolbar_button("Disconnect").style(theme::pill_secondary_button);
-            if let Some(reason) = state.disabled_reason_for_action("disconnect") {
-                Element::from(
-                    tooltip(btn, text(reason), tooltip::Position::Bottom)
-                        .style(theme::tooltip_style),
-                )
-            } else {
-                Element::from(btn)
-            }
-        },
+        sync_toolbar_button(
+            "Disconnect",
+            Message::DisconnectPressed,
+            "disconnect",
+            state,
+            is_busy,
+            is_connected
+        ),
     ]
     .spacing(SPACE_8);
 

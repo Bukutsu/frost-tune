@@ -20,9 +20,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         // handle_connection
         Message::ClearStatusMessage(_)
         | Message::DismissConfirmDialog
-        | Message::DeviceSelected(_)
         | Message::ConnectPressed(_)
-        | Message::ConfirmElevatedConnect(_)
         | Message::DisconnectPressed
         | Message::WorkerConnected(..)
         | Message::WorkerDisconnected(..)

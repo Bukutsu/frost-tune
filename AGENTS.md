@@ -4,7 +4,7 @@
 
 Frost-Tune is a native parametric EQ editor for USB DACs, built with Rust and the Iced GUI framework. It communicates with DACs over USB HID to adjust 10-band parametric EQ directly on hardware.
 
-**Version:** 0.8.2  
+**Version:** 0.8.3  
 **Tech stack:** Rust 2021, Iced 0.14 (GUI), hidapi (HID I/O), tokio (async), serde/serde_json (serialization)  
 **Target platforms:** Linux (primary), Windows  
 **Status:** Actively maintained, CLI + GUI releases on Arch Linux AUR
