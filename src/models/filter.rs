@@ -79,12 +79,18 @@ pub struct Filter {
     pub filter_type: FilterType,
 }
 
+const DEFAULT_FREQS_10_BAND: [u16; 10] = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
 impl Filter {
     pub fn enabled(index: u8, enabled: bool) -> Self {
+        let freq = DEFAULT_FREQS_10_BAND
+            .get(index as usize)
+            .copied()
+            .unwrap_or(1000);
         Filter {
             index,
             enabled,
-            freq: 100,
+            freq,
             gain: 0.0,
             q: 1.0,
             filter_type: FilterType::Peak,

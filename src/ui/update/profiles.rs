@@ -436,6 +436,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             window.editor_state.profile_search = query;
             Task::none()
         }
+        Message::ToolsTabSelected(tab) => {
+            window.editor_state.active_tools_tab = tab;
+            Task::none()
+        }
         _ => Task::none(),
     }
 }

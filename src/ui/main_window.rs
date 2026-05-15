@@ -558,11 +558,12 @@ impl MainWindow {
             }
         }
 
-        container(scrollable(devices_col))
+        container(devices_col.max_width(480))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
             .center_y(Length::Fill)
+            .padding(SPACE_24)
             .into()
     }
 
@@ -625,6 +626,21 @@ impl MainWindow {
                     if key == keyboard::Key::Character("z".into()) {
                         return Some(Message::Undo);
                     }
+                    if key == keyboard::Key::Character("s".into()) {
+                        return Some(Message::SaveProfilePressed);
+                    }
+                    if key == keyboard::Key::Character("r".into()) {
+                        return Some(Message::PullPressed);
+                    }
+                    if key == keyboard::Key::Character("0".into()) {
+                        return Some(Message::ResetFiltersPressed);
+                    }
+                    if key == keyboard::Key::Named(keyboard::key::Named::Enter) {
+                        return Some(Message::PushPressed);
+                    }
+                }
+                if key == keyboard::Key::Named(keyboard::key::Named::Escape) {
+                    return Some(Message::DismissConfirmDialog);
                 }
             }
             None

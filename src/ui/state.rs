@@ -109,6 +109,13 @@ impl DraftFilter {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ToolsTab {
+    #[default]
+    Preset,
+    AutoEq,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ConfirmAction {
     #[default]
@@ -147,6 +154,7 @@ pub struct EditorState {
     pub redo_stack: Vec<crate::models::PEQData>,
     pub profile_search: String,
     pub snap_to_iso_enabled: bool,
+    pub active_tools_tab: ToolsTab,
 }
 #[derive(Debug, Clone, Default)]
 pub struct OperationLock {

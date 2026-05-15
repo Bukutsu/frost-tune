@@ -44,7 +44,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let is_connected = state.connection_status == ConnectionStatus::Connected;
 
-    let sync_buttons = row![
+    let mut sync_buttons = row![
         sync_toolbar_button(
             "Read",
             Message::PullPressed,
@@ -77,16 +77,19 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                 Element::from(btn)
             }
         },
-        sync_toolbar_button(
+    ]
+    .spacing(SPACE_8);
+
+    if state.connection_status != ConnectionStatus::Disconnected {
+        sync_buttons = sync_buttons.push(sync_toolbar_button(
             "Disconnect",
             Message::DisconnectPressed,
             "disconnect",
             state,
             is_busy,
-            is_connected
-        ),
-    ]
-    .spacing(SPACE_8);
+            is_connected,
+        ));
+    }
 
     let status_indicator = match &state.connection_status {
         ConnectionStatus::Connected => container(

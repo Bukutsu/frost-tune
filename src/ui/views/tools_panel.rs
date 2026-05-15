@@ -1,17 +1,43 @@
 use crate::ui::messages::Message;
-use crate::ui::state::MainWindow;
+use crate::ui::state::{MainWindow, ToolsTab};
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_8};
+use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL};
 use crate::ui::views::{action_button, icon_action_button, icon_button};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
 use iced::{Element, Length};
+
+fn tab_button<'a>(
+    label: &'a str,
+    tab: ToolsTab,
+    active: ToolsTab,
+) -> iced::widget::Button<'a, Message> {
+    let is_active = tab == active;
+    button(
+        container(
+            text(label)
+                .size(TYPE_LABEL)
+                .align_x(iced::Alignment::Center),
+        )
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill),
+    )
+    .padding(0.0)
+    .height(Length::Fixed(36.0))
+    .width(Length::Fill)
+    .on_press(Message::ToolsTabSelected(tab))
+    .style(if is_active {
+        theme::pill_primary_button
+    } else {
+        theme::pill_secondary_button
+    })
+}
 
 pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
 
     // --- AUTOEQ ACTIONS ---
     let autoeq_section = column![
-        super::section_header("AUTO-EQ".to_string()),
         row![
             icon_action_button(crate::ui::tokens::ICON_IMPORT_FILE, "Import File")
                 .on_press_maybe(if is_busy {
@@ -226,8 +252,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
-    let preset_section = column![
-        super::section_header("PRESET".to_string()),
+    let preset_body = column![
         profile_search_row.width(Length::Fill),
         profile_list,
         {
@@ -252,11 +277,28 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         .spacing(SPACE_8)
         .align_y(iced::Alignment::Center),
         profile_name_input.width(Length::Fill),
+    ]
+    .spacing(SPACE_12);
+
+    let active_tab = state.editor_state.active_tools_tab;
+    let tab_strip = row![
+        tab_button("Preset", ToolsTab::Preset, active_tab),
+        tab_button("AUTO-EQ", ToolsTab::AutoEq, active_tab),
+    ]
+    .spacing(SPACE_8);
+
+    let tab_body: Element<'_, Message> = match active_tab {
+        ToolsTab::Preset => preset_body.into(),
+        ToolsTab::AutoEq => autoeq_section.into(),
+    };
+
+    let shared_actions = column![
         undo_redo_row.width(Length::Fill),
         actions_row.width(Length::Fill),
     ]
     .spacing(SPACE_12);
-    container(column![autoeq_section, preset_section].spacing(SPACE_16))
+
+    container(column![tab_strip, tab_body, shared_actions].spacing(SPACE_16))
         .padding(SPACE_16)
         .style(theme::card_style)
         .width(Length::Fill)

@@ -92,4 +92,5 @@ pub enum Message {
 
     ToggleSnapToIso(bool),
     ProfileSearchInput(String),
+    ToolsTabSelected(crate::ui::state::ToolsTab),
 }
