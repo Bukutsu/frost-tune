@@ -12,12 +12,12 @@ pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
     let preamp_section = row![
         container(super::section_header(format!(
             "PREAMP: {} dB",
-            state.editor_state.global_gain
+            state.editor_state.data.global_gain
         )))
         .width(Length::Fixed(120.0)),
         slider(
             MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
-            state.editor_state.global_gain as f64,
+            state.editor_state.data.global_gain as f64,
             move |v| {
                 if is_busy {
                     Message::None

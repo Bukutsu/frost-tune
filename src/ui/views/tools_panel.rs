@@ -80,10 +80,11 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     .spacing(SPACE_8);
 
     // --- PRESETS ---
-    let search_query = state.editor_state.profile_search.to_lowercase();
-    let selected_name = state.editor_state.selected_profile_name.as_deref();
+    let search_query = state.editor_state.ui.profile_search.to_lowercase();
+    let selected_name = state.editor_state.ui.selected_profile_name.as_deref();
     let filtered_profiles: Vec<&crate::storage::Profile> = state
         .editor_state
+        .ui
         .profiles
         .iter()
         .filter(|p| {
@@ -93,22 +94,23 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         })
         .collect();
 
-    let selected_profile_modified =
-        state
-            .editor_state
-            .selected_profile_name
-            .as_ref()
-            .and_then(|name| {
-                state
-                    .editor_state
-                    .profiles
-                    .iter()
-                    .find(|p| &p.name == name)
-                    .and_then(|p| p.modified.as_deref())
-            });
+    let selected_profile_modified = state
+        .editor_state
+        .ui
+        .selected_profile_name
+        .as_ref()
+        .and_then(|name| {
+            state
+                .editor_state
+                .ui
+                .profiles
+                .iter()
+                .find(|p| &p.name == name)
+                .and_then(|p| p.modified.as_deref())
+        });
 
     let search_input = {
-        let input = text_input("Search profiles...", &state.editor_state.profile_search)
+        let input = text_input("Search profiles...", &state.editor_state.ui.profile_search)
             .style(theme::m3_filled_input);
         if is_busy {
             input
@@ -197,7 +199,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     };
 
     let profile_name_input = {
-        let input = text_input("New Name...", &state.editor_state.new_profile_name)
+        let input = text_input("New Name...", &state.editor_state.session.new_profile_name)
             .style(theme::m3_filled_input);
 
         if is_busy {
@@ -209,18 +211,22 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
 
     let undo_redo_row = row![
         action_button("Undo")
-            .on_press_maybe(if is_busy || state.editor_state.undo_stack.is_empty() {
-                None
-            } else {
-                Some(Message::Undo)
-            })
+            .on_press_maybe(
+                if is_busy || state.editor_state.session.undo_stack.is_empty() {
+                    None
+                } else {
+                    Some(Message::Undo)
+                }
+            )
             .style(theme::pill_secondary_button),
         action_button("Redo")
-            .on_press_maybe(if is_busy || state.editor_state.redo_stack.is_empty() {
-                None
-            } else {
-                Some(Message::Redo)
-            })
+            .on_press_maybe(
+                if is_busy || state.editor_state.session.redo_stack.is_empty() {
+                    None
+                } else {
+                    Some(Message::Redo)
+                }
+            )
             .style(theme::pill_secondary_button),
     ]
     .spacing(SPACE_8)
@@ -241,7 +247,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 Some(Message::SaveProfilePressed)
             })
             .style(theme::pill_primary_button),
-        if !is_busy && state.editor_state.selected_profile_name.is_some() {
+        if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
             action_button("Delete")
                 .on_press(Message::DeleteProfilePressed)
                 .style(theme::pill_danger_button)
@@ -267,7 +273,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             date_widget
         },
         row![
-            checkbox(state.editor_state.snap_to_iso_enabled)
+            checkbox(state.editor_state.ui.snap_to_iso_enabled)
                 .on_toggle(Message::ToggleSnapToIso)
                 .style(theme::checkbox_style),
             text("Snap to ISO frequencies")
@@ -280,7 +286,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     ]
     .spacing(SPACE_12);
 
-    let active_tab = state.editor_state.active_tools_tab;
+    let active_tab = state.editor_state.ui.active_tools_tab;
     let tab_strip = row![
         tab_button("Preset", ToolsTab::Preset, active_tab),
         tab_button("AUTO-EQ", ToolsTab::AutoEq, active_tab),

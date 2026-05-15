@@ -20,15 +20,16 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 return Task::none();
             }
 
-            if window.editor_state.is_dirty {
-                window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::PullDevice;
+            if window.editor_state.session.is_dirty {
+                window.editor_state.session.pending_confirm =
+                    crate::ui::state::ConfirmAction::PullDevice;
                 return Task::none();
             }
 
             perform_pull(window)
         }
         Message::ConfirmPullPressed => {
-            window.editor_state.pending_confirm = crate::ui::state::ConfirmAction::None;
+            window.editor_state.session.pending_confirm = crate::ui::state::ConfirmAction::None;
             perform_pull(window)
         }
         Message::PushPressed => {
@@ -45,8 +46,8 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 Some(w) => Arc::clone(w),
                 None => return Task::none(),
             };
-            let filters = window.editor_state.filters.clone();
-            let global_gain = window.editor_state.global_gain;
+            let filters = window.editor_state.data.filters.clone();
+            let global_gain = window.editor_state.data.global_gain;
             let push_task = Task::perform(
                 async move {
                     let payload = PushPayload {
@@ -64,10 +65,10 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
         Message::WorkerPulled(result) => {
             window.operation_lock.is_pulling = false;
             if result.success {
-                window.editor_state.is_dirty = false;
+                window.editor_state.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.filters = peq.filters;
-                    window.editor_state.global_gain = peq.global_gain;
+                    window.editor_state.data.filters = peq.filters;
+                    window.editor_state.data.global_gain = peq.global_gain;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
@@ -108,10 +109,10 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
         Message::WorkerPushed(result) => {
             window.operation_lock.is_pushing = false;
             if result.success {
-                window.editor_state.is_dirty = false;
+                window.editor_state.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.filters = peq.filters;
-                    window.editor_state.global_gain = peq.global_gain;
+                    window.editor_state.data.filters = peq.filters;
+                    window.editor_state.data.global_gain = peq.global_gain;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,

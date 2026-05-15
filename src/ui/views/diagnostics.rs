@@ -13,7 +13,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     let events: Vec<&DiagnosticEvent> = state
         .diagnostics
         .events()
-        .filter(|e| !state.editor_state.diagnostics_errors_only || e.level == LogLevel::Error)
+        .filter(|e| !state.editor_state.ui.diagnostics_errors_only || e.level == LogLevel::Error)
         .collect();
 
     let error_count = events.iter().filter(|e| e.level == LogLevel::Error).count();
@@ -102,7 +102,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
 }
 
 pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
-    if state.editor_state.show_diagnostics {
+    if state.editor_state.ui.show_diagnostics {
         view_diagnostics(state)
     } else {
         container(

@@ -53,7 +53,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             is_busy,
             is_connected
         ),
-        if !is_busy && is_connected && !state.editor_state.input_buffer.has_errors() {
+        if !is_busy && is_connected && !state.editor_state.session.input_buffer.has_errors() {
             Element::from(
                 toolbar_button("Write")
                     .on_press(Message::PushPressed)

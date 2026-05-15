@@ -24,7 +24,7 @@ fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
     }
 
     let enabled_count = filters.iter().filter(|f| f.enabled).count();
-    window.editor_state.filters = filters
+    window.editor_state.data.filters = filters
         .into_iter()
         .enumerate()
         .map(|(i, mut f)| {
@@ -35,18 +35,19 @@ fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
         })
         .collect();
 
-    while window.editor_state.filters.len() < num_bands {
+    while window.editor_state.data.filters.len() < num_bands {
         window
             .editor_state
+            .data
             .filters
             .push(crate::models::Filter::enabled(
-                window.editor_state.filters.len() as u8,
+                window.editor_state.data.filters.len() as u8,
                 false,
             ));
     }
 
-    window.editor_state.global_gain = peq.global_gain;
-    window.editor_state.is_autoeq_active = true;
+    window.editor_state.data.global_gain = peq.global_gain;
+    window.editor_state.session.is_autoeq_active = true;
 
     (was_truncated, enabled_count)
 }
@@ -57,10 +58,16 @@ fn check_overwrite_and_save(
     data: PEQData,
     reload_on_save: bool,
 ) -> Task<Message> {
-    let name_exists = window.editor_state.profiles.iter().any(|p| p.name == name);
+    let name_exists = window
+        .editor_state
+        .ui
+        .profiles
+        .iter()
+        .any(|p| p.name == name);
 
     if name_exists {
-        window.editor_state.pending_confirm = ConfirmAction::OverwriteProfile { name, data };
+        window.editor_state.session.pending_confirm =
+            ConfirmAction::OverwriteProfile { name, data };
         return Task::none();
     }
 
@@ -80,7 +87,7 @@ fn do_save_profile(
                 Source::UI,
                 format!("Saved profile: {}", name),
             ));
-            window.editor_state.new_profile_name = name.clone();
+            window.editor_state.session.new_profile_name = name.clone();
             let mut tasks = Vec::new();
             if reload_on_save {
                 tasks.push(reload_profiles_task());
@@ -115,11 +122,11 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfilesLoaded(result) => {
-            window.editor_state.profiles_dir_mtime = crate::storage::get_profiles_dir_mtime();
+            window.editor_state.ui.profiles_dir_mtime = crate::storage::get_profiles_dir_mtime();
             match result {
                 Ok((profiles, errors)) => {
-                    let prev_count = window.editor_state.profiles.len();
-                    window.editor_state.profiles = profiles;
+                    let prev_count = window.editor_state.ui.profiles.len();
+                    window.editor_state.ui.profiles = profiles;
 
                     for err in &errors {
                         window.diagnostics.push(DiagnosticEvent::new(
@@ -133,16 +140,16 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         window.set_status(
                             format!(
                                 "Loaded {} profiles ({} failed to parse)",
-                                window.editor_state.profiles.len(),
+                                window.editor_state.ui.profiles.len(),
                                 errors.len()
                             ),
                             StatusSeverity::Warning,
                         )
-                    } else if window.editor_state.profiles.len() != prev_count {
+                    } else if window.editor_state.ui.profiles.len() != prev_count {
                         window.set_status(
                             format!(
                                 "Profiles updated ({} total)",
-                                window.editor_state.profiles.len()
+                                window.editor_state.ui.profiles.len()
                             ),
                             StatusSeverity::Info,
                         )
@@ -164,19 +171,24 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfileSelected(name) => {
-            let (profile_name, was_truncated) =
-                match window.editor_state.profiles.iter().find(|p| p.name == name) {
-                    Some(profile) => {
-                        let profile_name = profile.name.clone();
-                        let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
-                        window.editor_state.selected_profile_name = Some(name);
-                        window.editor_state.new_profile_name = profile_name.clone();
-                        window.editor_state.profile_search.clear();
-                        window.editor_state.is_autoeq_active = false;
-                        (profile_name, was_truncated)
-                    }
-                    None => return Task::none(),
-                };
+            let (profile_name, was_truncated) = match window
+                .editor_state
+                .ui
+                .profiles
+                .iter()
+                .find(|p| p.name == name)
+            {
+                Some(profile) => {
+                    let profile_name = profile.name.clone();
+                    let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
+                    window.editor_state.ui.selected_profile_name = Some(name);
+                    window.editor_state.session.new_profile_name = profile_name.clone();
+                    window.editor_state.ui.profile_search.clear();
+                    window.editor_state.session.is_autoeq_active = false;
+                    (profile_name, was_truncated)
+                }
+                None => return Task::none(),
+            };
 
             if was_truncated {
                 window.diagnostics.push(DiagnosticEvent::new(
@@ -209,39 +221,54 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfileNameInput(name) => {
-            window.editor_state.new_profile_name = name;
+            window.editor_state.session.new_profile_name = name;
             Task::none()
         }
         Message::ImportNameInput(name) => {
-            window.editor_state.import_name_input = name;
+            window.editor_state.session.import_name_input = name;
             Task::none()
         }
         Message::SaveProfilePressed => {
-            let name = window.editor_state.new_profile_name.trim().to_string();
+            let name = window
+                .editor_state
+                .session
+                .new_profile_name
+                .trim()
+                .to_string();
             if name.is_empty() {
                 return window.set_status("Invalid profile name", StatusSeverity::Warning);
             }
             let data = PEQData {
-                filters: window.editor_state.filters.clone(),
-                global_gain: window.editor_state.global_gain,
+                filters: window.editor_state.data.filters.clone(),
+                global_gain: window.editor_state.data.global_gain,
             };
             check_overwrite_and_save(window, name, data, true)
         }
         Message::ConfirmImportWithName => {
             if let ConfirmAction::ImportAutoEQ { data, .. } =
-                window.editor_state.pending_confirm.clone()
+                window.editor_state.session.pending_confirm.clone()
             {
-                let name = window.editor_state.import_name_input.trim().to_string();
+                let name = window
+                    .editor_state
+                    .session
+                    .import_name_input
+                    .trim()
+                    .to_string();
 
                 if name.is_empty() {
                     return window
                         .set_status("Profile name cannot be empty", StatusSeverity::Warning);
                 }
 
-                let name_exists = window.editor_state.profiles.iter().any(|p| p.name == name);
+                let name_exists = window
+                    .editor_state
+                    .ui
+                    .profiles
+                    .iter()
+                    .any(|p| p.name == name);
 
                 if name_exists {
-                    window.editor_state.pending_confirm =
+                    window.editor_state.session.pending_confirm =
                         ConfirmAction::OverwriteProfile { name, data };
                     return Task::none();
                 }
@@ -249,8 +276,8 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 match crate::storage::save_profile(&name, &data) {
                     Ok(_) => {
                         let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
-                        window.editor_state.import_name_input = String::new();
-                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        window.editor_state.session.import_name_input = String::new();
+                        window.editor_state.session.pending_confirm = ConfirmAction::None;
 
                         let mut tasks = vec![reload_profiles_task()];
 
@@ -296,13 +323,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
         }
         Message::ConfirmOverwriteProfile => {
             if let ConfirmAction::OverwriteProfile { name, data } =
-                window.editor_state.pending_confirm.clone()
+                window.editor_state.session.pending_confirm.clone()
             {
                 match crate::storage::save_profile(&name, &data) {
                     Ok(_) => {
                         apply_peq_to_editor(window, data);
-                        window.editor_state.pending_confirm = ConfirmAction::None;
-                        window.editor_state.new_profile_name = name.clone();
+                        window.editor_state.session.pending_confirm = ConfirmAction::None;
+                        window.editor_state.session.new_profile_name = name.clone();
                         window.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Info,
                             Source::UI,
@@ -329,22 +356,22 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::DeleteProfilePressed => {
-            window.editor_state.pending_confirm = ConfirmAction::DeleteProfile;
+            window.editor_state.session.pending_confirm = ConfirmAction::DeleteProfile;
             Task::none()
         }
         Message::ConfirmDeleteProfile => {
             if matches!(
-                window.editor_state.pending_confirm,
+                window.editor_state.session.pending_confirm,
                 ConfirmAction::DeleteProfile
             ) {
-                let name = match &window.editor_state.selected_profile_name {
+                let name = match &window.editor_state.ui.selected_profile_name {
                     Some(n) => n.clone(),
                     None => return Task::none(),
                 };
                 match crate::storage::delete_profile(&name) {
                     Ok(_) => {
-                        window.editor_state.selected_profile_name = None;
-                        window.editor_state.new_profile_name = String::new();
+                        window.editor_state.ui.selected_profile_name = None;
+                        window.editor_state.session.new_profile_name = String::new();
                         window.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Info,
                             Source::UI,
@@ -355,7 +382,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             format!("Deleted profile: {}", name),
                             StatusSeverity::Success,
                         );
-                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        window.editor_state.session.pending_confirm = ConfirmAction::None;
                         Task::batch(vec![reload_task, status_task])
                     }
                     Err(e) => {
@@ -384,7 +411,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
                     Ok(profile) => {
-                        window.editor_state.pending_confirm = ConfirmAction::ImportAutoEQ {
+                        window.editor_state.session.pending_confirm = ConfirmAction::ImportAutoEQ {
                             data: profile.data,
                             default_name: profile.name,
                         };
@@ -400,13 +427,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
         }
         Message::ExportToFilePressed => {
             let peq = PEQData {
-                filters: window.editor_state.filters.clone(),
-                global_gain: window.editor_state.global_gain,
+                filters: window.editor_state.data.filters.clone(),
+                global_gain: window.editor_state.data.global_gain,
             };
-            let name = if window.editor_state.new_profile_name.is_empty() {
+            let name = if window.editor_state.session.new_profile_name.is_empty() {
                 "profile".to_string()
             } else {
-                window.editor_state.new_profile_name.clone()
+                window.editor_state.session.new_profile_name.clone()
             };
 
             Task::perform(
@@ -433,11 +460,11 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfileSearchInput(query) => {
-            window.editor_state.profile_search = query;
+            window.editor_state.ui.profile_search = query;
             Task::none()
         }
         Message::ToolsTabSelected(tab) => {
-            window.editor_state.active_tools_tab = tab;
+            window.editor_state.ui.active_tools_tab = tab;
             Task::none()
         }
         _ => Task::none(),

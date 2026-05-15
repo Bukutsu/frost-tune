@@ -11,7 +11,7 @@ use iced::{Background, Border, Element, Length};
 pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
     let banner_height = 36.0;
 
-    if let Some(msg) = &state.editor_state.status_message {
+    if let Some(msg) = &state.editor_state.session.status_message {
         let color = match msg.severity {
             StatusSeverity::Info => TOKYO_NIGHT_BLUE,
             StatusSeverity::Success => TOKYO_NIGHT_GREEN,

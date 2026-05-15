@@ -10,8 +10,8 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
     match message {
         Message::ExportAutoEQPressed => {
             let peq = PEQData {
-                filters: window.editor_state.filters.clone(),
-                global_gain: window.editor_state.global_gain,
+                filters: window.editor_state.data.filters.clone(),
+                global_gain: window.editor_state.data.global_gain,
             };
             let output = autoeq::peq_to_autoeq(&peq);
             let write_task = clipboard::write(output).map(|()| Message::ExportComplete);
@@ -41,7 +41,7 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         ));
                     }
                 }
-                window.editor_state.pending_confirm =
+                window.editor_state.session.pending_confirm =
                     crate::ui::state::ConfirmAction::ImportAutoEQ {
                         data: peq,
                         default_name: "Imported Profile".to_string(),
@@ -85,7 +85,7 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
             window.set_status("Diagnostics cleared", StatusSeverity::Info)
         }
         Message::ToggleDiagnosticsErrorsOnly(v) => {
-            window.editor_state.diagnostics_errors_only = v;
+            window.editor_state.ui.diagnostics_errors_only = v;
             Task::none()
         }
         Message::ExportDiagnosticsToFile => {

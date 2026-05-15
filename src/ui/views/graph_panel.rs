@@ -19,8 +19,8 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
 
         container(
             canvas(EqGraph::new(
-                &state.editor_state.filters,
-                state.editor_state.global_gain,
+                &state.editor_state.data.filters,
+                state.editor_state.data.global_gain,
             ))
             .width(Length::Fill)
             .height(Length::Fixed(height)),
@@ -42,8 +42,8 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
 pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
     container(
         canvas(EqGraph::new(
-            &state.editor_state.filters,
-            state.editor_state.global_gain,
+            &state.editor_state.data.filters,
+            state.editor_state.data.global_gain,
         ))
         .width(Length::Fill)
         .height(Length::Fill),

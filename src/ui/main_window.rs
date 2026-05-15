@@ -77,8 +77,14 @@ impl MainWindow {
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
         let window = MainWindow {
             editor_state: EditorState {
-                filters: default_filters,
-                snap_to_iso_enabled: true,
+                data: crate::ui::state::EditorData {
+                    filters: default_filters,
+                    ..Default::default()
+                },
+                ui: crate::ui::state::EditorUI {
+                    snap_to_iso_enabled: true,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             worker: Some(worker),
@@ -138,7 +144,7 @@ impl MainWindow {
             .unwrap_or_default()
             .as_nanos() as u64;
 
-        self.editor_state.status_message = Some(StatusMessage {
+        self.editor_state.session.status_message = Some(StatusMessage {
             id,
             content,
             severity,
@@ -180,6 +186,7 @@ impl MainWindow {
 
     pub fn status_banner_message(&self) -> Option<String> {
         self.editor_state
+            .session
             .status_message
             .as_ref()
             .map(|m| m.content.clone())
@@ -237,7 +244,7 @@ impl MainWindow {
                     || self.connection_status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device...".to_string())
-                } else if self.editor_state.input_buffer.has_errors() {
+                } else if self.editor_state.session.input_buffer.has_errors() {
                     Some("Resolve input errors first".to_string())
                 } else if self.operation_lock.is_pushing {
                     Some("Operation in progress: Writing".to_string())
@@ -437,7 +444,7 @@ impl MainWindow {
     }
 
     fn with_modal_overlay<'a>(&'a self, main_view: Element<'a, Message>) -> Element<'a, Message> {
-        if let Some(dialog) = match self.editor_state.pending_confirm {
+        if let Some(dialog) = match self.editor_state.session.pending_confirm {
             ConfirmAction::ResetFilters => Some(views::confirm_dialog::view_confirm_dialog(
                 "Reset Filters?".to_string(),
                 "This will reset all 10 bands to default values and set global gain to 0.".to_string(),
@@ -461,7 +468,7 @@ impl MainWindow {
                 Some(views::confirm_dialog::view_name_input_dialog(
                     "Import Profile".to_string(),
                     message,
-                    self.editor_state.import_name_input.as_str(),
+                    self.editor_state.session.import_name_input.as_str(),
                     default_name.as_str(),
                     "Import",
                     Message::ConfirmImportWithName,

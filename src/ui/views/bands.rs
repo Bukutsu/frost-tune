@@ -15,8 +15,13 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     responsive(move |size| {
         if size.width < 1100.0 {
             // Single column for narrow/medium widths
-            let col =
-                render_band_column(0, &state.editor_state.filters, state, is_busy, show_enable);
+            let col = render_band_column(
+                0,
+                &state.editor_state.data.filters,
+                state,
+                is_busy,
+                show_enable,
+            );
             container(col)
                 .padding(SPACE_12)
                 .width(Length::Fill)
@@ -25,8 +30,8 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 .into()
         } else {
             // Two columns for wide widths
-            let left_filters = state.editor_state.filters.get(0..5).unwrap_or(&[]);
-            let right_filters = state.editor_state.filters.get(5..10).unwrap_or(&[]);
+            let left_filters = state.editor_state.data.filters.get(0..5).unwrap_or(&[]);
+            let right_filters = state.editor_state.data.filters.get(5..10).unwrap_or(&[]);
             let left_col = render_band_column(0, left_filters, state, is_busy, show_enable);
             let right_col = render_band_column(5, right_filters, state, is_busy, show_enable);
             let content = row![left_col, right_col].spacing(SPACE_32).padding(SPACE_8);
@@ -304,6 +309,7 @@ fn render_freq_cell<'a>(
     column![render_input_field(
         state
             .editor_state
+            .session
             .input_buffer
             .get_freq_input(i)
             .map_or_else(|| format!("{}", band.freq), |s| s.to_string()),
@@ -341,6 +347,7 @@ fn render_gain_cell<'a>(
         container(render_input_field(
             state
                 .editor_state
+                .session
                 .input_buffer
                 .get_gain_input(i)
                 .map_or_else(|| format!("{:.1}", band.gain), |s| s.to_string()),
@@ -367,6 +374,7 @@ fn render_q_cell<'a>(
     column![render_input_field(
         state
             .editor_state
+            .session
             .input_buffer
             .get_q_input(i)
             .map_or_else(|| format!("{:.2}", band.q), |s| s.to_string()),
@@ -387,9 +395,9 @@ fn render_band_row<'a>(
     is_busy: bool,
     show_enable: bool,
 ) -> Element<'a, Message> {
-    let freq_error = state.editor_state.input_buffer.get_freq_error(i);
-    let gain_error = state.editor_state.input_buffer.get_gain_error(i);
-    let q_error = state.editor_state.input_buffer.get_q_error(i);
+    let freq_error = state.editor_state.session.input_buffer.get_freq_error(i);
+    let gain_error = state.editor_state.session.input_buffer.get_gain_error(i);
+    let q_error = state.editor_state.session.input_buffer.get_q_error(i);
 
     let is_active = band.enabled;
     let accent_color = if is_active {

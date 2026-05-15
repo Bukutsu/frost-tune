@@ -135,26 +135,88 @@ pub enum ConfirmAction {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct EditorState {
+pub struct EditorData {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
-    pub status_message: Option<StatusMessage>,
-    pub diagnostics_errors_only: bool,
-    pub profiles: Vec<Profile>,
-    pub selected_profile_name: Option<String>,
-    pub new_profile_name: String,
-    pub input_buffer: InputBuffer,
-    pub pending_confirm: ConfirmAction,
-    pub profiles_dir_mtime: Option<std::time::SystemTime>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EditorSession {
     pub is_dirty: bool,
     pub is_autoeq_active: bool,
-    pub show_diagnostics: bool,
-    pub import_name_input: String,
+    pub input_buffer: InputBuffer,
+    pub pending_confirm: ConfirmAction,
     pub undo_stack: Vec<crate::models::PEQData>,
     pub redo_stack: Vec<crate::models::PEQData>,
+    pub status_message: Option<StatusMessage>,
+    pub import_name_input: String,
+    pub new_profile_name: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EditorUI {
+    pub profiles: Vec<Profile>,
+    pub selected_profile_name: Option<String>,
+    pub profiles_dir_mtime: Option<std::time::SystemTime>,
     pub profile_search: String,
+    pub diagnostics_errors_only: bool,
+    pub show_diagnostics: bool,
     pub snap_to_iso_enabled: bool,
     pub active_tools_tab: ToolsTab,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EditorState {
+    pub data: EditorData,
+    pub session: EditorSession,
+    pub ui: EditorUI,
+}
+
+pub const MAX_UNDO: usize = 50;
+
+impl EditorState {
+    pub fn push_undo(&mut self) {
+        let snapshot = crate::models::PEQData {
+            filters: self.data.filters.clone(),
+            global_gain: self.data.global_gain,
+        };
+        self.session.undo_stack.push(snapshot);
+        if self.session.undo_stack.len() > MAX_UNDO {
+            self.session.undo_stack.remove(0);
+        }
+        self.session.redo_stack.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::PEQData;
+
+    #[test]
+    fn push_undo_clears_redo_and_adds_undo_entry() {
+        let mut state = EditorState::default();
+        state.session.redo_stack.push(PEQData {
+            filters: vec![],
+            global_gain: 0,
+        });
+        assert_eq!(state.session.undo_stack.len(), 0);
+        assert_eq!(state.session.redo_stack.len(), 1);
+
+        state.push_undo();
+
+        assert_eq!(state.session.undo_stack.len(), 1);
+        assert_eq!(state.session.redo_stack.len(), 0);
+    }
+
+    #[test]
+    fn push_undo_trims_to_max() {
+        let mut state = EditorState::default();
+        for _ in 0..MAX_UNDO + 5 {
+            state.push_undo();
+        }
+        assert_eq!(state.session.undo_stack.len(), MAX_UNDO);
+    }
 }
 #[derive(Debug, Clone, Default)]
 pub struct OperationLock {

@@ -101,51 +101,58 @@ fn maybe_check_profiles(window: &mut MainWindow) -> Option<Task<Message>> {
 pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
         Message::ClearStatusMessage(id) => {
-            if let Some(ref status) = window.editor_state.status_message {
+            if let Some(ref status) = window.editor_state.session.status_message {
                 if status.id == id {
-                    window.editor_state.status_message = None;
+                    window.editor_state.session.status_message = None;
                 }
             }
             Task::none()
         }
         Message::DismissConfirmDialog => {
-            window.editor_state.pending_confirm = ConfirmAction::None;
-            window.editor_state.import_name_input = String::new();
+            window.editor_state.session.pending_confirm = ConfirmAction::None;
+            window.editor_state.session.import_name_input = String::new();
             Task::none()
         }
         Message::WindowCloseRequested(id) => {
-            if window.editor_state.is_dirty {
-                window.editor_state.pending_confirm = ConfirmAction::ExitWithUnsavedChanges(id);
+            if window.editor_state.session.is_dirty {
+                window.editor_state.session.pending_confirm =
+                    ConfirmAction::ExitWithUnsavedChanges(id);
                 Task::none()
             } else {
                 iced::window::close(id)
             }
         }
         Message::ConfirmExit(id) => {
-            window.editor_state.pending_confirm = ConfirmAction::None;
+            window.editor_state.session.pending_confirm = ConfirmAction::None;
             iced::window::close(id)
         }
 
         Message::SaveAndExit(id) => {
-            let save_name = if !window.editor_state.new_profile_name.trim().is_empty() {
-                Some(window.editor_state.new_profile_name.clone())
+            let save_name = if !window
+                .editor_state
+                .session
+                .new_profile_name
+                .trim()
+                .is_empty()
+            {
+                Some(window.editor_state.session.new_profile_name.clone())
             } else {
-                window.editor_state.selected_profile_name.clone()
+                window.editor_state.ui.selected_profile_name.clone()
             };
 
             if let Some(name) = save_name {
                 let peq_data = crate::models::PEQData {
-                    filters: window.editor_state.filters.clone(),
-                    global_gain: window.editor_state.global_gain,
+                    filters: window.editor_state.data.filters.clone(),
+                    global_gain: window.editor_state.data.global_gain,
                 };
                 match crate::storage::save_profile(&name, &peq_data) {
                     Ok(()) => {
-                        window.editor_state.is_dirty = false;
-                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        window.editor_state.session.is_dirty = false;
+                        window.editor_state.session.pending_confirm = ConfirmAction::None;
                         return iced::window::close(id);
                     }
                     Err(e) => {
-                        window.editor_state.pending_confirm = ConfirmAction::None;
+                        window.editor_state.session.pending_confirm = ConfirmAction::None;
                         return window
                             .set_status(format!("Save failed: {}", e), StatusSeverity::Error);
                     }
@@ -288,7 +295,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             ));
             window.connection_status = ConnectionStatus::Disconnected;
             window.connected_device = None;
-            window.editor_state.pending_confirm = ConfirmAction::None;
+            window.editor_state.session.pending_confirm = ConfirmAction::None;
             if window.disconnect_reason == DisconnectReason::Manual {
                 window.last_auto_reconnect_attempt = None;
                 window.auto_reconnect_attempts = 0;
@@ -395,7 +402,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.set_status("Connection lost. Please reconnect.", StatusSeverity::Error)
         }
         Message::ProfilesDirMtimeChecked(mtime) => {
-            if mtime != window.editor_state.profiles_dir_mtime {
+            if mtime != window.editor_state.ui.profiles_dir_mtime {
                 let reload_task = Task::perform(
                     async move { crate::storage::load_all_profiles() },
                     Message::ProfilesLoaded,
