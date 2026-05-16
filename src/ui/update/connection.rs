@@ -181,9 +181,6 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             };
             let connect_task = Task::perform(
                 async move {
-                    #[cfg(target_os = "linux")]
-                    let backend = Some(BackendKind::Elevated);
-                    #[cfg(not(target_os = "linux"))]
                     let backend = Some(BackendKind::Local);
 
                     let rx = worker.connect(Some(device), backend);
