@@ -1,37 +1,29 @@
 # Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
-pkgname=frost-tune-git
-_pkgname=frost-tune
-pkgver=0.8.8.r4.g173c8d5
+pkgname=frost-tune
+pkgver=0.8.9
 pkgrel=1
-pkgdesc="Native parametric EQ editor for USB DACs (Git version)"
+pkgdesc="Native parametric EQ editor for USB DACs"
 arch=('x86_64')
 url="https://github.com/Bukutsu/frost-tune"
 license=('MIT')
 depends=('polkit')
-makedepends=('rust' 'cargo' 'desktop-file-utils' 'mold' 'git')
-provides=("$_pkgname")
-conflicts=("$_pkgname" "$_pkgname-bin")
+makedepends=('rust' 'cargo' 'desktop-file-utils' 'mold')
+provides=('frost-tune')
+conflicts=('frost-tune-bin' 'frost-tune-git')
 install=frost-tune.install
-
-# This points to the project root relative to this folder
-source=("$_pkgname::git+file://$PWD/../../")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
-pkgver() {
-    cd "$srcdir/$_pkgname"
-    git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
-}
-
 build() {
-    cd "$srcdir/$_pkgname"
+    cd "$pkgname-$pkgver"
     export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
-    cargo build --release
+    cargo build --release --locked
 }
 
 package() {
-    cd "$srcdir/$_pkgname"
-    install -Dm755 "target/release/$_pkgname" "$pkgdir/usr/bin/$_pkgname"
-    install -Dm644 "assets/$_pkgname.desktop" "$pkgdir/usr/share/applications/$_pkgname.desktop"
-    install -Dm644 "assets/$_pkgname.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_pkgname.svg"
-    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$_pkgname/README.md"
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+    install -Dm644 "assets/frost-tune.desktop" "$pkgdir/usr/share/applications/frost-tune.desktop"
+    install -Dm644 "assets/frost-tune.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/frost-tune.svg"
+    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
 }
