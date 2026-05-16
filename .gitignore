@@ -1,4 +1,8 @@
-/target
+# Arch Linux packaging
+/src/
+/pkg/
+/frost-tune-*.tar.gz
+/frost-tune-*.pkg.tar.*
 /.cargo
 .DS_Store
 *.swp
