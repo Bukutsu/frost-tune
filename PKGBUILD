@@ -17,7 +17,7 @@ sha256sums=('SKIP')
 build() {
     cd "$pkgname-$pkgver"
     export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
-    cargo build --release --locked
+    cargo build --release
 }
 
 package() {
