@@ -1,0 +1,13 @@
+/target
+/.cargo
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.gemini/mcp/
+.gemini/
+mcp_error.log
+graphify-out/
+!graphify-out/GRAPH_REPORT.md

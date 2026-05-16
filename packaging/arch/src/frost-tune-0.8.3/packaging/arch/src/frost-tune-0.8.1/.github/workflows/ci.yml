@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Enable sccache (best effort)
+        shell: bash
+        run: |
+          export RUSTC_WRAPPER=sccache
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          sccache --stop-server || true
+          if ! sccache --start-server; then
+            echo "sccache backend unavailable, falling back to direct rustc"
+            export RUSTC_WRAPPER=
+            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "frost-tune-rust-v1"
+          key: "${{ runner.os }}-x86_64-unknown-linux-gnu-check"
+          cache-on-failure: true
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-directories: |
+            ~/.cache/sccache
+
+      - name: Build check (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo check --all-targets; then
+            echo "Build check failed, retrying without sccache"
+            RUSTC_WRAPPER= cargo check --all-targets
+          fi
+
+      - name: Test suite (fallback if sccache fails)
+        shell: bash
+        run: |
+          if ! cargo test --all-targets; then
+            echo "Test run failed, retrying without sccache"
+            RUSTC_WRAPPER= cargo test --all-targets
+          fi
+
+      - name: sccache stats
+        run: sccache --show-stats || true

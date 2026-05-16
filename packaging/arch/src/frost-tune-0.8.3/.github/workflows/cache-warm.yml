@@ -1,0 +1,57 @@
+name: Cache Warm
+
+on:
+  push:
+    branches: [main]
+    paths: ['Cargo.toml', 'Cargo.lock']
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  warm-release-cache:
+    name: Warm (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            deps: libudev-dev pkg-config
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            deps: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "frost-tune-v1"
+          cache-directories: |
+            ~/.cache/sccache
+            ~/AppData/Local/Mozilla/sccache/cache
+
+      - name: Enable sccache
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
+      - name: Warm release build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: sccache stats
+        run: sccache --show-stats || true

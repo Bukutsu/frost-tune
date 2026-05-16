@@ -1,0 +1,10 @@
+/target
+/.cargo
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.gemini/mcp/
+mcp_error.log

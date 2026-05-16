@@ -11,3 +11,9 @@
 mcp_error.log
 graphify-out/
 !graphify-out/GRAPH_REPORT.md
+
+# ArchLinux packaging
+/pkg
+*.tar.gz
+*.pkg.tar.*
+.SRCINFO

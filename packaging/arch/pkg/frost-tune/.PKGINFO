@@ -3,12 +3,12 @@
 pkgname = frost-tune
 pkgbase = frost-tune
 xdata = pkgtype=pkg
-pkgver = 0.8.1-1
+pkgver = 0.8.3-1
 pkgdesc = Native parametric EQ editor for USB DACs (source build)
 url = https://github.com/Bukutsu/frost-tune
-builddate = 1778743833
+builddate = 1778753693
 packager = Unknown Packager
-size = 15159231
+size = 15129607
 arch = x86_64
 license = MIT
 conflict = frost-tune-bin
