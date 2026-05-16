@@ -1,6 +1,6 @@
 # Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
 pkgname=frost-tune
-pkgver=0.8.7
+pkgver=0.8.8
 pkgrel=1
 pkgdesc="Native parametric EQ editor for USB DACs"
 arch=('x86_64')
@@ -17,7 +17,7 @@ sha256sums=('SKIP')
 build() {
     cd "$pkgname-$pkgver"
     export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
-    cargo build --release --locked
+    cargo build --release
 }
 
 package() {
