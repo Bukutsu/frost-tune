@@ -219,7 +219,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                     .as_mut()
                 {
                     if draft.index == index {
-                        draft.gain_input = format!("{:.1}", band.gain);
+                        draft.gain_input = format!("{:.2}", band.gain);
                     }
                 }
             }

@@ -350,7 +350,7 @@ fn render_gain_cell<'a>(
                 .session
                 .input_buffer
                 .get_gain_input(i)
-                .map_or_else(|| format!("{:.1}", band.gain), |s| s.to_string()),
+                .map_or_else(|| format!("{:.2}", band.gain), |s| s.to_string()),
             is_busy,
             gain_error,
             move |s| Message::BandGainInput(i, s),
