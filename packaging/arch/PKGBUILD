@@ -1,7 +1,7 @@
 # Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
 pkgname=frost-tune-git
 _pkgname=frost-tune
-pkgver=0.8.8.r3.g7e478fc
+pkgver=0.8.8.r4.g173c8d5
 pkgrel=1
 pkgdesc="Native parametric EQ editor for USB DACs (Git version)"
 arch=('x86_64')
