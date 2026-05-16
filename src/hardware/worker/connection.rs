@@ -24,61 +24,11 @@ pub fn worker_connect(
         };
     }
 
+    let target_kind = preferred.unwrap_or(*preferred_backend);
+
+    // Flow 1: Elevated Preferred
     #[cfg(target_os = "linux")]
-    let local_first = !matches!(preferred, Some(BackendKind::Elevated));
-
-    #[cfg(not(target_os = "linux"))]
-    let local_first = true;
-
-    if local_first {
-        let local = try_connect_local(api, target_device.clone());
-        match local {
-            Ok(Some(connected)) => {
-                *preferred_backend = BackendKind::Local;
-                let info = connected.device_info();
-                *backend = Some(connected);
-                return ConnectionResult {
-                    success: true,
-                    device: Some(info),
-                    error: None,
-                };
-            }
-            Ok(None) => {
-                return ConnectionResult {
-                    success: false,
-                    device: None,
-                    error: Some(AppError::new(
-                        ErrorKind::NotConnected,
-                        "Device not found. Is it plugged in?",
-                    )),
-                };
-            }
-            Err(local_err) => {
-                #[cfg(target_os = "linux")]
-                {
-                    if local_err.kind == ErrorKind::PermissionDenied {
-                        return ConnectionResult {
-                            success: false,
-                            device: target_device,
-                            error: Some(AppError::new(
-                                ErrorKind::PolkitAuthRequired,
-                                "Authentication required to access USB DAC on Linux.",
-                            )),
-                        };
-                    }
-                }
-
-                return ConnectionResult {
-                    success: false,
-                    device: None,
-                    error: Some(local_err),
-                };
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
+    if matches!(target_kind, BackendKind::Elevated) {
         match try_connect_elevated() {
             Ok(connected) => {
                 *preferred_backend = BackendKind::Elevated;
@@ -91,6 +41,7 @@ pub fn worker_connect(
                 };
             }
             Err(elevated_err) => {
+                // Fallback to local
                 let local = try_connect_local(api, target_device.clone());
                 match local {
                     Ok(Some(connected)) => {
@@ -125,11 +76,63 @@ pub fn worker_connect(
         }
     }
 
-    #[allow(unreachable_code)]
-    ConnectionResult {
-        success: false,
-        device: None,
-        error: Some(AppError::new(ErrorKind::Unknown, "Connect failed")),
+    // Flow 2: Local Preferred (Default)
+    let local = try_connect_local(api, target_device.clone());
+    match local {
+        Ok(Some(connected)) => {
+            *preferred_backend = BackendKind::Local;
+            let info = connected.device_info();
+            *backend = Some(connected);
+            ConnectionResult {
+                success: true,
+                device: Some(info),
+                error: None,
+            }
+        }
+        Ok(None) => ConnectionResult {
+            success: false,
+            device: None,
+            error: Some(AppError::new(
+                ErrorKind::NotConnected,
+                "Device not found. Is it plugged in?",
+            )),
+        },
+        Err(local_err) => {
+            #[cfg(target_os = "linux")]
+            {
+                if local_err.kind == ErrorKind::PermissionDenied {
+                    // Try elevated automatically
+                    match try_connect_elevated() {
+                        Ok(connected) => {
+                            *preferred_backend = BackendKind::Elevated;
+                            let info = connected.device_info();
+                            *backend = Some(connected);
+                            return ConnectionResult {
+                                success: true,
+                                device: Some(info),
+                                error: None,
+                            };
+                        }
+                        Err(elevated_err) => {
+                            return ConnectionResult {
+                                success: false,
+                                device: target_device,
+                                error: Some(AppError::new(
+                                    ErrorKind::PolkitAuthRequired,
+                                    format!("Authentication required. Elevation failed: {}", elevated_err.message),
+                                )),
+                            };
+                        }
+                    }
+                }
+            }
+
+            ConnectionResult {
+                success: false,
+                device: None,
+                error: Some(local_err),
+            }
+        }
     }
 }
 
