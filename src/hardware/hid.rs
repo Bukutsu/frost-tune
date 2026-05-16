@@ -69,30 +69,16 @@ pub fn detect_device(api: &hidapi::HidApi) -> Device {
 }
 
 pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Result<()> {
-    #[cfg(target_os = "windows")]
-    {
-        let len = data.len().min(64);
-        match device.write(&data[..len]) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(AppError::new(
-                ErrorKind::WriteError,
-                format!("HID Write failed: {}", e),
-            )),
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let mut buf = [0u8; 65];
-        buf[0] = report_id;
-        let len = data.len().min(64);
-        buf[1..1 + len].copy_from_slice(&data[..len]);
-        match device.write(&buf[..]) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(AppError::new(
-                ErrorKind::WriteError,
-                format!("HID Write failed: {}", e),
-            )),
-        }
+    let mut buf = [0u8; 65];
+    buf[0] = report_id;
+    let len = data.len().min(64);
+    buf[1..1 + len].copy_from_slice(&data[..len]);
+    match device.write(&buf[..]) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(AppError::new(
+            ErrorKind::WriteError,
+            format!("HID Write failed: {}", e),
+        )),
     }
 }
 
