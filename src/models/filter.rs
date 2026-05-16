@@ -35,6 +35,17 @@ impl FilterType {
             FilterType::LowPass => "LP",
         }
     }
+
+    /// Canonical AutoEQ / EqualizerAPO token used in ParametricEQ.txt files.
+    pub fn autoeq_token(&self) -> &'static str {
+        match self {
+            FilterType::Peak => "PK",
+            FilterType::LowShelf => "LSC",
+            FilterType::HighShelf => "HSC",
+            FilterType::HighPass => "HP",
+            FilterType::LowPass => "LP",
+        }
+    }
 }
 
 impl From<u8> for FilterType {

@@ -104,14 +104,18 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
         return None;
     };
 
-    let filter_type = if rest_upper.contains("LSQ") || rest_upper.contains("LSC") {
+    let filter_type = if contains_token(&rest_upper, "LSC") || contains_token(&rest_upper, "LSQ") {
         FilterType::LowShelf
-    } else if rest_upper.contains("HSQ") || rest_upper.contains("HSC") {
+    } else if contains_token(&rest_upper, "HSC") || contains_token(&rest_upper, "HSQ") {
         FilterType::HighShelf
-    } else if rest_upper.contains("HP") {
+    } else if contains_token(&rest_upper, "HP") {
         FilterType::HighPass
-    } else if rest_upper.contains("LP") {
+    } else if contains_token(&rest_upper, "LP") {
         FilterType::LowPass
+    } else if contains_token(&rest_upper, "LS") {
+        FilterType::LowShelf
+    } else if contains_token(&rest_upper, "HS") {
+        FilterType::HighShelf
     } else {
         FilterType::Peak
     };
@@ -167,12 +171,18 @@ fn extract_number_after(s: &str, keyword: &str) -> Option<f64> {
     }
 }
 
+fn contains_token(haystack: &str, token: &str) -> bool {
+    haystack
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|w| w == token)
+}
+
 pub fn peq_to_autoeq(peq: &PEQData) -> String {
     let mut lines = vec![format!("Preamp: {} dB", peq.global_gain)];
 
     for (i, f) in peq.filters.iter().enumerate() {
         let on_off = if f.enabled { "ON" } else { "OFF" };
-        let type_str = f.filter_type.short_label();
+        let type_str = f.filter_type.autoeq_token();
         lines.push(format!(
             "Filter {}: {} {} Fc {} Hz Gain {:.2} dB Q {:.3}",
             i + 1,
@@ -235,7 +245,59 @@ mod tests {
         assert_eq!(result.global_gain, -6);
         assert_eq!(result.filters[0].freq, 36);
         assert!((result.filters[0].gain - (-2.22)).abs() < 0.1);
+        assert_eq!(result.filters[0].filter_type, FilterType::LowShelf);
+        assert_eq!(result.filters[1].filter_type, FilterType::Peak);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_user_clipboard_shelf_types() {
+        let text = "Preamp: -6.5 dB
+Filter 1: ON PK Fc 22 Hz Gain -0.86 dB Q 1.717
+Filter 2: ON LSC Fc 43 Hz Gain -1.38 dB Q 1.004
+Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
+        let (result, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters[0].filter_type, FilterType::Peak);
+        assert_eq!(result.filters[1].filter_type, FilterType::LowShelf);
+        assert_eq!(result.filters[7].filter_type, FilterType::HighShelf);
+    }
+
+    #[test]
+    fn test_round_trip_shelf_preserves_type() {
+        let original = PEQData {
+            filters: vec![
+                Filter {
+                    index: 0,
+                    enabled: true,
+                    freq: 80,
+                    gain: -2.0,
+                    q: 0.7,
+                    filter_type: FilterType::LowShelf,
+                },
+                Filter {
+                    index: 1,
+                    enabled: true,
+                    freq: 8000,
+                    gain: 1.0,
+                    q: 0.7,
+                    filter_type: FilterType::HighShelf,
+                },
+            ],
+            global_gain: 0,
+        };
+        let text = peq_to_autoeq(&original);
+        let (parsed, _) = parse_autoeq_text(&text).unwrap();
+        assert_eq!(parsed.filters[0].filter_type, FilterType::LowShelf);
+        assert_eq!(parsed.filters[1].filter_type, FilterType::HighShelf);
+    }
+
+    #[test]
+    fn test_parse_legacy_ls_hs_tokens() {
+        let text = "Filter 1: ON LS Fc 80 Hz Gain -2 dB Q 0.7
+Filter 2: ON HS Fc 8000 Hz Gain 1 dB Q 0.7";
+        let (result, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters[0].filter_type, FilterType::LowShelf);
+        assert_eq!(result.filters[1].filter_type, FilterType::HighShelf);
     }
 
     #[test]
