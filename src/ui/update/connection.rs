@@ -259,7 +259,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     .error
                     .unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
                 let user_error = match err.kind {
-                    ErrorKind::PolkitAuthRequired => "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string(),
+                    ErrorKind::PolkitAuthRequired => err.message.clone(),
                     _ => err.user_message().to_string(),
                 };
                 window.connection_status = ConnectionStatus::Error(user_error.clone());
