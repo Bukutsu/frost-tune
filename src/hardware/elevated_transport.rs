@@ -147,6 +147,8 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
         command.arg(arg);
     }
 
+    // Don't capture stderr here because we want the child to have its own pipes,
+    // but if spawn fails we need to know why.
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -162,6 +164,19 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
                 AppError::general(format!("Failed to launch helper via pkexec: {}", e))
             }
         })?;
+
+    // We need to check if it died immediately (e.g. pkexec dismissed)
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    if let Ok(Some(status)) = child.try_wait() {
+        let mut err_msg = String::new();
+        if let Some(mut stderr) = child.stderr.take() {
+            let _ = std::io::Read::read_to_string(&mut stderr, &mut err_msg);
+        }
+        return Err(AppError::new(
+            ErrorKind::PolkitAuthRequired,
+            format!("Polkit authentication failed or was cancelled. (Status: {}, Stderr: {})", status, err_msg.trim()),
+        ));
+    }
 
     let child_stdin = child
         .stdin
