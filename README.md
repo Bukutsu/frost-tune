@@ -150,10 +150,16 @@ cargo test
 ## Packaging & Deployment
 
 Frost-Tune is packaged for multiple platforms via GitHub Actions:
-- **Arch Linux**: `PKGBUILD` provided in root for manual installation.
+- **Arch Linux**: `PKGBUILD` provided in `packaging/arch/` for manual installation.
 - **Windows**: MSI installer generated using WiX.
 - **Debian/Ubuntu**: `.deb` packages available in Releases.
 - **Fedora/RHEL**: `.rpm` packages available in Releases.
+
+### Arch Linux Manual Install
+```bash
+cd packaging/arch
+makepkg -si
+```
 
 ---
 
