@@ -21,6 +21,9 @@
 
     <MediaTemplate EmbedCab="yes" />
 
+    <Icon Id="frost_tune.ico" SourceFile="assets\frost-tune.ico" />
+    <Property Id="ARPPRODUCTICON" Value="frost_tune.ico" />
+
     <Feature Id="Main" Title="Frost-Tune" Level="1">
       <ComponentRef Id="MainExe" />
       <ComponentRef Id="StartMenuShortcut" />
@@ -44,7 +47,9 @@
                       Name="Frost-Tune"
                       Description="Native parametric EQ editor for USB DACs"
                       Target="[INSTALLDIR]frost-tune.exe"
-                      WorkingDirectory="INSTALLDIR" />
+                      WorkingDirectory="INSTALLDIR"
+                      Icon="frost_tune.ico"
+                      IconIndex="0" />
             <RemoveFolder Id="RemoveAppShortcutFolder" On="uninstall" />
             <RegistryValue Root="HKCU"
                            Key="Software\Bukutsu\FrostTune"
