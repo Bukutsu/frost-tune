@@ -1,6 +1,6 @@
 pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;
-pub const GAIN_STEP: f64 = 0.1;
+pub const GAIN_STEP: f64 = 0.01;
 pub const MAX_GLOBAL_GAIN: i8 = 10;
 pub const MIN_GLOBAL_GAIN: i8 = -10;
 pub const MIN_Q: f64 = 0.1;

@@ -96,7 +96,7 @@ impl DraftFilter {
         Self {
             index: filter.index as usize,
             freq_input: filter.freq.to_string(),
-            gain_input: format!("{:.1}", filter.gain), // Format to 1 decimal place
+            gain_input: format!("{:.2}", filter.gain), // Format to 2 decimal places
             q_input: format!("{:.2}", filter.q),       // Format to 2 decimal places
             freq_error: None,
             gain_error: None,
