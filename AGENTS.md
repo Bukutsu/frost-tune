@@ -4,11 +4,62 @@
 
 Frost-Tune is a native parametric EQ editor for USB DACs, built with Rust and the Iced GUI framework. It communicates with DACs over USB HID to adjust 10-band parametric EQ directly on hardware.
 
-- **Version:** 0.8.3
+- **Version:** 0.8.5
 - **Tech stack:** Rust 2021, Iced 0.14 (GUI), hidapi (HID I/O), tokio (async), serde/serde_json (serialization)
 - **Target platforms:** Linux (primary), Windows
 - **Status:** Actively maintained, CLI + GUI releases on Arch Linux AUR
 - **GUI framework decision:** Iced. libcosmic was evaluated and rejected (Linux-only blocker; see `~/.claude/plans/` if revisiting).
+
+## AI Coding Guidelines
+
+**Role:** You are an expert Rust developer specializing in the Iced GUI framework and low-level USB HID interactions. Your primary focus is writing robust, safe, and highly maintainable code.
+
+When assisting with this codebase, you must strictly adhere to the following core mindsets:
+
+- **Maintainability First:** Write code that is easy to read, understand, and modify.
+  - **No Placeholders:** Never leave `TODO`s, `FIXME`s, or incomplete implementation stubs. Provide complete, working code.
+  - **Delete Dead Code:** Do not leave commented-out code (e.g., `// removed X`). Delete it cleanly.
+  - **Reusability:** Always use existing UI helpers (e.g., `action_button`, `section_header` in `src/ui/views/mod.rs`) and state management methods (e.g., `push_undo()`). Do not reinvent them.
+  - **Clarity over Cleverness:** Favor clear naming and modularity over obscure "clever" one-liners.
+
+- **Scalability in Mind:** Consider how the application performs and adapts as it grows.
+  - **Non-blocking UI:** NEVER perform blocking I/O (like HID communication or disk access) on the main UI thread. All I/O must route through the `WorkerState` IPC pipeline.
+  - **State Segregation:** Strictly follow the decomposed state patterns. Never add fields to the top-level `EditorState`. Always categorize new state into the appropriate bucket (`data`, `session`, or `ui`).
+
+- **Minimalism:** Strive for the simplest solution that works.
+  - **No Unnecessary Dependencies:** Do not add new crates or dependencies to `Cargo.toml` unless explicitly requested by the user.
+  - **Avoid Over-engineering:** Do not create unnecessary abstractions or deeply nested traits. Prefer simple, functional data flows (the Iced Elm architecture).
+
+### Pre-Implementation Checklist
+Before writing code or finalizing a task, ensure you have:
+1. [ ] Checked `graphify-out/GRAPH_REPORT.md` (if it exists) to understand the codebase context.
+2. [ ] Verified that any new UI component is a pure function with no mutable state or side effects.
+3. [ ] Confirmed that any new state is placed in the correct `EditorState` sub-struct.
+4. [ ] Ensured all errors are handled uniformly using `AppError` and the `thiserror` crate.
+5. [ ] Verified that no formatting or linting regressions will be introduced (`cargo fmt`, `cargo clippy`).
+
+---
+
+## Claude Code Configuration
+
+### graphify
+
+This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.
+
+**Rules:**
+- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading source files, running grep/glob, or answering codebase questions. The graph is the primary map of the codebase.
+- IF `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse EXTRACTED + INFERRED edges instead of scanning files.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+### Pull-request / commit conventions
+
+- Use conventional-commit style prefixes (`feat:`, `fix:`, `refactor:`, `docs:`, `ci:`).
+- Keep commit titles under 70 characters; put detail in the body.
+- For multi-step refactors, prefer one cohesive commit per logically-coupled change rather than per-file splits.
+- Co-author trailer for LLM-assisted commits is OK and expected.
+
+---
 
 ## Architecture
 
@@ -80,7 +131,7 @@ frost-tune/
 cargo fmt --all                  # Format code (required before commit)
 cargo fmt --check                # Verify formatting
 cargo clippy --all-targets       # Lint (target: 0 new warnings)
-cargo test --all-targets         # Run all 67+ tests
+cargo test --all-targets         # Run all 70+ tests
 cargo check --all-targets        # Fast build check
 cargo run --release              # Start the app with optimizations
 
@@ -90,6 +141,26 @@ graphify update .                # Refresh AST graph after code changes (AST-onl
 # Package for Arch Linux
 makepkg -si
 ```
+
+## Cutting a release
+
+Releases are automated via `.github/workflows/release.yml`, which fires on any pushed tag matching `v*.*.*`. The workflow auto-syncs version files from the tag, builds `.deb` + `.rpm` artifacts on Linux/Windows runners, and publishes a GitHub Release.
+
+**Steps for the LLM to follow when the user says "do a release" / "cut a release" / "release":**
+
+1. Pick the new version. Patch bump (e.g. `0.8.4` → `0.8.5`) for fixes; minor (`0.8.x` → `0.9.0`) for features; major only on user request. Confirm with the user if unsure.
+2. Update version in three places — keep them in lockstep:
+   - `Cargo.toml`: `version = "X.Y.Z"`
+   - `PKGBUILD`: `pkgver=X.Y.Z`
+   - `Cargo.lock`: run `cargo check --quiet` after editing `Cargo.toml` so the lockfile picks up the new `frost-tune` version entry.
+3. Commit: `chore: bump version to X.Y.Z` (stage only `Cargo.toml`, `Cargo.lock`, `PKGBUILD` — never staging dirs like `pkg/` or `*.tar.gz` artifacts).
+4. Tag: `git tag vX.Y.Z` (annotated tag is fine but not required — the workflow only inspects the tag name).
+5. Push both: `git push origin main && git push origin vX.Y.Z`.
+6. The release workflow takes over. Verify with `gh run watch` or `gh release view vX.Y.Z`.
+
+**Do not** create the GitHub release manually (`gh release create`) — the workflow does it. **Do not** push the tag before the bump commit; the workflow expects the tag's commit to already contain the bumped versions (it has a sync step that will commit a fix-up otherwise, but it's cleaner to bump first).
+
+If the user just says "do release" with no version, default to a patch bump from the current `Cargo.toml` version and confirm before pushing the tag.
 
 ## Code Standards
 
@@ -174,7 +245,7 @@ Before adding a new helper, check if one of these covers your case:
 
 ## Testing & Quality
 
-- **51 unit tests** (inline `#[cfg(test)]`) + **16 integration tests** = **67 total**.
+- **54 unit tests** (inline `#[cfg(test)]`) + **16 integration tests** = **70 total**.
 - Run: `cargo test --all-targets`.
 - **Protocol tests** (`tests/protocol.rs`) validate packet construction/parsing for TP35Pro.
 - **Token consistency tests** (`tests/token_consistency.rs`) ensure UI design tokens match the design system (WCAG AA contrast enforced).
@@ -192,24 +263,3 @@ When adding a new module method that touches `EditorState` shape, add a unit tes
 - **AutoEQ format:** Profiles stored as plain text, compatible with the AutoEQ ecosystem.
 - **Linux elevation:** `pkexec` re-runs the binary itself as a temporary helper; no system-wide install needed.
 - **EditorState decomposition:** Domain (`data`) / session (`session`) / UI (`ui`) — see "Maintainability & Scalability Principles" above.
-
----
-
-## Claude Code Configuration
-
-### graphify
-
-This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.
-
-**Rules:**
-- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading source files, running grep/glob, or answering codebase questions. The graph is the primary map of the codebase.
-- IF `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse EXTRACTED + INFERRED edges instead of scanning files.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-
-### Pull-request / commit conventions
-
-- Use conventional-commit style prefixes (`feat:`, `fix:`, `refactor:`, `docs:`, `ci:`).
-- Keep commit titles under 70 characters; put detail in the body.
-- For multi-step refactors, prefer one cohesive commit per logically-coupled change rather than per-file splits.
-- Co-author trailer for LLM-assisted commits is OK and expected.
