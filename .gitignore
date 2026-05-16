@@ -8,9 +8,13 @@ packaging/arch/frost-tune-*.pkg.tar.*
 *.swp
 *.swo
 *~
+# IDE and AI tools
 .idea/
 .vscode/
+.claude/
+opencode.json
 .gemini/mcp/
+
 .gemini/
 mcp_error.log
 graphify-out/

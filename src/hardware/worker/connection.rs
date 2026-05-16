@@ -119,7 +119,10 @@ pub fn worker_connect(
                                 device: target_device,
                                 error: Some(AppError::new(
                                     ErrorKind::PolkitAuthRequired,
-                                    format!("Authentication required. Elevation failed: {}", elevated_err.message),
+                                    format!(
+                                        "Authentication required. Elevation failed: {}",
+                                        elevated_err.message
+                                    ),
                                 )),
                             };
                         }

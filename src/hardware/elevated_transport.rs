@@ -174,7 +174,11 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<ElevatedTransport> {
         }
         return Err(AppError::new(
             ErrorKind::PolkitAuthRequired,
-            format!("Polkit authentication failed or was cancelled. (Status: {}, Stderr: {})", status, err_msg.trim()),
+            format!(
+                "Polkit authentication failed or was cancelled. (Status: {}, Stderr: {})",
+                status,
+                err_msg.trim()
+            ),
         ));
     }
 

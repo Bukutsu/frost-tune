@@ -46,10 +46,10 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Build
-        run: cargo build --all-targets
+        run: cargo build --all-targets --locked
 
       - name: Tests
-        run: cargo test --all-targets
+        run: cargo test --all-targets --locked
 
       - name: sccache stats
         if: always()
