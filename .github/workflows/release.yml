@@ -129,6 +129,19 @@ jobs:
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Install cargo-wix
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: cargo install cargo-wix --locked --version "^0.3"
+
+      - name: Build MSI installer
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cargo wix --no-build --nocapture `
+            --target ${{ matrix.target }} `
+            --output "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-x86_64.msi"
+
       - name: Build Debian package
         if: matrix.os == 'ubuntu-latest'
         shell: bash
