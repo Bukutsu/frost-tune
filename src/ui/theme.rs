@@ -1,9 +1,16 @@
-use crate::ui::tokens::{BUTTON_PILL_RADIUS, CARD_RADIUS, INPUT_RADIUS};
+use crate::ui::tokens::{
+    COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE,
+    COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM,
+    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, SHAPE_FULL,
+    SHAPE_LARGE, SHAPE_SMALL, STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
+};
 use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
 use iced::{color, Background, Border, Color, Theme};
 
-// Official Tokyo Night palette (origin: folke/tokyonight.nvim)
+// ── Reference Tokens (Raw Tokyo Night Palette) ─────────────────────────
+// Only tokens.rs color mappings and this file's style functions should use these.
+// Views import semantic tokens from tokens.rs.
 pub const TOKYO_NIGHT_BG: Color = color!(0x1a1b26);
 pub const TOKYO_NIGHT_BG_DARK: Color = color!(0x16161e);
 pub const TOKYO_NIGHT_BG_HIGHLIGHT: Color = color!(0x292e42);
@@ -19,45 +26,31 @@ pub const TOKYO_NIGHT_ORANGE: Color = color!(0xff9e64);
 pub const TOKYO_NIGHT_YELLOW: Color = color!(0xe0af68);
 pub const TOKYO_NIGHT_RED: Color = color!(0xf7768e);
 
-// Material role mapping
-pub const TOKYO_NIGHT_BACKGROUND: Color = TOKYO_NIGHT_BG;
-pub const TOKYO_NIGHT_SURFACE: Color = TOKYO_NIGHT_BG_HIGHLIGHT;
-pub const TOKYO_NIGHT_PRIMARY: Color = TOKYO_NIGHT_CYAN;
-pub const TOKYO_NIGHT_SECONDARY: Color = TOKYO_NIGHT_MAGENTA;
-pub const TOKYO_NIGHT_SUCCESS: Color = TOKYO_NIGHT_GREEN;
-pub const TOKYO_NIGHT_ERROR: Color = TOKYO_NIGHT_RED;
-pub const TOKYO_NIGHT_TEXT: Color = TOKYO_NIGHT_FG;
-pub const TOKYO_NIGHT_MUTED: Color = TOKYO_NIGHT_FG_DARK;
-pub const TOKYO_NIGHT_WARNING: Color = TOKYO_NIGHT_YELLOW;
-
-pub const GRAPH_BG: Color = TOKYO_NIGHT_BG_DARK;
-pub const ACCENT_VIBRANT: Color = TOKYO_NIGHT_CYAN;
-pub const SURFACE_DARK: Color = color!(0x1f2335);
+// ── Iced Theme ─────────────────────────────────────────────────────────
 
 pub fn theme() -> Theme {
     Theme::custom(
         "Tokyo Night".to_string(),
         Palette {
-            background: TOKYO_NIGHT_BACKGROUND,
-            text: TOKYO_NIGHT_TEXT,
-            primary: TOKYO_NIGHT_PRIMARY,
-            success: TOKYO_NIGHT_SUCCESS,
-            warning: TOKYO_NIGHT_WARNING,
-            danger: TOKYO_NIGHT_ERROR,
+            background: ELEVATION_0,
+            text: COLOR_ON_SURFACE,
+            primary: COLOR_PRIMARY,
+            success: COLOR_SUCCESS,
+            warning: COLOR_WARNING,
+            danger: COLOR_ERROR,
         },
     )
 }
 
+// ── Container Styles ───────────────────────────────────────────────────
+
 pub fn card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(SURFACE_DARK)),
+        background: Some(Background::Color(ELEVATION_1)),
         border: Border {
-            color: Color {
-                a: 0.15,
-                ..TOKYO_NIGHT_TERMINAL_BLACK
-            },
+            color: COLOR_OUTLINE_VARIANT,
             width: 1.0,
-            radius: CARD_RADIUS.into(),
+            radius: SHAPE_LARGE.into(),
         },
         ..Default::default()
     }
@@ -65,58 +58,71 @@ pub fn card_style(_theme: &Theme) -> container::Style {
 
 pub fn header_card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(TOKYO_NIGHT_BG_DARK)),
+        background: Some(Background::Color(COLOR_SURFACE_DIM)),
         border: Border {
             color: Color {
                 a: 0.3,
                 ..TOKYO_NIGHT_TERMINAL_BLACK
             },
             width: 1.0,
-            radius: 0.0.into(), // Header spans top
+            radius: 0.0.into(),
         },
         ..Default::default()
     }
 }
 
-pub fn pill_primary_button(theme: &Theme, status: button::Status) -> button::Style {
+pub fn tooltip_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(ELEVATION_2)),
+        border: Border {
+            color: COLOR_OUTLINE,
+            width: 1.0,
+            radius: SHAPE_SMALL.into(),
+        },
+        text_color: Some(COLOR_ON_SURFACE),
+        ..Default::default()
+    }
+}
+
+// ── Button Styles ──────────────────────────────────────────────────────
+
+pub fn m3_filled_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::primary(theme, status);
-    style.border.radius = BUTTON_PILL_RADIUS.into();
+    style.border.radius = SHAPE_FULL.into();
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn pill_secondary_button(theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_tonal_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::secondary(theme, status);
-    style.border.radius = BUTTON_PILL_RADIUS.into();
+    style.border.radius = SHAPE_FULL.into();
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn pill_danger_button(theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::danger(theme, status);
-    style.border.radius = BUTTON_PILL_RADIUS.into();
+    style.border.radius = SHAPE_FULL.into();
 
-    // Ensure active state is a solid, distinct red
     if matches!(status, button::Status::Active) {
-        style.background = Some(Background::Color(TOKYO_NIGHT_RED));
-        style.text_color = TOKYO_NIGHT_BG_DARK;
+        style.background = Some(Background::Color(COLOR_ERROR));
+        style.text_color = COLOR_ON_PRIMARY;
     }
 
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn pill_text_button(theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(theme, status);
-    style.border.radius = BUTTON_PILL_RADIUS.into();
+    style.border.radius = SHAPE_FULL.into();
 
-    // Make hover state for icon/text buttons more distinct
     if matches!(status, button::Status::Hovered) {
         style.background = Some(Background::Color(Color {
-            a: 0.1,
-            ..TOKYO_NIGHT_FG
+            a: STATE_HOVER_OPACITY,
+            ..COLOR_ON_SURFACE
         }));
         style.border.width = 1.0;
         style.border.color = Color {
             a: 0.2,
-            ..TOKYO_NIGHT_FG
+            ..COLOR_ON_SURFACE
         };
     }
 
@@ -129,72 +135,72 @@ pub fn profile_row_style(
     is_selected: bool,
 ) -> button::Style {
     let mut style = button::text(_theme, status);
-    style.border.radius = INPUT_RADIUS.into();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
     style.border.width = 0.0;
 
     if is_selected {
-        style.background = Some(Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT));
+        style.background = Some(Background::Color(COLOR_SURFACE));
         style.text_color = TOKYO_NIGHT_BLUE;
     } else if matches!(status, button::Status::Hovered) {
         style.background = Some(Background::Color(Color {
-            a: 0.05,
-            ..TOKYO_NIGHT_FG
+            a: STATE_HOVER_OPACITY,
+            ..COLOR_ON_SURFACE
         }));
     }
 
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn pill_outlined_primary_button(_theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_outlined_button(_theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(_theme, status);
     let (text_alpha, border_alpha, bg_alpha) = match status {
         button::Status::Disabled => (0.45, 0.3, 0.04),
-        button::Status::Hovered => (1.0, 0.9, 0.1),
+        button::Status::Hovered => (1.0, 0.9, STATE_PRESSED_OPACITY),
         button::Status::Pressed => (1.0, 1.0, 0.15),
-        _ => (0.92, 0.7, 0.05),
+        _ => (0.92, 0.7, STATE_HOVER_OPACITY),
     };
     style.text_color = Color {
         a: text_alpha,
-        ..TOKYO_NIGHT_PRIMARY
+        ..COLOR_PRIMARY
     };
     style.background = Some(Background::Color(Color {
         a: bg_alpha,
-        ..TOKYO_NIGHT_PRIMARY
+        ..COLOR_PRIMARY
     }));
     style.border = Border {
         color: Color {
             a: border_alpha,
-            ..TOKYO_NIGHT_PRIMARY
+            ..COLOR_PRIMARY
         },
         width: 1.0,
-        radius: BUTTON_PILL_RADIUS.into(),
+        radius: SHAPE_FULL.into(),
     };
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn pill_outlined_danger_button(_theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_outlined_button_error(_theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(_theme, status);
     let (text_alpha, border_alpha, bg_alpha) = match status {
         button::Status::Disabled => (0.45, 0.3, 0.04),
         button::Status::Hovered => (1.0, 0.9, 0.14),
         button::Status::Pressed => (1.0, 1.0, 0.18),
-        _ => (0.92, 0.7, 0.1),
+        _ => (0.92, 0.7, STATE_PRESSED_OPACITY),
     };
     style.text_color = Color {
         a: text_alpha,
-        ..TOKYO_NIGHT_ERROR
+        ..COLOR_ERROR
     };
     style.background = Some(Background::Color(Color {
         a: bg_alpha,
-        ..TOKYO_NIGHT_ERROR
+        ..COLOR_ERROR
     }));
     style.border = Border {
         color: Color {
             a: border_alpha,
-            ..TOKYO_NIGHT_ERROR
+            ..COLOR_ERROR
         },
         width: 1.0,
-        radius: BUTTON_PILL_RADIUS.into(),
+        radius: SHAPE_FULL.into(),
     };
     enforce_disabled_button_contrast(style, status)
 }
@@ -204,15 +210,15 @@ fn enforce_disabled_button_contrast(
     status: button::Status,
 ) -> button::Style {
     if matches!(status, button::Status::Disabled) {
-        style.text_color = TOKYO_NIGHT_FG_DARK;
+        style.text_color = COLOR_ON_SURFACE_VARIANT;
         style.background = Some(Background::Color(Color {
             a: 0.88,
-            ..TOKYO_NIGHT_TERMINAL_BLACK
+            ..COLOR_OUTLINE
         }));
         style.border = Border {
             color: Color {
                 a: 0.72,
-                ..TOKYO_NIGHT_FG_DARK
+                ..COLOR_ON_SURFACE_VARIANT
             },
             width: 1.0,
             radius: style.border.radius,
@@ -222,43 +228,32 @@ fn enforce_disabled_button_contrast(
     style
 }
 
-pub fn tooltip_style(_theme: &Theme) -> container::Style {
-    container::Style {
-        background: Some(Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT)),
-        border: Border {
-            color: TOKYO_NIGHT_TERMINAL_BLACK,
-            width: 1.0,
-            radius: 6.0.into(),
-        },
-        text_color: Some(TOKYO_NIGHT_FG),
-        ..Default::default()
-    }
-}
+// ── Input Styles ───────────────────────────────────────────────────────
 
 pub fn m3_input_pick_list(_theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let (border_color, border_width) = match status {
         pick_list::Status::Active => (
             Color {
                 a: 0.5,
-                ..TOKYO_NIGHT_TERMINAL_BLACK
+                ..COLOR_OUTLINE
             },
             1.0,
         ),
-        pick_list::Status::Hovered | pick_list::Status::Opened { .. } => (TOKYO_NIGHT_PRIMARY, 2.0),
+        pick_list::Status::Hovered | pick_list::Status::Opened { .. } => (COLOR_PRIMARY, 2.0),
     };
 
     pick_list::Style {
-        text_color: TOKYO_NIGHT_FG,
+        text_color: COLOR_ON_SURFACE,
         placeholder_color: Color {
             a: 0.9,
-            ..TOKYO_NIGHT_FG_DARK
+            ..COLOR_ON_SURFACE_VARIANT
         },
-        handle_color: TOKYO_NIGHT_FG_DARK,
-        background: Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT),
+        handle_color: COLOR_ON_SURFACE_VARIANT,
+        background: Background::Color(COLOR_SURFACE),
         border: Border {
             color: border_color,
             width: border_width,
-            radius: INPUT_RADIUS.into(),
+            radius: SHAPE_EXTRA_SMALL.into(),
         },
     }
 }
@@ -268,43 +263,43 @@ pub fn m3_outlined_input(_theme: &Theme, status: text_input::Status) -> text_inp
         text_input::Status::Active => (
             Color {
                 a: 0.5,
-                ..TOKYO_NIGHT_TERMINAL_BLACK
+                ..COLOR_OUTLINE
             },
             1.0,
         ),
         text_input::Status::Hovered => (
             Color {
                 a: 0.72,
-                ..TOKYO_NIGHT_PRIMARY
+                ..COLOR_PRIMARY
             },
             1.2,
         ),
-        text_input::Status::Focused { .. } => (TOKYO_NIGHT_PRIMARY, 2.0),
+        text_input::Status::Focused { .. } => (COLOR_PRIMARY, 2.0),
         text_input::Status::Disabled => (
             Color {
                 a: 0.3,
-                ..TOKYO_NIGHT_TERMINAL_BLACK
+                ..COLOR_OUTLINE
             },
             1.0,
         ),
     };
 
     text_input::Style {
-        background: Background::Color(TOKYO_NIGHT_BG_HIGHLIGHT),
+        background: Background::Color(COLOR_SURFACE),
         border: Border {
             color: border_color,
             width: border_width,
-            radius: INPUT_RADIUS.into(),
+            radius: SHAPE_EXTRA_SMALL.into(),
         },
-        icon: TOKYO_NIGHT_FG,
+        icon: COLOR_ON_SURFACE,
         placeholder: Color {
             a: 0.9,
-            ..TOKYO_NIGHT_FG_DARK
+            ..COLOR_ON_SURFACE_VARIANT
         },
-        value: TOKYO_NIGHT_FG,
+        value: COLOR_ON_SURFACE,
         selection: Color {
             a: 0.55,
-            ..TOKYO_NIGHT_PRIMARY
+            ..COLOR_PRIMARY
         },
     }
 }
@@ -312,10 +307,10 @@ pub fn m3_outlined_input(_theme: &Theme, status: text_input::Status) -> text_inp
 pub fn m3_filled_input(_theme: &Theme, status: text_input::Status) -> text_input::Style {
     let mut style = m3_outlined_input(_theme, status);
     let underline_color = match status {
-        text_input::Status::Focused { .. } => TOKYO_NIGHT_PRIMARY,
+        text_input::Status::Focused { .. } => COLOR_PRIMARY,
         _ => Color {
             a: 0.45,
-            ..TOKYO_NIGHT_TERMINAL_BLACK
+            ..COLOR_OUTLINE
         },
     };
     style.border = Border {
@@ -325,15 +320,17 @@ pub fn m3_filled_input(_theme: &Theme, status: text_input::Status) -> text_input
         } else {
             1.0
         },
-        radius: 8.0.into(),
+        radius: SHAPE_SMALL.into(),
     };
     style.background = Background::Color(if matches!(status, text_input::Status::Focused { .. }) {
-        TOKYO_NIGHT_BG_DARK
+        COLOR_SURFACE_DIM
     } else {
-        TOKYO_NIGHT_BG_HIGHLIGHT
+        COLOR_SURFACE
     });
     style
 }
+
+// ── Checkbox Style ─────────────────────────────────────────────────────
 
 pub fn checkbox_style(_theme: &Theme, status: checkbox::Status) -> checkbox::Style {
     let is_checked = match status {
@@ -344,30 +341,32 @@ pub fn checkbox_style(_theme: &Theme, status: checkbox::Status) -> checkbox::Sty
 
     checkbox::Style {
         background: if is_checked {
-            Background::Color(TOKYO_NIGHT_PRIMARY)
+            Background::Color(COLOR_PRIMARY)
         } else {
             Background::Color(Color::TRANSPARENT)
         },
-        icon_color: TOKYO_NIGHT_BG_DARK,
+        icon_color: COLOR_ON_PRIMARY,
         border: Border {
-            radius: 4.0.into(),
+            radius: SHAPE_EXTRA_SMALL.into(),
             width: 1.0,
             color: if is_checked {
-                TOKYO_NIGHT_PRIMARY
+                COLOR_PRIMARY
             } else {
-                TOKYO_NIGHT_TERMINAL_BLACK
+                COLOR_OUTLINE
             },
         },
-        text_color: Some(TOKYO_NIGHT_FG),
+        text_color: Some(COLOR_ON_SURFACE),
     }
 }
+
+// ── Slider Styles ──────────────────────────────────────────────────────
 
 pub fn slider_style(_theme: &Theme, _status: slider::Status) -> slider::Style {
     slider::Style {
         rail: slider::Rail {
             backgrounds: (
                 Background::Color(TOKYO_NIGHT_BLUE),
-                Background::Color(TOKYO_NIGHT_BG_DARK),
+                Background::Color(COLOR_SURFACE_DIM),
             ),
             width: 4.0,
             border: Border {
@@ -382,5 +381,41 @@ pub fn slider_style(_theme: &Theme, _status: slider::Status) -> slider::Style {
             border_width: 1.0,
             border_color: TOKYO_NIGHT_BLUE,
         },
+    }
+}
+
+fn gain_color(gain: f64) -> Color {
+    if gain > 0.05 {
+        TOKYO_NIGHT_ORANGE
+    } else if gain < -0.05 {
+        TOKYO_NIGHT_CYAN
+    } else {
+        TOKYO_NIGHT_COMMENT
+    }
+}
+
+pub fn gain_slider_style(gain: f64) -> impl Fn(&Theme, slider::Status) -> slider::Style {
+    move |_theme: &Theme, _status: slider::Status| {
+        let accent = gain_color(gain);
+        slider::Style {
+            rail: slider::Rail {
+                backgrounds: (
+                    Background::Color(accent),
+                    Background::Color(COLOR_SURFACE_DIM),
+                ),
+                width: 4.0,
+                border: Border {
+                    radius: 2.0.into(),
+                    width: 0.0,
+                    color: Color::TRANSPARENT,
+                },
+            },
+            handle: slider::Handle {
+                shape: slider::HandleShape::Circle { radius: 8.0 },
+                background: Background::Color(accent),
+                border_width: 1.0,
+                border_color: accent,
+            },
+        }
     }
 }

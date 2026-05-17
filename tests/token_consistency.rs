@@ -1,6 +1,6 @@
 use frost_tune::ui::theme;
 use frost_tune::ui::tokens::{
-    BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, BUTTON_PILL_RADIUS, INPUT_RADIUS, SPACE_8, TYPE_BODY,
+    BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, SHAPE_EXTRA_SMALL, SHAPE_FULL, SPACE_8, TYPE_BODY,
 };
 use iced::widget::button;
 
@@ -43,14 +43,14 @@ fn test_band_density() {
 
 #[test]
 fn test_shape_semantics_tokens() {
-    const _: () = assert!(BUTTON_PILL_RADIUS >= 999.0);
-    assert!((4.0..=8.0).contains(&INPUT_RADIUS));
+    const _: () = assert!(SHAPE_FULL >= 999.0);
+    assert!((4.0..=8.0).contains(&SHAPE_EXTRA_SMALL));
 }
 
 #[test]
 fn test_disabled_button_contrast_wcag_aa() {
     let app_theme = theme::theme();
-    let disabled = theme::pill_secondary_button(&app_theme, button::Status::Disabled);
+    let disabled = theme::m3_tonal_button(&app_theme, button::Status::Disabled);
 
     let background = match disabled.background {
         Some(iced::Background::Color(c)) => c,

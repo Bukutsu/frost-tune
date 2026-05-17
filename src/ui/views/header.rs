@@ -1,9 +1,11 @@
 use crate::models::Device;
 use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
-use crate::ui::theme::{self, TOKYO_NIGHT_PRIMARY};
+use crate::ui::theme;
 use crate::ui::tokens::{
-    SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
+    COLOR_INFO, COLOR_ON_PRIMARY, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE, COLOR_PRIMARY,
+    COLOR_SUCCESS, COLOR_WARNING, SHAPE_EXTRA_SMALL, SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8,
+    TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;
@@ -22,10 +24,10 @@ fn sync_toolbar_button<'a>(
         Element::from(
             toolbar_button(label)
                 .on_press(on_press)
-                .style(theme::pill_secondary_button),
+                .style(theme::m3_tonal_button),
         )
     } else {
-        let btn = toolbar_button(label).style(theme::pill_secondary_button);
+        let btn = toolbar_button(label).style(theme::m3_tonal_button);
         if let Some(reason) = state.disabled_reason_for_action(action) {
             Element::from(
                 tooltip(btn, text(reason), tooltip::Position::Bottom).style(theme::tooltip_style),
@@ -58,16 +60,16 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                 toolbar_button("Write")
                     .on_press(Message::PushPressed)
                     .style(|theme, status| {
-                        let mut s = theme::pill_primary_button(theme, status);
+                        let mut s = theme::m3_filled_button(theme, status);
                         if matches!(status, iced::widget::button::Status::Active) {
-                            s.background = Some(iced::Background::Color(theme::ACCENT_VIBRANT));
-                            s.text_color = theme::TOKYO_NIGHT_BG_DARK;
+                            s.background = Some(iced::Background::Color(COLOR_PRIMARY));
+                            s.text_color = COLOR_ON_PRIMARY;
                         }
                         s
                     }),
             )
         } else {
-            let btn = toolbar_button("Write").style(theme::pill_primary_button);
+            let btn = toolbar_button("Write").style(theme::m3_filled_button);
             if let Some(reason) = state.disabled_reason_for_action("write") {
                 Element::from(
                     tooltip(btn, text(reason), tooltip::Position::Bottom)
@@ -92,44 +94,40 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     }
 
     let status_indicator = match &state.connection_status {
-        ConnectionStatus::Connected => container(
-            text("SYNCED")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_BG_DARK),
-        )
-        .padding([SPACE_2, SPACE_6])
-        .style(|_theme| container::Style {
-            background: Some(theme::TOKYO_NIGHT_SUCCESS.into()),
-            border: iced::Border {
-                radius: 4.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-        ConnectionStatus::Connecting => container(
-            text("CONNECTING")
-                .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_BG_DARK),
-        )
-        .padding([SPACE_2, SPACE_6])
-        .style(|_theme| container::Style {
-            background: Some(theme::TOKYO_NIGHT_YELLOW.into()),
-            border: iced::Border {
-                radius: 4.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
+        ConnectionStatus::Connected => {
+            container(text("SYNCED").size(TYPE_TINY).color(COLOR_ON_PRIMARY))
+                .padding([SPACE_2, SPACE_6])
+                .style(|_theme| container::Style {
+                    background: Some(COLOR_SUCCESS.into()),
+                    border: iced::Border {
+                        radius: SHAPE_EXTRA_SMALL.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+        }
+        ConnectionStatus::Connecting => {
+            container(text("CONNECTING").size(TYPE_TINY).color(COLOR_ON_PRIMARY))
+                .padding([SPACE_2, SPACE_6])
+                .style(|_theme| container::Style {
+                    background: Some(COLOR_WARNING.into()),
+                    border: iced::Border {
+                        radius: SHAPE_EXTRA_SMALL.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+        }
         _ => container(
             text("OFFLINE")
                 .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG_DARK),
+                .color(COLOR_ON_SURFACE_VARIANT),
         )
         .padding([SPACE_2, SPACE_6])
         .style(|_theme| container::Style {
-            background: Some(theme::TOKYO_NIGHT_TERMINAL_BLACK.into()),
+            background: Some(COLOR_OUTLINE.into()),
             border: iced::Border {
-                radius: 4.0.into(),
+                radius: SHAPE_EXTRA_SMALL.into(),
                 ..Default::default()
             },
             ..Default::default()
@@ -141,7 +139,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         tooltip(
             text(device_type.name())
                 .size(TYPE_BODY)
-                .color(TOKYO_NIGHT_PRIMARY)
+                .color(COLOR_PRIMARY)
                 .font(Font {
                     weight: Weight::Bold,
                     ..Default::default()
@@ -165,7 +163,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                 row![
                     text("Frost-Tune")
                         .size(TYPE_TITLE)
-                        .color(TOKYO_NIGHT_PRIMARY)
+                        .color(COLOR_PRIMARY)
                         .font(Font {
                             weight: Weight::Bold,
                             ..Default::default()
@@ -179,12 +177,8 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             .spacing(SPACE_2),
             container(text("")).width(Length::Fill),
             if is_busy {
-                container(
-                    text("Device busy...")
-                        .size(TYPE_CAPTION)
-                        .color(theme::TOKYO_NIGHT_BLUE),
-                )
-                .padding([0.0, SPACE_16])
+                container(text("Device busy...").size(TYPE_CAPTION).color(COLOR_INFO))
+                    .padding([0.0, SPACE_16])
             } else {
                 container(text("")).width(Length::Shrink)
             },

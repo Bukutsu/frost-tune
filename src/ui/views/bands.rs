@@ -2,7 +2,13 @@ use crate::models::FilterType;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_2, SPACE_32, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TINY};
+use crate::ui::tokens::{
+    BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
+    BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
+    BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE,
+    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_DIM, ELEVATION_2, SHAPE_EXTRA_SMALL,
+    SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TINY,
+};
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
 };
@@ -23,24 +29,39 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 show_enable,
             );
             container(col)
-                .padding(SPACE_12)
-                .width(Length::Fill)
-                .align_x(iced::Alignment::Center)
                 .style(theme::card_style)
+                .padding(SPACE_8)
+                .width(Length::Fill)
                 .into()
         } else {
             // Two columns for wide widths
-            let left_filters = state.editor_state.data.filters.get(0..5).unwrap_or(&[]);
-            let right_filters = state.editor_state.data.filters.get(5..10).unwrap_or(&[]);
-            let left_col = render_band_column(0, left_filters, state, is_busy, show_enable);
-            let right_col = render_band_column(5, right_filters, state, is_busy, show_enable);
-            let content = row![left_col, right_col].spacing(SPACE_32).padding(SPACE_8);
-            container(content)
-                .padding(SPACE_12)
-                .width(Length::Fill)
-                .align_x(iced::Alignment::Center)
-                .style(theme::card_style)
-                .into()
+            let mid = state.editor_state.data.filters.len() / 2;
+            let col1 = render_band_column(
+                0,
+                &state.editor_state.data.filters[..mid],
+                state,
+                is_busy,
+                show_enable,
+            );
+            let col2 = render_band_column(
+                mid,
+                &state.editor_state.data.filters[mid..],
+                state,
+                is_busy,
+                show_enable,
+            );
+            row![
+                container(col1)
+                    .style(theme::card_style)
+                    .padding(SPACE_8)
+                    .width(Length::Fill),
+                container(col2)
+                    .style(theme::card_style)
+                    .padding(SPACE_8)
+                    .width(Length::Fill),
+            ]
+            .spacing(SPACE_12)
+            .into()
         }
     })
     .into()
@@ -48,15 +69,15 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
 
 fn render_band_column<'a>(
     start_index: usize,
-    filters: &'a [crate::models::filter::Filter],
+    bands: &'a [crate::models::Filter],
     state: &'a MainWindow,
     is_busy: bool,
     show_enable: bool,
 ) -> Element<'a, Message> {
-    let mut col = column![render_header_row(show_enable)].spacing(SPACE_4);
+    let mut col = column![render_header_row(show_enable)].spacing(SPACE_2);
 
-    for (i, band) in filters.iter().enumerate() {
-        let actual_index = start_index + i;
+    for (offset, band) in bands.iter().enumerate() {
+        let actual_index = start_index + offset;
         col = col.push(render_band_row(
             actual_index,
             band,
@@ -72,24 +93,24 @@ fn render_band_column<'a>(
 fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
     let mut elements: Vec<Element<'a, Message>> = vec![text("BAND")
         .size(TYPE_TINY)
-        .color(theme::TOKYO_NIGHT_FG)
+        .color(COLOR_ON_SURFACE)
         .font(iced::Font {
             weight: iced::font::Weight::Bold,
             ..Default::default()
         })
-        .width(Length::Fixed(40.0))
+        .width(Length::Fixed(BAND_CHECKBOX_WIDTH))
         .into()];
 
     if show_enable {
         elements.push(
             text("ON")
                 .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
+                .color(COLOR_ON_SURFACE)
                 .font(iced::Font {
                     weight: iced::font::Weight::Bold,
                     ..Default::default()
                 })
-                .width(Length::Fixed(30.0))
+                .width(Length::Fixed(BAND_ENABLE_ICON_WIDTH))
                 .into(),
         );
     }
@@ -98,14 +119,14 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
         container(
             text("TYPE")
                 .size(TYPE_TINY)
-                .color(theme::TOKYO_NIGHT_FG)
+                .color(COLOR_ON_SURFACE)
                 .font(iced::Font {
                     weight: iced::font::Weight::Bold,
                     ..Default::default()
                 }),
         )
         .padding([0.0, 5.0])
-        .width(Length::Fixed(160.0))
+        .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
         .into(),
     );
     elements.push(
@@ -113,7 +134,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             tooltip(
                 text("FREQ (Hz)")
                     .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
+                    .color(COLOR_ON_SURFACE)
                     .font(iced::Font {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
@@ -124,7 +145,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             .style(theme::tooltip_style),
         )
         .padding([0.0, 5.0])
-        .width(Length::Fixed(85.0))
+        .width(Length::Fixed(BAND_FREQ_INPUT_WIDTH))
         .into(),
     );
     elements.push(
@@ -132,7 +153,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             tooltip(
                 text("GAIN (dB)")
                     .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
+                    .color(COLOR_ON_SURFACE)
                     .font(iced::Font {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
@@ -151,7 +172,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             tooltip(
                 text("Q")
                     .size(TYPE_TINY)
-                    .color(theme::TOKYO_NIGHT_FG)
+                    .color(COLOR_ON_SURFACE)
                     .font(iced::Font {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
@@ -162,7 +183,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             .style(theme::tooltip_style),
         )
         .padding([0.0, 5.0])
-        .width(Length::Fixed(60.0))
+        .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
         .into(),
     );
 
@@ -178,7 +199,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             .style(move |_| container::Style {
                 background: Some(Background::Color(Color {
                     a: 0.2,
-                    ..theme::TOKYO_NIGHT_MUTED
+                    ..COLOR_ON_SURFACE_VARIANT
                 })),
                 ..Default::default()
             })
@@ -204,7 +225,7 @@ fn render_input_field<'a>(
     column![
         input,
         if let Some(err) = error {
-            text(err).size(TYPE_TINY).color(theme::TOKYO_NIGHT_RED)
+            text(err).size(TYPE_TINY).color(COLOR_ERROR)
         } else {
             text("").size(1)
         }
@@ -228,49 +249,49 @@ fn render_type_buttons<'a>(
                     text(label)
                         .size(TYPE_TINY)
                         .color(if is_selected {
-                            theme::TOKYO_NIGHT_BG_DARK
+                            COLOR_ON_PRIMARY
                         } else {
-                            theme::TOKYO_NIGHT_FG
+                            COLOR_ON_SURFACE
                         })
                         .align_x(iced::Alignment::Center),
                 )
                 .center_x(Length::Fill)
                 .center_y(Length::Fill),
             )
-            .width(Length::Fixed(28.0))
-            .height(Length::Fixed(26.0))
+            .width(Length::Fixed(BAND_FILTER_BUTTON_WIDTH))
+            .height(Length::Fixed(BAND_FILTER_BUTTON_HEIGHT))
             .padding(0)
             .style(move |_theme, status| {
                 let base = if is_selected {
                     iced::widget::button::Style {
-                        background: Some(theme::TOKYO_NIGHT_PRIMARY.into()),
+                        background: Some(COLOR_PRIMARY.into()),
                         border: iced::Border {
-                            color: theme::TOKYO_NIGHT_PRIMARY,
+                            color: COLOR_PRIMARY,
                             width: 1.0,
-                            radius: 4.0.into(),
+                            radius: SHAPE_EXTRA_SMALL.into(),
                         },
-                        text_color: theme::TOKYO_NIGHT_BG_DARK,
+                        text_color: COLOR_ON_PRIMARY,
                         ..Default::default()
                     }
                 } else {
                     iced::widget::button::Style {
-                        background: Some(theme::TOKYO_NIGHT_BG_DARK.into()),
+                        background: Some(COLOR_SURFACE_DIM.into()),
                         border: iced::Border {
                             color: Color {
                                 a: 0.3,
-                                ..theme::TOKYO_NIGHT_MUTED
+                                ..COLOR_ON_SURFACE_VARIANT
                             },
                             width: 1.0,
-                            radius: 4.0.into(),
+                            radius: SHAPE_EXTRA_SMALL.into(),
                         },
-                        text_color: theme::TOKYO_NIGHT_FG,
+                        text_color: COLOR_ON_SURFACE,
                         ..Default::default()
                     }
                 };
                 match status {
                     iced::widget::button::Status::Hovered if !is_selected => {
                         iced::widget::button::Style {
-                            background: Some(theme::TOKYO_NIGHT_BG_HIGHLIGHT.into()),
+                            background: Some(ELEVATION_2.into()),
                             ..base
                         }
                     }
@@ -278,7 +299,7 @@ fn render_type_buttons<'a>(
                         background: Some(
                             Color {
                                 a: 0.8,
-                                ..theme::TOKYO_NIGHT_PRIMARY
+                                ..COLOR_PRIMARY
                             }
                             .into(),
                         ),
@@ -319,7 +340,7 @@ fn render_freq_cell<'a>(
         Message::BandFreqInputCommit(i),
     )]
     .spacing(SPACE_2)
-    .width(Length::Fixed(85.0))
+    .width(Length::Fixed(BAND_GAIN_LABEL_WIDTH))
     .into()
 }
 
@@ -340,7 +361,7 @@ fn render_gain_cell<'a>(
     })
     .step(crate::models::constants::GAIN_STEP)
     .width(Length::Fill)
-    .style(theme::slider_style);
+    .style(theme::gain_slider_style(band.gain));
 
     row![
         slider,
@@ -356,7 +377,7 @@ fn render_gain_cell<'a>(
             move |s| Message::BandGainInput(i, s),
             Message::BandGainInputCommit(i),
         ))
-        .width(Length::Fixed(55.0)),
+        .width(Length::Fixed(BAND_GAIN_INPUT_WIDTH)),
     ]
     .spacing(SPACE_4)
     .align_y(iced::Alignment::Center)
@@ -384,7 +405,7 @@ fn render_q_cell<'a>(
         Message::BandQInputCommit(i),
     )]
     .spacing(SPACE_2)
-    .width(Length::Fixed(60.0))
+    .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
     .into()
 }
 
@@ -401,9 +422,9 @@ fn render_band_row<'a>(
 
     let is_active = band.enabled;
     let accent_color = if is_active {
-        theme::TOKYO_NIGHT_PRIMARY
+        COLOR_PRIMARY
     } else {
-        theme::TOKYO_NIGHT_MUTED
+        COLOR_ON_SURFACE_VARIANT
     };
 
     let mut elements: Vec<Element<'a, Message>> = vec![text(format!("{}", i + 1))
@@ -413,7 +434,7 @@ fn render_band_row<'a>(
             weight: iced::font::Weight::Bold,
             ..Default::default()
         })
-        .width(Length::Fixed(40.0))
+        .width(Length::Fixed(BAND_CHECKBOX_WIDTH))
         .into()];
 
     if show_enable {
@@ -430,14 +451,14 @@ fn render_band_row<'a>(
                     .size(16)
                     .style(theme::checkbox_style),
             )
-            .width(Length::Fixed(30.0))
+            .width(Length::Fixed(BAND_ENABLE_ICON_WIDTH))
             .into(),
         );
     }
 
     elements.push(
         container(render_type_buttons(i, band, is_busy))
-            .width(Length::Fixed(160.0))
+            .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
             .into(),
     );
     elements.push(render_freq_cell(i, band, state, is_busy, freq_error));

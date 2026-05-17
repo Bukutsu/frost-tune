@@ -1,7 +1,11 @@
 use crate::ui::messages::Message;
 use crate::ui::state::{MainWindow, ToolsTab};
 use crate::ui::theme;
-use crate::ui::tokens::{SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL};
+use crate::ui::tokens::{
+    BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE, ELEVATION_2,
+    ICON_BUTTON_SIZE, PROFILE_LIST_HEIGHT, SHAPE_SMALL, SPACE_12, SPACE_16, SPACE_2, SPACE_8,
+    TYPE_LABEL,
+};
 use crate::ui::views::{action_button, icon_action_button, icon_button};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
 use iced::{Element, Length};
@@ -23,13 +27,13 @@ fn tab_button<'a>(
         .center_y(Length::Fill),
     )
     .padding(0.0)
-    .height(Length::Fixed(36.0))
+    .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
     .width(Length::Fill)
     .on_press(Message::ToolsTabSelected(tab))
     .style(if is_active {
-        theme::pill_primary_button
+        theme::m3_filled_button
     } else {
-        theme::pill_secondary_button
+        theme::m3_tonal_button
     })
 }
 
@@ -45,7 +49,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 } else {
                     Some(Message::ImportFromFilePressed)
                 })
-                .style(theme::pill_outlined_primary_button)
+                .style(theme::m3_outlined_button)
                 .width(Length::Fill),
             icon_action_button(crate::ui::tokens::ICON_IMPORT_CLIPBOARD, "Paste")
                 .on_press_maybe(if is_busy {
@@ -53,7 +57,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 } else {
                     Some(Message::ImportFromClipboard)
                 })
-                .style(theme::pill_outlined_primary_button)
+                .style(theme::m3_outlined_button)
                 .width(Length::Fill),
         ]
         .spacing(SPACE_8),
@@ -64,7 +68,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 } else {
                     Some(Message::ExportToFilePressed)
                 })
-                .style(theme::pill_secondary_button)
+                .style(theme::m3_tonal_button)
                 .width(Length::Fill),
             icon_action_button(crate::ui::tokens::ICON_EXPORT_CLIPBOARD, "Copy")
                 .on_press_maybe(if is_busy {
@@ -72,7 +76,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 } else {
                     Some(Message::ExportAutoEQPressed)
                 })
-                .style(theme::pill_secondary_button)
+                .style(theme::m3_tonal_button)
                 .width(Length::Fill),
         ]
         .spacing(SPACE_8),
@@ -127,16 +131,16 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             } else {
                 Some(Message::ReloadProfilesPressed)
             })
-            .style(theme::pill_text_button)
-            .width(Length::Fixed(36.0)),
+            .style(theme::m3_text_button)
+            .width(Length::Fixed(ICON_BUTTON_SIZE)),
         icon_button(crate::ui::tokens::ICON_FOLDER)
             .on_press_maybe(if is_busy {
                 None
             } else {
                 Some(Message::OpenProfilesDirPressed)
             })
-            .style(theme::pill_text_button)
-            .width(Length::Fixed(36.0)),
+            .style(theme::m3_text_button)
+            .width(Length::Fixed(ICON_BUTTON_SIZE)),
     ]
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
@@ -145,11 +149,11 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         container(
             text("No profiles found")
                 .size(crate::ui::tokens::TYPE_CAPTION)
-                .color(crate::ui::theme::TOKYO_NIGHT_MUTED),
+                .color(COLOR_ON_SURFACE_VARIANT),
         )
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .height(Length::Fixed(36.0))
+        .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
         .into()
     } else {
         let rows: Vec<Element<'_, Message>> = filtered_profiles
@@ -166,7 +170,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                     .center_y(Length::Fill)
                     .height(Length::Fill),
                 )
-                .height(Length::Fixed(36.0))
+                .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
                 .width(Length::Fill)
                 .style(move |theme, status| theme::profile_row_style(theme, status, is_selected))
                 .on_press(Message::ProfileSelected(p.name.clone()))
@@ -176,21 +180,21 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
 
         container(
             scrollable(column(rows).spacing(SPACE_2))
-                .height(Length::Fixed(200.0))
+                .height(Length::Fixed(PROFILE_LIST_HEIGHT))
                 .width(Length::Fill),
         )
         .style(|_theme: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(iced::Color {
                 a: 0.2,
-                ..theme::TOKYO_NIGHT_BG_HIGHLIGHT
+                ..ELEVATION_2
             })),
             border: iced::Border {
                 color: iced::Color {
                     a: 0.3,
-                    ..theme::TOKYO_NIGHT_MUTED
+                    ..COLOR_OUTLINE
                 },
                 width: 1.0,
-                radius: 8.0.into(),
+                radius: SHAPE_SMALL.into(),
             },
             ..Default::default()
         })
@@ -218,7 +222,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                     Some(Message::Undo)
                 }
             )
-            .style(theme::pill_secondary_button),
+            .style(theme::m3_tonal_button),
         action_button("Redo")
             .on_press_maybe(
                 if is_busy || state.editor_state.session.redo_stack.is_empty() {
@@ -227,7 +231,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                     Some(Message::Redo)
                 }
             )
-            .style(theme::pill_secondary_button),
+            .style(theme::m3_tonal_button),
     ]
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
@@ -239,20 +243,20 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             } else {
                 Some(Message::ResetFiltersPressed)
             })
-            .style(theme::pill_secondary_button),
+            .style(theme::m3_tonal_button),
         action_button("Save")
             .on_press_maybe(if is_busy {
                 None
             } else {
                 Some(Message::SaveProfilePressed)
             })
-            .style(theme::pill_primary_button),
+            .style(theme::m3_filled_button),
         if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
             action_button("Delete")
                 .on_press(Message::DeleteProfilePressed)
-                .style(theme::pill_danger_button)
+                .style(theme::m3_filled_button_error)
         } else {
-            action_button("Delete").style(theme::pill_danger_button)
+            action_button("Delete").style(theme::m3_filled_button_error)
         },
     ]
     .spacing(SPACE_8)
@@ -265,7 +269,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             let date_widget: Element<'_, Message> = if let Some(date) = selected_profile_modified {
                 text(format!("Modified: {}", date))
                     .size(crate::ui::tokens::TYPE_CAPTION)
-                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+                    .color(COLOR_ON_SURFACE_VARIANT)
                     .into()
             } else {
                 text("").into()
@@ -278,7 +282,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .style(theme::checkbox_style),
             text("Snap to ISO frequencies")
                 .size(crate::ui::tokens::TYPE_CAPTION)
-                .color(crate::ui::theme::TOKYO_NIGHT_FG),
+                .color(COLOR_ON_SURFACE),
         ]
         .spacing(SPACE_8)
         .align_y(iced::Alignment::Center),

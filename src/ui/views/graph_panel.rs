@@ -1,14 +1,13 @@
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::theme;
-use crate::ui::tokens::{CARD_RADIUS, SPACE_12, SPACE_16};
-use iced::widget::{canvas, container, responsive};
-use iced::{Element, Length, Padding};
+use crate::ui::tokens::{COLOR_OUTLINE, ELEVATION_0, SHAPE_LARGE, SPACE_12, SPACE_16};
+use iced::widget::{canvas, container};
+use iced::{Color, Element, Length, Padding};
 
 /// Graph with a fixed height based on width — for scrollable layouts (narrow, medium).
 pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
-    responsive(move |size| {
+    iced::widget::responsive(move |size| {
         let height = if size.width < 600.0 {
             240.0
         } else if size.width < 1000.0 {
@@ -62,14 +61,14 @@ pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
 
 fn graph_container_style(_theme: &iced::Theme) -> container::Style {
     container::Style {
-        background: Some(theme::GRAPH_BG.into()),
+        background: Some(ELEVATION_0.into()),
         border: iced::Border {
-            color: iced::Color {
+            color: Color {
                 a: 0.2,
-                ..theme::TOKYO_NIGHT_TERMINAL_BLACK
+                ..COLOR_OUTLINE
             },
             width: 1.0,
-            radius: CARD_RADIUS.into(),
+            radius: SHAPE_LARGE.into(),
         },
         ..Default::default()
     }

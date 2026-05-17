@@ -507,7 +507,7 @@ impl MainWindow {
                     .center_x(Length::Fill)
                     .center_y(Length::Fill)
                     .style(|_theme| container::Style {
-                        background: Some(iced::Color { a: 0.8, ..crate::ui::theme::TOKYO_NIGHT_BG_DARK }.into()),
+                        background: Some(iced::Color { a: 0.8, ..crate::ui::tokens::COLOR_SURFACE_DIM }.into()),
                         ..Default::default()
                     })
             ]
@@ -520,14 +520,14 @@ impl MainWindow {
     fn view_disconnected(&self) -> Element<'_, Message> {
         let mut devices_col = column![text("Available Devices")
             .size(TYPE_TITLE)
-            .color(crate::ui::theme::TOKYO_NIGHT_FG),]
+            .color(crate::ui::tokens::COLOR_ON_SURFACE),]
         .spacing(SPACE_16);
 
         if self.available_devices.is_empty() {
             devices_col = devices_col.push(
                 text("No devices found. Is your DAC plugged in?")
                     .size(TYPE_BODY)
-                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED),
+                    .color(crate::ui::tokens::COLOR_ON_SURFACE_VARIANT),
             );
         } else {
             for dev in self.available_devices.iter() {
@@ -536,26 +536,26 @@ impl MainWindow {
                 let dev_row = row![column![
                     text(dev_type.name())
                         .size(TYPE_BODY)
-                        .color(crate::ui::theme::TOKYO_NIGHT_FG),
+                        .color(crate::ui::tokens::COLOR_ON_SURFACE),
                     text(format!(
                         "VID: {:04X}  PID: {:04X}",
                         dev.vendor_id, dev.product_id
                     ))
                     .size(TYPE_CAPTION)
-                    .color(crate::ui::theme::TOKYO_NIGHT_MUTED)
+                    .color(crate::ui::tokens::COLOR_ON_SURFACE_VARIANT)
                 ]
                 .spacing(SPACE_4)];
 
                 let dev_btn =
                     iced::widget::button(container(dev_row).padding(SPACE_16).width(Length::Fill))
                         .style(move |_theme, _status| iced::widget::button::Style {
-                            background: Some(crate::ui::theme::TOKYO_NIGHT_BG_DARK.into()),
+                            background: Some(crate::ui::tokens::COLOR_SURFACE_DIM.into()),
                             border: iced::Border {
-                                radius: 8.0.into(),
+                                radius: crate::ui::tokens::SHAPE_SMALL.into(),
                                 width: 1.0,
                                 color: iced::Color::TRANSPARENT,
                             },
-                            text_color: crate::ui::theme::TOKYO_NIGHT_FG,
+                            text_color: crate::ui::tokens::COLOR_ON_SURFACE,
                             ..Default::default()
                         })
                         .on_press(Message::ConnectPressed(dev.clone()))

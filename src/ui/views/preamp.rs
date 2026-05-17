@@ -2,7 +2,7 @@ use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
-use crate::ui::tokens::SPACE_12;
+use crate::ui::tokens::{PREAMP_LABEL_WIDTH, SPACE_12};
 use iced::widget::{container, row, slider};
 use iced::{Element, Length};
 
@@ -14,7 +14,7 @@ pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
             "PREAMP: {} dB",
             state.editor_state.data.global_gain
         )))
-        .width(Length::Fixed(120.0)),
+        .width(Length::Fixed(PREAMP_LABEL_WIDTH)),
         slider(
             MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
             state.editor_state.data.global_gain as f64,

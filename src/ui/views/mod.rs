@@ -8,8 +8,10 @@ pub mod status_banner;
 pub mod tools_panel;
 
 use crate::ui::messages::Message;
-use crate::ui::theme;
-use crate::ui::tokens::{BUTTON_HORIZONTAL_PADDING, SPACE_4, TYPE_CAPTION, TYPE_LABEL};
+use crate::ui::tokens::{
+    BUTTON_HEIGHT_COMPACT, BUTTON_HEIGHT_LARGE, BUTTON_HEIGHT_SMALL, BUTTON_HORIZONTAL_PADDING,
+    COLOR_ON_SURFACE, ICON_BUTTON_SIZE, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL,
+};
 use iced::widget::{button, container, row, text};
 use iced::{Element, Length};
 
@@ -24,7 +26,7 @@ pub fn action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
         .center_y(Length::Fill),
     )
     .padding([0.0, BUTTON_HORIZONTAL_PADDING])
-    .height(Length::Fixed(48.0))
+    .height(Length::Fixed(BUTTON_HEIGHT_LARGE))
 }
 
 pub fn small_action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
@@ -34,11 +36,11 @@ pub fn small_action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Messa
                 .size(TYPE_LABEL)
                 .align_x(iced::Alignment::Center),
         )
-        .padding([0.0, 8.0])
+        .padding([0.0, SPACE_8])
         .center_y(Length::Fill),
     )
     .padding(0.0)
-    .height(Length::Fixed(32.0))
+    .height(Length::Fixed(BUTTON_HEIGHT_COMPACT))
 }
 
 pub fn icon_button<'a>(icon: &'a str) -> iced::widget::Button<'a, Message> {
@@ -47,10 +49,10 @@ pub fn icon_button<'a>(icon: &'a str) -> iced::widget::Button<'a, Message> {
             .center_x(Length::Fill)
             .center_y(Length::Fill),
     )
-    .style(crate::ui::theme::pill_text_button)
+    .style(crate::ui::theme::m3_text_button)
     .padding(0.0)
-    .width(Length::Fixed(36.0))
-    .height(Length::Fixed(36.0))
+    .width(Length::Fixed(ICON_BUTTON_SIZE))
+    .height(Length::Fixed(ICON_BUTTON_SIZE))
 }
 
 pub fn toolbar_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
@@ -64,13 +66,13 @@ pub fn toolbar_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
         .center_y(Length::Fill),
     )
     .padding([0.0, BUTTON_HORIZONTAL_PADDING])
-    .height(Length::Fixed(36.0))
+    .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
 }
 
 pub fn section_header<'a>(label: String) -> Element<'a, Message> {
     text(label)
         .size(TYPE_CAPTION)
-        .color(theme::TOKYO_NIGHT_FG)
+        .color(COLOR_ON_SURFACE)
         .font(iced::Font {
             weight: iced::font::Weight::Bold,
             ..Default::default()
@@ -93,5 +95,5 @@ pub fn icon_action_button<'a>(icon: &'a str, label: &'a str) -> iced::widget::Bu
         .padding([0.0, BUTTON_HORIZONTAL_PADDING]),
     )
     .padding(0.0)
-    .height(Length::Fixed(36.0))
+    .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
 }

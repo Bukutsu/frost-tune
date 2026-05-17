@@ -1,6 +1,9 @@
 use crate::ui::messages::Message;
-use crate::ui::theme::{self, TOKYO_NIGHT_FG, TOKYO_NIGHT_MUTED};
-use crate::ui::tokens::{SPACE_12, SPACE_16, TYPE_LABEL, TYPE_TITLE};
+use crate::ui::theme;
+use crate::ui::tokens::{
+    COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, DIALOG_WIDTH, DIALOG_WIDTH_SMALL, SPACE_12,
+    SPACE_16, TYPE_LABEL, TYPE_TITLE,
+};
 use crate::ui::views::action_button;
 use iced::widget::{column, container, row, text, text_input};
 use iced::{Element, Length};
@@ -14,14 +17,16 @@ fn dialog_container<'a>(
     extra_content: Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let confirm_style = if is_danger {
-        theme::pill_danger_button
+        theme::m3_filled_button_error
     } else {
-        theme::pill_primary_button
+        theme::m3_filled_button
     };
 
     let mut col = column![
-        text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
-        text(message).size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED),
+        text(title).size(TYPE_TITLE).color(COLOR_ON_SURFACE),
+        text(message)
+            .size(TYPE_LABEL)
+            .color(COLOR_ON_SURFACE_VARIANT),
     ];
 
     if let Some(content) = extra_content {
@@ -32,7 +37,7 @@ fn dialog_container<'a>(
         row![
             action_button("Cancel")
                 .on_press(Message::DismissConfirmDialog)
-                .style(theme::pill_secondary_button),
+                .style(theme::m3_tonal_button),
             action_button(confirm_label)
                 .on_press(confirm_msg)
                 .style(confirm_style),
@@ -42,7 +47,7 @@ fn dialog_container<'a>(
 
     container(col.spacing(SPACE_12).padding(SPACE_16))
         .style(theme::card_style)
-        .width(Length::Fixed(360.0))
+        .width(Length::Fixed(DIALOG_WIDTH_SMALL))
         .into()
 }
 
@@ -66,18 +71,20 @@ pub fn view_exit_dialog<'a>(
 ) -> Element<'a, Message> {
     container(
         column![
-            text(title).size(TYPE_TITLE).color(TOKYO_NIGHT_FG),
-            text(message).size(TYPE_LABEL).color(TOKYO_NIGHT_MUTED),
+            text(title).size(TYPE_TITLE).color(COLOR_ON_SURFACE),
+            text(message)
+                .size(TYPE_LABEL)
+                .color(COLOR_ON_SURFACE_VARIANT),
             row![
                 action_button("Cancel")
                     .on_press(Message::DismissConfirmDialog)
-                    .style(theme::pill_secondary_button),
+                    .style(theme::m3_tonal_button),
                 action_button(exit_label)
                     .on_press(exit_msg)
-                    .style(theme::pill_danger_button),
+                    .style(theme::m3_filled_button_error),
                 action_button(save_label)
                     .on_press(save_msg)
-                    .style(theme::pill_primary_button),
+                    .style(theme::m3_filled_button),
             ]
             .spacing(SPACE_12),
         ]
@@ -85,7 +92,7 @@ pub fn view_exit_dialog<'a>(
         .padding(SPACE_16),
     )
     .style(theme::card_style)
-    .width(Length::Fixed(400.0))
+    .width(Length::Fixed(DIALOG_WIDTH))
     .into()
 }
 

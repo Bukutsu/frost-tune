@@ -1,6 +1,6 @@
 use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
 use crate::models::Filter;
-use crate::ui::theme::{TOKYO_NIGHT_FG_DARK, TOKYO_NIGHT_PRIMARY};
+use crate::ui::tokens::{COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY};
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
 use iced::{Color, Point, Rectangle, Renderer, Theme};
 
@@ -60,7 +60,7 @@ impl<Message> Program<Message> for EqGraph {
         let grid = self.grid_cache.draw(renderer, bounds.size(), |frame| {
             let _palette = theme.palette();
             let grid_color = Color::from_rgba(0.5, 0.5, 0.5, 0.2);
-            let text_color = TOKYO_NIGHT_FG_DARK;
+            let text_color = COLOR_ON_SURFACE_VARIANT;
 
             let freqs: [f64; 10] = [
                 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0,
@@ -183,6 +183,20 @@ impl<Message> Program<Message> for EqGraph {
                 );
             }
 
+            // Filled area under the combined response curve
+            let zero_db_y = (1.0 - ((0.0 - min_db) / db_range)) as f32 * bounds.height;
+            let fill_path = Path::new(|builder| {
+                builder.move_to(Point::new(0.0, zero_db_y));
+                for (i, &db) in responses.iter().enumerate() {
+                    let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
+                    let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
+                    builder.line_to(Point::new(x, y));
+                }
+                builder.line_to(Point::new(bounds.width, zero_db_y));
+                builder.line_to(Point::new(0.0, zero_db_y));
+            });
+            frame.fill(&fill_path, Color::from_rgba(0.49, 0.81, 1.0, 0.08));
+
             let path = Path::new(|builder| {
                 for (i, &db) in responses.iter().enumerate() {
                     let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
@@ -198,9 +212,7 @@ impl<Message> Program<Message> for EqGraph {
 
             frame.stroke(
                 &path,
-                Stroke::default()
-                    .with_color(TOKYO_NIGHT_PRIMARY)
-                    .with_width(2.0),
+                Stroke::default().with_color(COLOR_PRIMARY).with_width(2.0),
             );
         });
 

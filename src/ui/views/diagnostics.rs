@@ -1,10 +1,11 @@
 use crate::diagnostics::{DiagnosticEvent, LogLevel};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::theme::{
-    self, TOKYO_NIGHT_BLUE, TOKYO_NIGHT_MUTED, TOKYO_NIGHT_RED, TOKYO_NIGHT_WARNING,
+use crate::ui::theme;
+use crate::ui::tokens::{
+    COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_WARNING, DIAGNOSTICS_LEVEL_WIDTH,
+    DIAGNOSTICS_TIME_WIDTH, SPACE_12, SPACE_4, SPACE_8, TYPE_TINY,
 };
-use crate::ui::tokens::{SPACE_12, SPACE_4, SPACE_8, TYPE_TINY};
 use crate::ui::views::small_action_button;
 use iced::widget::{column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length};
@@ -21,18 +22,18 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     let info_count = events.iter().filter(|e| e.level == LogLevel::Info).count();
 
     let summary = row![
-        text("Errors:").size(TYPE_TINY).color(TOKYO_NIGHT_RED),
+        text("Errors:").size(TYPE_TINY).color(COLOR_ERROR),
         text(format!("{}", error_count))
             .size(TYPE_TINY)
-            .color(TOKYO_NIGHT_RED),
-        text("Warnings:").size(TYPE_TINY).color(TOKYO_NIGHT_WARNING),
+            .color(COLOR_ERROR),
+        text("Warnings:").size(TYPE_TINY).color(COLOR_WARNING),
         text(format!("{}", warn_count))
             .size(TYPE_TINY)
-            .color(TOKYO_NIGHT_WARNING),
-        text("Info:").size(TYPE_TINY).color(TOKYO_NIGHT_BLUE),
+            .color(COLOR_WARNING),
+        text("Info:").size(TYPE_TINY).color(COLOR_INFO),
         text(format!("{}", info_count))
             .size(TYPE_TINY)
-            .color(TOKYO_NIGHT_BLUE),
+            .color(COLOR_INFO),
     ]
     .spacing(SPACE_4)
     .align_y(Alignment::Center);
@@ -43,19 +44,19 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
         .take(30)
         .map(|e| {
             let c = match e.level {
-                LogLevel::Info => TOKYO_NIGHT_MUTED,
-                LogLevel::Warn => TOKYO_NIGHT_WARNING,
-                LogLevel::Error => TOKYO_NIGHT_RED,
+                LogLevel::Info => COLOR_ON_SURFACE_VARIANT,
+                LogLevel::Warn => COLOR_WARNING,
+                LogLevel::Error => COLOR_ERROR,
             };
             row![
                 text(&e.timestamp)
                     .size(TYPE_TINY)
-                    .color(TOKYO_NIGHT_MUTED)
-                    .width(Length::Fixed(70.0)),
+                    .color(COLOR_ON_SURFACE_VARIANT)
+                    .width(Length::Fixed(DIAGNOSTICS_LEVEL_WIDTH)),
                 text(format!("[{}]", e.source))
                     .size(TYPE_TINY)
-                    .color(TOKYO_NIGHT_MUTED)
-                    .width(Length::Fixed(40.0)),
+                    .color(COLOR_ON_SURFACE_VARIANT)
+                    .width(Length::Fixed(DIAGNOSTICS_TIME_WIDTH)),
                 text(&e.message)
                     .size(TYPE_TINY)
                     .color(c)
@@ -77,18 +78,18 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
                 summary,
                 small_action_button("Hide")
                     .on_press(Message::ToggleDiagnostics)
-                    .style(theme::pill_text_button),
+                    .style(theme::m3_text_button),
                 small_action_button("Copy")
                     .on_press(Message::CopyDiagnostics)
-                    .style(theme::pill_text_button),
+                    .style(theme::m3_text_button),
                 small_action_button("Clear")
                     .on_press(Message::ClearDiagnostics)
-                    .style(theme::pill_text_button),
+                    .style(theme::m3_text_button),
             ]
             .spacing(SPACE_8)
             .align_y(Alignment::Center),
             container(text("")).height(1.0).style(|_| container::Style {
-                background: Some(iced::Background::Color(TOKYO_NIGHT_MUTED)),
+                background: Some(iced::Background::Color(COLOR_ON_SURFACE_VARIANT)),
                 ..Default::default()
             }),
             log_content,
@@ -111,7 +112,7 @@ pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
                 container(text("")).width(Length::Fill),
                 small_action_button("Show")
                     .on_press(Message::ToggleDiagnostics)
-                    .style(theme::pill_text_button),
+                    .style(theme::m3_text_button),
             ]
             .spacing(SPACE_8)
             .align_y(Alignment::Center),

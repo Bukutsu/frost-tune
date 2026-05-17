@@ -1,12 +1,18 @@
-# Graph Report - .  (2026-05-17)
+# Graph Report - frost-tune  (2026-05-17)
 
 ## Corpus Check
-- Corpus is ~44,495 words - fits in a single context window. You may not need a graph.
+- 57 files · ~44,687 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 434 nodes · 652 edges · 42 communities (24 shown, 18 thin omitted)
-- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 110 edges (avg confidence: 0.8)
+- 499 nodes · 723 edges · 43 communities (24 shown, 19 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 112 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `5fc255eb`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Profile & Connection Management|Profile & Connection Management]]
@@ -44,21 +50,24 @@
 - [[_COMMUNITY_App Screenshot|App Screenshot]]
 - [[_COMMUNITY_UI Graph Panel|UI Graph Panel]]
 - [[_COMMUNITY_UI Band Controls|UI Band Controls]]
+- [[_COMMUNITY_Community 42|Community 42]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `MainWindow` - 25 edges
-2. `parse_autoeq_text()` - 16 edges
-3. `TP35ProProtocol` - 15 edges
-4. `push_with_verify()` - 11 edges
-5. `handle_profiles()` - 11 edges
-6. `InputBuffer` - 10 edges
-7. `load_all_profiles()` - 9 edges
-8. `save_profile()` - 9 edges
-9. `delay_ms()` - 9 edges
-10. `pull_peq_internal()` - 9 edges
+2. `Frost-Tune — Developer Guidelines` - 18 edges
+3. `parse_autoeq_text()` - 16 edges
+4. `TP35ProProtocol` - 15 edges
+5. `enforce_disabled_button_contrast()` - 14 edges
+6. `Frost-Tune` - 13 edges
+7. `push_with_verify()` - 11 edges
+8. `handle_profiles()` - 11 edges
+9. `InputBuffer` - 10 edges
+10. `load_all_profiles()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `test_disabled_button_contrast_wcag_aa()` --calls--> `theme()`  [INFERRED]
+  tests/token_consistency.rs → src/ui/theme.rs
+- `test_disabled_button_contrast_wcag_aa()` --calls--> `m3_tonal_button()`  [INFERRED]
   tests/token_consistency.rs → src/ui/theme.rs
 - `test_disabled_button_contrast_wcag_aa()` --calls--> `pill_secondary_button()`  [INFERRED]
   tests/token_consistency.rs → src/ui/theme.rs
@@ -66,30 +75,28 @@
   src/ui/main_window.rs → src/diagnostics.rs
 - `handle_editor()` --calls--> `parse_freq_string()`  [INFERRED]
   src/ui/update/editor.rs → src/ui/main_window.rs
-- `handle_autoeq()` --calls--> `format_diagnostics()`  [INFERRED]
-  src/ui/update/autoeq.rs → src/diagnostics.rs
 
-## Communities (42 total, 18 thin omitted)
+## Communities (43 total, 19 thin omitted)
 
 ### Community 0 - "Profile & Connection Management"
-Cohesion: 0.09
-Nodes (38): peq_to_autoeq(), test_peq_to_autoeq_format(), main(), append_diagnostics_log(), delete_profile(), export_profile(), get_base_dir(), get_diagnostics_log_path() (+30 more)
+Cohesion: 0.1
+Nodes (37): peq_to_autoeq(), test_peq_to_autoeq_format(), main(), append_diagnostics_log(), delete_profile(), export_profile(), get_base_dir(), get_diagnostics_log_path() (+29 more)
 
 ### Community 1 - "Main Window UI"
 Cohesion: 0.07
 Nodes (11): layout_bucket_for_width(), LayoutBucket, MainWindow, parse_freq_string(), run(), run_with_diagnostics(), dialog_container(), view_confirm_dialog() (+3 more)
 
 ### Community 2 - "Hardware Worker Server"
-Cohesion: 0.08
-Nodes (23): handle_connect(), pull_logic(), push_logic(), require_device(), run(), write_response(), device_info_from_hid(), find_device_info() (+15 more)
+Cohesion: 0.06
+Nodes (29): CommandSpec, ElevatedTransport, spawn_via_pkexec(), validate_pkexec_target(), handle_connect(), pull_logic(), push_logic(), require_device() (+21 more)
 
 ### Community 3 - "HID Operations Pipeline"
 Cohesion: 0.14
 Nodes (23): assemble_filters(), delay_ms(), flush_hid_buffer(), get_next_nonce(), pull_peq_internal(), read_global_gain(), read_single_filter_with_nonce(), reset_nonce() (+15 more)
 
 ### Community 4 - "Theme & UI Tokens"
-Cohesion: 0.1
-Nodes (15): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), m3_filled_input(), m3_outlined_input(), pill_danger_button(), pill_outlined_danger_button() (+7 more)
+Cohesion: 0.08
+Nodes (23): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), gain_color(), gain_slider_style(), m3_filled_button(), m3_filled_button_error() (+15 more)
 
 ### Community 5 - "Editor State Buffers"
 Cohesion: 0.1
@@ -108,20 +115,16 @@ Cohesion: 0.24
 Nodes (17): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+9 more)
 
 ### Community 9 - "Diagnostics System"
-Cohesion: 0.13
-Nodes (6): DiagnosticEvent, DiagnosticsStore, format_diagnostics(), LogLevel, parse_diagnostic_log_line(), Source
+Cohesion: 0.12
+Nodes (7): DiagnosticEvent, DiagnosticsStore, format_diagnostics(), LogLevel, parse_diagnostic_log_line(), Source, handle_autoeq()
 
 ### Community 10 - "Elevated Errors Transport"
-Cohesion: 0.18
-Nodes (6): CommandSpec, ElevatedTransport, spawn_via_pkexec(), validate_pkexec_target(), AppError, ErrorKind
+Cohesion: 0.09
+Nodes (22): Adding New Components, Anti-Patterns, Architecture, Architecture Patterns, Code Standards, code:block1 (frost-tune/), code:bash (# Development workflow), Contribution Workflow (+14 more)
 
 ### Community 11 - "Domain Rules Snapping"
-Cohesion: 0.18
-Nodes (9): test_band_gain_clamp_at_max(), test_band_gain_clamp_at_min(), test_band_gain_unchanged_when_in_bounds(), test_default_filter_has_correct_index(), test_push_payload_clamp_enables_all_bands(), test_push_payload_invalid_with_disabled_band(), test_push_payload_invalid_with_inf_q(), test_push_payload_invalid_with_nan_gain() (+1 more)
-
-### Community 12 - "Filter Model Input"
-Cohesion: 0.16
-Nodes (9): Filter, FilterType, PEQData, snap_freq_to_iso(), snap_q_to_iso(), cancel_band_draft_input(), commit_band_field(), handle_band_text_input() (+1 more)
+Cohesion: 0.09
+Nodes (18): Filter, FilterType, PEQData, snap_freq_to_iso(), snap_q_to_iso(), test_band_gain_clamp_at_max(), test_band_gain_clamp_at_min(), test_band_gain_unchanged_when_in_bounds() (+10 more)
 
 ### Community 13 - "IPC Payload Validation"
 Cohesion: 0.22
@@ -139,25 +142,29 @@ Nodes (7): render_band_column(), render_band_row(), render_freq_cell(), render_g
 Cohesion: 0.5
 Nodes (3): Message, StatusMessage, StatusSeverity
 
+### Community 30 - "Project README"
+Cohesion: 0.06
+Nodes (30): 1. Clone the Repository, 2. Build and Run, 3. (Linux Only) Setup USB Permissions, Acknowledgments, Arch Linux Manual Install, Architecture, Available Scripts, code:bash (git clone https://github.com/Bukutsu/frost-tune.git) (+22 more)
+
 ## Knowledge Gaps
-- **34 isolated node(s):** `Profile`, `UiPreferences`, `CommandSpec`, `DeviceProtocol`, `HelperRequest` (+29 more)
+- **71 isolated node(s):** `Profile`, `UiPreferences`, `CommandSpec`, `DeviceProtocol`, `HelperRequest` (+66 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `assemble_filters()` connect `HID Operations Pipeline` to `Domain Rules Snapping`?**
-  _High betweenness centrality (0.202) - this node is a cross-community bridge._
 - **Why does `MainWindow` connect `Main Window UI` to `Theme & UI Tokens`?**
   _High betweenness centrality (0.168) - this node is a cross-community bridge._
-- **Why does `handle_editor()` connect `Filter Model Input` to `Profile & Connection Management`, `Main Window UI`, `Domain Rules Snapping`?**
-  _High betweenness centrality (0.131) - this node is a cross-community bridge._
+- **Why does `assemble_filters()` connect `HID Operations Pipeline` to `Domain Rules Snapping`?**
+  _High betweenness centrality (0.165) - this node is a cross-community bridge._
+- **Why does `handle_editor()` connect `Domain Rules Snapping` to `Profile & Connection Management`, `Main Window UI`?**
+  _High betweenness centrality (0.105) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `parse_autoeq_text()` (e.g. with `.enabled()` and `load_all_profiles()`) actually correct?**
   _`parse_autoeq_text()` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 10 inferred relationships involving `push_with_verify()` (e.g. with `send_report()` and `delay_ms()`) actually correct?**
-  _`push_with_verify()` has 10 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 7 inferred relationships involving `handle_profiles()` (e.g. with `update()` and `open_profiles_dir()`) actually correct?**
-  _`handle_profiles()` has 7 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Profile`, `UiPreferences`, `CommandSpec` to the rest of the system?**
-  _40 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _77 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Profile & Connection Management` be split into smaller, more focused modules?**
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
+- **Should `Main Window UI` be split into smaller, more focused modules?**
+  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
