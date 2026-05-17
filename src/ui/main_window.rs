@@ -178,7 +178,7 @@ impl MainWindow {
     pub fn header_status_message(&self) -> String {
         match &self.connection_status {
             ConnectionStatus::Disconnected => "Disconnected".to_string(),
-            ConnectionStatus::Connecting => "Connecting...".to_string(),
+            ConnectionStatus::Connecting => "Connecting…".to_string(),
             ConnectionStatus::Connected => "Connected".to_string(),
             ConnectionStatus::Error(e) => format!("Error: {}", e),
         }
@@ -204,20 +204,20 @@ impl MainWindow {
                 } else if self.operation_lock.is_connecting
                     || self.connection_status == ConnectionStatus::Connecting
                 {
-                    Some("Connecting to device...".to_string())
+                    Some("Connecting to device…".to_string())
                 } else {
                     Some("Device already connected or in error".to_string())
                 }
             }
             "disconnect" => {
                 if self.operation_lock.is_disconnecting {
-                    Some("Disconnecting...".to_string())
+                    Some("Disconnecting…".to_string())
                 } else if self.connection_status == ConnectionStatus::Disconnected {
                     Some("Device disconnected".to_string())
                 } else if self.operation_lock.is_connecting
                     || self.connection_status == ConnectionStatus::Connecting
                 {
-                    Some("Connecting to device...".to_string())
+                    Some("Connecting to device…".to_string())
                 } else {
                     None
                 }
@@ -228,7 +228,7 @@ impl MainWindow {
                 } else if self.operation_lock.is_connecting
                     || self.connection_status == ConnectionStatus::Connecting
                 {
-                    Some("Connecting to device...".to_string())
+                    Some("Connecting to device…".to_string())
                 } else if self.operation_lock.is_pulling {
                     Some("Operation in progress: Reading".to_string())
                 } else if self.operation_lock.is_pushing {
@@ -243,7 +243,7 @@ impl MainWindow {
                 } else if self.operation_lock.is_connecting
                     || self.connection_status == ConnectionStatus::Connecting
                 {
-                    Some("Connecting to device...".to_string())
+                    Some("Connecting to device…".to_string())
                 } else if self.editor_state.session.input_buffer.has_errors() {
                     Some("Resolve input errors first".to_string())
                 } else if self.operation_lock.is_pushing {
@@ -260,10 +260,10 @@ impl MainWindow {
 
     pub fn header_disabled_reason_message(&self) -> Option<String> {
         if self.operation_lock.is_disconnecting {
-            return Some("Disconnecting...".to_string());
+            return Some("Disconnecting…".to_string());
         }
         if self.operation_lock.is_connecting {
-            return Some("Connecting to device...".to_string());
+            return Some("Connecting to device…".to_string());
         }
         if self.operation_lock.is_pulling {
             return Some("Operation in progress: Reading".to_string());

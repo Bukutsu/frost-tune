@@ -19,8 +19,9 @@ fn poll_worker_status(worker: Arc<crate::hardware::worker::UsbWorker>) -> Task<M
     Task::perform(
         async move {
             let rx = worker.status();
-            rx.recv_timeout(std::time::Duration::from_secs(2))
-                .unwrap_or(WorkerStatus {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), rx).await {
+                Ok(Ok(status)) => status,
+                _ => WorkerStatus {
                     connected: false,
                     physically_present: false,
                     device: None,
@@ -28,7 +29,8 @@ fn poll_worker_status(worker: Arc<crate::hardware::worker::UsbWorker>) -> Task<M
                     backend_reset: false,
                     generation: 0,
                     fatal_error: None,
-                })
+                },
+            }
         },
         Message::WorkerStatus,
     )
@@ -62,8 +64,10 @@ fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
             Some(Task::perform(
                 async move {
                     let rx = worker.connect(Some(target_device), Some(BackendKind::Local));
-                    rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| timed_out_connection_result("Auto-reconnect timed out"))
+                    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+                        Ok(Ok(res)) => res,
+                        _ => timed_out_connection_result("Auto-reconnect timed out"),
+                    }
                 },
                 Message::WorkerConnected,
             ))
@@ -184,10 +188,10 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     let backend = Some(BackendKind::Local);
 
                     let rx = worker.connect(Some(device), backend);
-                    rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or_else(|_| {
-                            timed_out_connection_result("Connection request timed out")
-                        })
+                    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+                        Ok(Ok(res)) => res,
+                        _ => timed_out_connection_result("Connection request timed out"),
+                    }
                 },
                 Message::WorkerConnected,
             );
@@ -213,15 +217,17 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             let disconnect_task = Task::perform(
                 async move {
                     let rx = worker.disconnect();
-                    rx.recv_timeout(std::time::Duration::from_secs(5))
-                        .unwrap_or(OperationResult {
+                    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+                        Ok(Ok(res)) => res,
+                        _ => OperationResult {
                             success: false,
                             data: None,
                             error: Some(AppError::new(
                                 ErrorKind::IpcError,
                                 "Disconnect request timed out",
                             )),
-                        })
+                        },
+                    }
                 },
                 Message::WorkerDisconnected,
             );

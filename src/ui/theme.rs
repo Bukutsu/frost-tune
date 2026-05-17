@@ -394,9 +394,15 @@ fn gain_color(gain: f64) -> Color {
     }
 }
 
-pub fn gain_slider_style(gain: f64) -> impl Fn(&Theme, slider::Status) -> slider::Style {
+pub fn gain_slider_style(
+    gain: f64,
+    is_active: bool,
+) -> impl Fn(&Theme, slider::Status) -> slider::Style {
     move |_theme: &Theme, _status: slider::Status| {
-        let accent = gain_color(gain);
+        let mut accent = gain_color(gain);
+        if !is_active {
+            accent.a *= 0.3;
+        }
         slider::Style {
             rail: slider::Rail {
                 backgrounds: (

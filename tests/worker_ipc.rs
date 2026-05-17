@@ -7,7 +7,7 @@ use frost_tune::models::DeviceInfo;
 fn test_worker_new_and_status() {
     let worker = UsbWorker::new();
     let rx = worker.status();
-    let status = rx.recv_timeout(std::time::Duration::from_millis(500));
+    let status = rx.blocking_recv();
     assert!(status.is_ok(), "Worker should respond to status request");
     let status = status.unwrap();
     assert!(!status.connected, "Worker should start disconnected");
@@ -130,15 +130,13 @@ fn test_ipc_response_serialization() {
 fn test_worker_connect_disconnect_cycle() {
     let worker = UsbWorker::new();
     let rx = worker.status();
-    let initial_status = rx
-        .recv_timeout(std::time::Duration::from_millis(500))
-        .expect("Should get initial status");
+    let initial_status = rx.blocking_recv().expect("Should get initial status");
     assert!(!initial_status.connected);
     let _rx = worker.disconnect();
     std::thread::sleep(std::time::Duration::from_millis(100));
     let rx = worker.status();
     let status = rx
-        .recv_timeout(std::time::Duration::from_millis(500))
+        .blocking_recv()
         .expect("Should get status after disconnect");
     assert!(
         !status.connected,

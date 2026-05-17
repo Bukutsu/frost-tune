@@ -177,7 +177,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             .spacing(SPACE_2),
             container(text("")).width(Length::Fill),
             if is_busy {
-                container(text("Device busy...").size(TYPE_CAPTION).color(COLOR_INFO))
+                container(text("Device busy…").size(TYPE_CAPTION).color(COLOR_INFO))
                     .padding([0.0, SPACE_16])
             } else {
                 container(text("")).width(Length::Shrink)

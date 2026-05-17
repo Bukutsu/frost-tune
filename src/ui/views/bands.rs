@@ -211,11 +211,18 @@ fn render_input_field<'a>(
     value: String,
     is_busy: bool,
     error: Option<&'a str>,
+    is_active: bool,
     on_input: impl Fn(String) -> Message + 'a,
     on_submit: Message,
 ) -> Element<'a, Message> {
     let input = text_input("", &value)
-        .style(theme::m3_filled_input)
+        .style(move |theme, status| {
+            let mut style = theme::m3_filled_input(theme, status);
+            if !is_active {
+                style.value.a = 0.3;
+            }
+            style
+        })
         .size(TYPE_LABEL);
     let input = if is_busy {
         input
@@ -238,6 +245,7 @@ fn render_type_buttons<'a>(
     i: usize,
     band: &crate::models::filter::Filter,
     is_busy: bool,
+    is_active: bool,
 ) -> Element<'a, Message> {
     row(FilterType::ALL
         .iter()
@@ -249,9 +257,21 @@ fn render_type_buttons<'a>(
                     text(label)
                         .size(TYPE_TINY)
                         .color(if is_selected {
-                            COLOR_ON_PRIMARY
-                        } else {
+                            if is_active {
+                                COLOR_ON_PRIMARY
+                            } else {
+                                Color {
+                                    a: 0.5,
+                                    ..COLOR_ON_PRIMARY
+                                }
+                            }
+                        } else if is_active {
                             COLOR_ON_SURFACE
+                        } else {
+                            Color {
+                                a: 0.3,
+                                ..COLOR_ON_SURFACE
+                            }
                         })
                         .align_x(iced::Alignment::Center),
                 )
@@ -288,7 +308,7 @@ fn render_type_buttons<'a>(
                         ..Default::default()
                     }
                 };
-                match status {
+                let mut style = match status {
                     iced::widget::button::Status::Hovered if !is_selected => {
                         iced::widget::button::Style {
                             background: Some(ELEVATION_2.into()),
@@ -306,7 +326,14 @@ fn render_type_buttons<'a>(
                         ..base
                     },
                     _ => base,
+                };
+                if !is_active {
+                    if let Some(Background::Color(c)) = &mut style.background {
+                        c.a *= 0.3;
+                    }
+                    style.border.color.a *= 0.3;
                 }
+                style
             });
 
             if is_busy {
@@ -326,6 +353,7 @@ fn render_freq_cell<'a>(
     state: &'a MainWindow,
     is_busy: bool,
     freq_error: Option<&'a str>,
+    is_active: bool,
 ) -> Element<'a, Message> {
     column![render_input_field(
         state
@@ -336,6 +364,7 @@ fn render_freq_cell<'a>(
             .map_or_else(|| format!("{}", band.freq), |s| s.to_string()),
         is_busy,
         freq_error,
+        is_active,
         move |s| Message::BandFreqInput(i, s),
         Message::BandFreqInputCommit(i),
     )]
@@ -350,6 +379,7 @@ fn render_gain_cell<'a>(
     state: &'a MainWindow,
     is_busy: bool,
     gain_error: Option<&'a str>,
+    is_active: bool,
 ) -> Element<'a, Message> {
     let gain_range = state.gain_range();
     let slider = slider(gain_range.0..=gain_range.1, band.gain, move |v| {
@@ -361,7 +391,7 @@ fn render_gain_cell<'a>(
     })
     .step(crate::models::constants::GAIN_STEP)
     .width(Length::Fill)
-    .style(theme::gain_slider_style(band.gain));
+    .style(theme::gain_slider_style(band.gain, is_active));
 
     row![
         slider,
@@ -374,6 +404,7 @@ fn render_gain_cell<'a>(
                 .map_or_else(|| format!("{:.2}", band.gain), |s| s.to_string()),
             is_busy,
             gain_error,
+            is_active,
             move |s| Message::BandGainInput(i, s),
             Message::BandGainInputCommit(i),
         ))
@@ -391,6 +422,7 @@ fn render_q_cell<'a>(
     state: &'a MainWindow,
     is_busy: bool,
     q_error: Option<&'a str>,
+    is_active: bool,
 ) -> Element<'a, Message> {
     column![render_input_field(
         state
@@ -401,6 +433,7 @@ fn render_q_cell<'a>(
             .map_or_else(|| format!("{:.2}", band.q), |s| s.to_string()),
         is_busy,
         q_error,
+        is_active,
         move |s| Message::BandQInput(i, s),
         Message::BandQInputCommit(i),
     )]
@@ -457,13 +490,17 @@ fn render_band_row<'a>(
     }
 
     elements.push(
-        container(render_type_buttons(i, band, is_busy))
+        container(render_type_buttons(i, band, is_busy, is_active))
             .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
             .into(),
     );
-    elements.push(render_freq_cell(i, band, state, is_busy, freq_error));
-    elements.push(render_gain_cell(i, band, state, is_busy, gain_error));
-    elements.push(render_q_cell(i, band, state, is_busy, q_error));
+    elements.push(render_freq_cell(
+        i, band, state, is_busy, freq_error, is_active,
+    ));
+    elements.push(render_gain_cell(
+        i, band, state, is_busy, gain_error, is_active,
+    ));
+    elements.push(render_q_cell(i, band, state, is_busy, q_error, is_active));
 
     row(elements)
         .spacing(SPACE_4)

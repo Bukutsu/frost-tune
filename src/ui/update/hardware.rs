@@ -55,7 +55,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         global_gain: Some(global_gain),
                     };
                     let rx = worker.push_peq(payload);
-                    recv_operation_result(rx)
+                    recv_operation_result(rx).await
                 },
                 Message::WorkerPushed,
             );
@@ -171,11 +171,13 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
     }
 }
 
-fn recv_operation_result(rx: std::sync::mpsc::Receiver<OperationResult>) -> OperationResult {
-    match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-        Ok(res) => res,
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => OperationResult::timed_out(),
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => OperationResult::worker_gone(),
+async fn recv_operation_result(
+    rx: tokio::sync::oneshot::Receiver<OperationResult>,
+) -> OperationResult {
+    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+        Ok(Ok(res)) => res,
+        Ok(Err(_)) => OperationResult::worker_gone(),
+        Err(_) => OperationResult::timed_out(),
     }
 }
 
@@ -193,7 +195,7 @@ fn perform_pull(window: &mut MainWindow) -> Task<Message> {
     let pull_task = Task::perform(
         async move {
             let rx = worker.pull_peq();
-            recv_operation_result(rx)
+            recv_operation_result(rx).await
         },
         Message::WorkerPulled,
     );

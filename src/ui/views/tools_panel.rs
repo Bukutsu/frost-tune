@@ -114,7 +114,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         });
 
     let search_input = {
-        let input = text_input("Search profiles...", &state.editor_state.ui.profile_search)
+        let input = text_input("Search profiles…", &state.editor_state.ui.profile_search)
             .style(theme::m3_filled_input);
         if is_busy {
             input
@@ -203,7 +203,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     };
 
     let profile_name_input = {
-        let input = text_input("New Name...", &state.editor_state.session.new_profile_name)
+        let input = text_input("New Name…", &state.editor_state.session.new_profile_name)
             .style(theme::m3_filled_input);
 
         if is_busy {
