@@ -1,11 +1,10 @@
 # Rust
-/target/
-# Cargo.lock should be committed for applications (standard Rust practice)
+/target
+Cargo.lock
 
 # Arch Linux packaging
 /packaging/arch/src/
 /packaging/arch/pkg/
-/packaging/arch/frost-tune/
 /packaging/arch/frost-tune-*.tar.gz
 /packaging/arch/frost-tune-*.pkg.tar.*
 /pkg/
@@ -15,23 +14,17 @@
 .SRCINFO
 
 # IDE and AI tools
-/.cargo/
+/.cargo
 /.idea/
 /.vscode/
 /.claude/
 /.gemini/
-/.agents/
-/opencode.json
-/mcp_error.log
-
-# System files
+opencode.json
+mcp_error.log
 .DS_Store
-Thumbs.db
 *.swp
 *.swo
 *~
 
 # Graphify
-/graphify-out/*
-!/graphify-out/GRAPH_REPORT.md
-
+graphify-out/
