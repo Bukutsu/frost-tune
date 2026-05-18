@@ -156,10 +156,13 @@ Frost-Tune is packaged for multiple platforms via GitHub Actions:
 - **Fedora/RHEL**: `.rpm` packages available in Releases.
 
 ### Arch Linux Manual Install
+Because the repository root contains a smart redirection wrapper, you do not need to change directories. You can build and install the package directly from the root of the repository:
+
 ```bash
-cd packaging/arch
 makepkg -si
 ```
+
+*Note: All intermediate build files, downloaded source tars, and compiled packages are cleanly isolated to the `packaging/arch/` directory to prevent any directory collisions with your local Rust source code.*
 
 ---
 
