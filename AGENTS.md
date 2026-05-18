@@ -10,7 +10,7 @@ Maintain, refactor, and extend Frost-Tune—a native parametric EQ editor for US
 - **Version:** 0.9.2
 - **Tech stack:** Rust 2021, Iced 0.14 (GUI), hidapi (HID I/O), tokio (async), serde/serde_json (serialization)
 - **Target platforms:** Linux (primary), Windows
-- **Status:** Actively maintained, CLI + GUI releases on Arch Linux AUR
+- **Status:** Actively maintained, CLI + GUI releases
 - **GUI framework decision:** Iced. libcosmic was evaluated and rejected.
 
 **[Instructions & Quick Start]**
@@ -23,7 +23,6 @@ Maintain, refactor, and extend Frost-Tune—a native parametric EQ editor for US
 
 ```
 frost-tune/
-├── PKGBUILD                       # Arch Linux PKGBUILD (at repo root for easier installs)
 ├── src/
 │   ├── main.rs                    # Entry point
 │   ├── lib.rs                     # Library root
@@ -241,9 +240,6 @@ graphify query "<question>"      # Query codebase context (when graphify-out/gra
 graphify path "<A>" "<B>"        # Find relationships between two concepts
 graphify explain "<concept>"     # Explain a focused concept
 graphify update .                # Refresh AST graph after code changes (AST-only, no API cost)
-
-# Package for Arch Linux
-makepkg -si
 ```
 
 ## Cutting a Release
@@ -251,11 +247,10 @@ makepkg -si
 Releases are automated via `.github/workflows/release.yml`, which fires on any pushed tag matching `v*.*.*`.
 
 1. **Pick version:** Patch bump for fixes (`0.8.4` → `0.8.5`), minor for features (`0.8.x` → `0.9.0`), major only on user request. Confirm if unsure.
-2. **Update versions** in three places:
+2. **Update versions** in two places:
    - `Cargo.toml`: `version = "X.Y.Z"`
-   - `PKGBUILD`: `pkgver=X.Y.Z`
    - `Cargo.lock`: run `cargo check --quiet` to sync
-3. **Commit:** `chore: bump version to X.Y.Z` (stage only `Cargo.toml`, `Cargo.lock`, `PKGBUILD`)
+3. **Commit:** `chore: bump version to X.Y.Z` (stage only `Cargo.toml`, `Cargo.lock`)
 4. **Tag:** `git tag vX.Y.Z`
 5. **Push:** `git push origin main && git push origin vX.Y.Z`
 6. **Verify:** `gh run watch` or `gh release view vX.Y.Z`
