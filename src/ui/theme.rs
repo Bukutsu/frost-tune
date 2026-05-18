@@ -1,8 +1,8 @@
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE,
     COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM,
-    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, SHAPE_FULL,
-    SHAPE_LARGE, SHAPE_SMALL, STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
+    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, SHAPE_SMALL,
+    STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
 };
 use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
@@ -50,7 +50,7 @@ pub fn card_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: COLOR_OUTLINE_VARIANT,
             width: 1.0,
-            radius: SHAPE_LARGE.into(),
+            radius: SHAPE_SMALL.into(),
         },
         ..Default::default()
     }
@@ -58,13 +58,10 @@ pub fn card_style(_theme: &Theme) -> container::Style {
 
 pub fn header_card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(COLOR_SURFACE_DIM)),
+        background: Some(Background::Color(ELEVATION_0)),
         border: Border {
-            color: Color {
-                a: 0.3,
-                ..TOKYO_NIGHT_TERMINAL_BLACK
-            },
-            width: 1.0,
+            color: Color::TRANSPARENT,
+            width: 0.0,
             radius: 0.0.into(),
         },
         ..Default::default()
@@ -88,19 +85,19 @@ pub fn tooltip_style(_theme: &Theme) -> container::Style {
 
 pub fn m3_filled_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::primary(theme, status);
-    style.border.radius = SHAPE_FULL.into();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
     enforce_disabled_button_contrast(style, status)
 }
 
 pub fn m3_tonal_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::secondary(theme, status);
-    style.border.radius = SHAPE_FULL.into();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
     enforce_disabled_button_contrast(style, status)
 }
 
 pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::danger(theme, status);
-    style.border.radius = SHAPE_FULL.into();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
 
     if matches!(status, button::Status::Active) {
         style.background = Some(Background::Color(COLOR_ERROR));
@@ -112,7 +109,7 @@ pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::
 
 pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(theme, status);
-    style.border.radius = SHAPE_FULL.into();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
 
     if matches!(status, button::Status::Hovered) {
         style.background = Some(Background::Color(Color {
@@ -173,7 +170,7 @@ pub fn m3_outlined_button(_theme: &Theme, status: button::Status) -> button::Sty
             ..COLOR_PRIMARY
         },
         width: 1.0,
-        radius: SHAPE_FULL.into(),
+        radius: SHAPE_EXTRA_SMALL.into(),
     };
     enforce_disabled_button_contrast(style, status)
 }
@@ -200,7 +197,7 @@ pub fn m3_outlined_button_error(_theme: &Theme, status: button::Status) -> butto
             ..COLOR_ERROR
         },
         width: 1.0,
-        radius: SHAPE_FULL.into(),
+        radius: SHAPE_EXTRA_SMALL.into(),
     };
     enforce_disabled_button_contrast(style, status)
 }
@@ -320,13 +317,38 @@ pub fn m3_filled_input(_theme: &Theme, status: text_input::Status) -> text_input
         } else {
             1.0
         },
-        radius: SHAPE_SMALL.into(),
+        radius: SHAPE_EXTRA_SMALL.into(),
     };
     style.background = Background::Color(if matches!(status, text_input::Status::Focused { .. }) {
         COLOR_SURFACE_DIM
     } else {
         COLOR_SURFACE
     });
+    style
+}
+
+pub fn m3_transparent_input(_theme: &Theme, status: text_input::Status) -> text_input::Style {
+    let mut style = m3_outlined_input(_theme, status);
+
+    let (border_color, border_width, bg_color) = match status {
+        text_input::Status::Focused { .. } => (COLOR_PRIMARY, 2.0, COLOR_SURFACE_DIM),
+        text_input::Status::Hovered => (
+            Color {
+                a: 0.3,
+                ..COLOR_OUTLINE
+            },
+            1.0,
+            COLOR_SURFACE,
+        ),
+        _ => (Color::TRANSPARENT, 0.0, Color::TRANSPARENT),
+    };
+
+    style.border = Border {
+        color: border_color,
+        width: border_width,
+        radius: SHAPE_EXTRA_SMALL.into(),
+    };
+    style.background = Background::Color(bg_color);
     style
 }
 

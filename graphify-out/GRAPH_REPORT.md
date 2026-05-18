@@ -1,16 +1,16 @@
-# Graph Report - frost-tune  (2026-05-17)
+# Graph Report - frost-tune  (2026-05-18)
 
 ## Corpus Check
-- 57 files · ~44,851 words
+- 57 files · ~45,222 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 502 nodes · 738 edges · 43 communities (24 shown, 19 thin omitted)
-- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 118 edges (avg confidence: 0.8)
+- 503 nodes · 742 edges · 42 communities (23 shown, 19 thin omitted)
+- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 120 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1096802d`
+- Built from commit: `2ae3f88b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -30,7 +30,6 @@
 - [[_COMMUNITY_Filter Model Input|Filter Model Input]]
 - [[_COMMUNITY_IPC Payload Validation|IPC Payload Validation]]
 - [[_COMMUNITY_Header & Status UI|Header & Status UI]]
-- [[_COMMUNITY_EQ Bands Table UI|EQ Bands Table UI]]
 - [[_COMMUNITY_Protocol Timing Specs|Protocol Timing Specs]]
 - [[_COMMUNITY_Message Routing Types|Message Routing Types]]
 - [[_COMMUNITY_Transport Backend|Transport Backend]]
@@ -76,11 +75,11 @@
 - `handle_editor()` --calls--> `parse_freq_string()`  [INFERRED]
   src/ui/update/editor.rs → src/ui/main_window.rs
 
-## Communities (43 total, 19 thin omitted)
+## Communities (42 total, 19 thin omitted)
 
 ### Community 0 - "Profile & Connection Management"
-Cohesion: 0.11
-Nodes (33): main(), append_diagnostics_log(), delete_profile(), get_base_dir(), get_diagnostics_log_path(), get_profiles_dir(), get_profiles_dir_mtime(), get_ui_preferences_path() (+25 more)
+Cohesion: 0.09
+Nodes (38): peq_to_autoeq(), test_peq_to_autoeq_format(), main(), append_diagnostics_log(), delete_profile(), export_profile(), get_base_dir(), get_diagnostics_log_path() (+30 more)
 
 ### Community 1 - "Main Window UI"
 Cohesion: 0.07
@@ -95,8 +94,8 @@ Cohesion: 0.14
 Nodes (23): assemble_filters(), delay_ms(), flush_hid_buffer(), get_next_nonce(), pull_peq_internal(), read_global_gain(), read_single_filter_with_nonce(), reset_nonce() (+15 more)
 
 ### Community 4 - "Theme & UI Tokens"
-Cohesion: 0.08
-Nodes (24): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), gain_color(), gain_slider_style(), m3_filled_button(), m3_filled_button_error() (+16 more)
+Cohesion: 0.07
+Nodes (32): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), gain_color(), gain_slider_style(), m3_filled_button(), m3_filled_button_error() (+24 more)
 
 ### Community 5 - "Editor State Buffers"
 Cohesion: 0.1
@@ -111,8 +110,8 @@ Cohesion: 0.11
 Nodes (6): DeviceProtocol, test_tp35pro_build_filter_write_packet(), test_tp35pro_build_flash_eq_packet(), test_tp35pro_build_global_gain_write_packet(), test_tp35pro_build_temp_write_packet(), TP35ProProtocol
 
 ### Community 8 - "AutoEQ Format Parsing"
-Cohesion: 0.16
-Nodes (22): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+14 more)
+Cohesion: 0.24
+Nodes (17): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+9 more)
 
 ### Community 9 - "Diagnostics System"
 Cohesion: 0.13
@@ -133,10 +132,6 @@ Nodes (7): ConnectionResult, OperationResult, PushPayload, handle_hardware(), is
 ### Community 14 - "Header & Status UI"
 Cohesion: 0.2
 Nodes (6): sync_toolbar_button(), view_header(), icon_button(), small_action_button(), toolbar_button(), view_status_banner()
-
-### Community 15 - "EQ Bands Table UI"
-Cohesion: 0.39
-Nodes (7): render_band_column(), render_band_row(), render_freq_cell(), render_gain_cell(), render_q_cell(), render_type_buttons(), view_bands()
 
 ### Community 19 - "Message Routing Types"
 Cohesion: 0.5
@@ -163,7 +158,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `Profile`, `UiPreferences`, `CommandSpec` to the rest of the system?**
   _77 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Profile & Connection Management` be split into smaller, more focused modules?**
-  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09 - nodes in this community are weakly interconnected._
 - **Should `Main Window UI` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `Hardware Worker Server` be split into smaller, more focused modules?**

@@ -195,8 +195,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 },
                 Message::WorkerConnected,
             );
-            let status_task = window.set_status("Connecting to device...", StatusSeverity::Info);
-            Task::batch(vec![connect_task, status_task])
+            connect_task
         }
         Message::DisconnectPressed => {
             if window.worker.is_none() {
@@ -231,8 +230,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 },
                 Message::WorkerDisconnected,
             );
-            let status_task = window.set_status("Disconnecting...", StatusSeverity::Info);
-            Task::batch(vec![disconnect_task, status_task])
+            disconnect_task
         }
         Message::WorkerConnected(result) => {
             window.operation_lock.is_connecting = false;
@@ -256,10 +254,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     format!("Connected to {}", device_name_owned),
                 ));
-                window.set_status(
-                    format!("Connected to {}", device_name_owned),
-                    StatusSeverity::Success,
-                )
+                Task::none()
             } else {
                 let err = result
                     .error
@@ -303,7 +298,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 window.last_auto_reconnect_attempt = None;
                 window.auto_reconnect_attempts = 0;
             }
-            window.set_status("Disconnected", StatusSeverity::Info)
+            Task::none()
         }
         Message::WorkerStatus(status) => {
             if status.backend_reset {

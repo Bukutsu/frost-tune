@@ -195,7 +195,7 @@ impl<Message> Program<Message> for EqGraph {
                 builder.line_to(Point::new(bounds.width, zero_db_y));
                 builder.line_to(Point::new(0.0, zero_db_y));
             });
-            frame.fill(&fill_path, Color::from_rgba(0.49, 0.81, 1.0, 0.08));
+            frame.fill(&fill_path, Color::from_rgba(0.49, 0.81, 1.0, 0.15));
 
             let path = Path::new(|builder| {
                 for (i, &db) in responses.iter().enumerate() {
@@ -212,7 +212,7 @@ impl<Message> Program<Message> for EqGraph {
 
             frame.stroke(
                 &path,
-                Stroke::default().with_color(COLOR_PRIMARY).with_width(2.0),
+                Stroke::default().with_color(COLOR_PRIMARY).with_width(3.0),
             );
         });
 

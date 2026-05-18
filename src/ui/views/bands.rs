@@ -6,8 +6,8 @@ use crate::ui::tokens::{
     BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
     BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
     BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE,
-    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SURFACE_DIM, ELEVATION_2, SHAPE_EXTRA_SMALL,
-    SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TINY,
+    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_LABEL,
+    TYPE_TINY,
 };
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
@@ -216,8 +216,9 @@ fn render_input_field<'a>(
     on_submit: Message,
 ) -> Element<'a, Message> {
     let input = text_input("", &value)
+        .font(iced::Font::MONOSPACE)
         .style(move |theme, status| {
-            let mut style = theme::m3_filled_input(theme, status);
+            let mut style = theme::m3_transparent_input(theme, status);
             if !is_active {
                 style.value.a = 0.3;
             }
@@ -281,57 +282,20 @@ fn render_type_buttons<'a>(
             .width(Length::Fixed(BAND_FILTER_BUTTON_WIDTH))
             .height(Length::Fixed(BAND_FILTER_BUTTON_HEIGHT))
             .padding(0)
-            .style(move |_theme, status| {
-                let base = if is_selected {
-                    iced::widget::button::Style {
-                        background: Some(COLOR_PRIMARY.into()),
-                        border: iced::Border {
-                            color: COLOR_PRIMARY,
-                            width: 1.0,
-                            radius: SHAPE_EXTRA_SMALL.into(),
-                        },
-                        text_color: COLOR_ON_PRIMARY,
-                        ..Default::default()
-                    }
-                } else {
-                    iced::widget::button::Style {
-                        background: Some(COLOR_SURFACE_DIM.into()),
-                        border: iced::Border {
-                            color: Color {
-                                a: 0.3,
-                                ..COLOR_ON_SURFACE_VARIANT
-                            },
-                            width: 1.0,
-                            radius: SHAPE_EXTRA_SMALL.into(),
-                        },
-                        text_color: COLOR_ON_SURFACE,
-                        ..Default::default()
-                    }
-                };
-                let mut style = match status {
-                    iced::widget::button::Status::Hovered if !is_selected => {
-                        iced::widget::button::Style {
-                            background: Some(ELEVATION_2.into()),
-                            ..base
-                        }
-                    }
-                    iced::widget::button::Status::Pressed => iced::widget::button::Style {
-                        background: Some(
-                            Color {
-                                a: 0.8,
-                                ..COLOR_PRIMARY
-                            }
-                            .into(),
-                        ),
-                        ..base
-                    },
-                    _ => base,
-                };
+            .style(move |theme, status| {
+                let mut style = theme::m3_text_button(theme, status);
+                style.border.width = 0.0;
+
+                if is_selected {
+                    style.background = Some(COLOR_PRIMARY.into());
+                    style.text_color = COLOR_ON_PRIMARY;
+                }
+
                 if !is_active {
                     if let Some(Background::Color(c)) = &mut style.background {
                         c.a *= 0.3;
                     }
-                    style.border.color.a *= 0.3;
+                    style.text_color.a *= 0.3;
                 }
                 style
             });
@@ -453,7 +417,7 @@ fn render_band_row<'a>(
     let gain_error = state.editor_state.session.input_buffer.get_gain_error(i);
     let q_error = state.editor_state.session.input_buffer.get_q_error(i);
 
-    let is_active = band.enabled;
+    let is_active = band.enabled && band.gain.abs() > 0.01;
     let accent_color = if is_active {
         COLOR_PRIMARY
     } else {

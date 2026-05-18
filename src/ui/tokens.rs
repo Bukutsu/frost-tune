@@ -45,8 +45,8 @@ pub const ELEVATION_3: Color = TOKYO_NIGHT_TERMINAL_BLACK; // Level 3: Interacti
 
 // ── M3 Shape Scale ─────────────────────────────────────────────────────
 pub const SHAPE_NONE: f32 = 0.0;
-pub const SHAPE_EXTRA_SMALL: f32 = 4.0;
-pub const SHAPE_SMALL: f32 = 8.0;
+pub const SHAPE_EXTRA_SMALL: f32 = 0.0;
+pub const SHAPE_SMALL: f32 = 0.0;
 pub const SHAPE_MEDIUM: f32 = 12.0;
 pub const SHAPE_LARGE: f32 = 16.0;
 pub const SHAPE_EXTRA_LARGE: f32 = 28.0;

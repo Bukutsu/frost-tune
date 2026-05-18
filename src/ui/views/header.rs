@@ -3,9 +3,9 @@ use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    COLOR_INFO, COLOR_ON_PRIMARY, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE, COLOR_PRIMARY,
-    COLOR_SUCCESS, COLOR_WARNING, SHAPE_EXTRA_SMALL, SPACE_12, SPACE_16, SPACE_2, SPACE_6, SPACE_8,
-    TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
+    COLOR_INFO, COLOR_ON_PRIMARY, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS,
+    COLOR_WARNING, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY,
+    TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;
@@ -93,45 +93,16 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         ));
     }
 
-    let status_indicator = match &state.connection_status {
-        ConnectionStatus::Connected => {
-            container(text("SYNCED").size(TYPE_TINY).color(COLOR_ON_PRIMARY))
-                .padding([SPACE_2, SPACE_6])
-                .style(|_theme| container::Style {
-                    background: Some(COLOR_SUCCESS.into()),
-                    border: iced::Border {
-                        radius: SHAPE_EXTRA_SMALL.into(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-        }
-        ConnectionStatus::Connecting => {
-            container(text("CONNECTING").size(TYPE_TINY).color(COLOR_ON_PRIMARY))
-                .padding([SPACE_2, SPACE_6])
-                .style(|_theme| container::Style {
-                    background: Some(COLOR_WARNING.into()),
-                    border: iced::Border {
-                        radius: SHAPE_EXTRA_SMALL.into(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-        }
-        _ => container(
-            text("OFFLINE")
-                .size(TYPE_TINY)
-                .color(COLOR_ON_SURFACE_VARIANT),
-        )
-        .padding([SPACE_2, SPACE_6])
-        .style(|_theme| container::Style {
-            background: Some(COLOR_OUTLINE.into()),
-            border: iced::Border {
-                radius: SHAPE_EXTRA_SMALL.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
+    let status_indicator: Element<'_, Message> = match &state.connection_status {
+        ConnectionStatus::Connected => text("• SYNCED").size(TYPE_TINY).color(COLOR_SUCCESS).into(),
+        ConnectionStatus::Connecting => text("• CONNECTING")
+            .size(TYPE_TINY)
+            .color(COLOR_WARNING)
+            .into(),
+        _ => text("• OFFLINE")
+            .size(TYPE_TINY)
+            .color(COLOR_ON_SURFACE_VARIANT)
+            .into(),
     };
 
     let device_info: Element<'_, Message> = if let Some(ref dev) = state.connected_device {

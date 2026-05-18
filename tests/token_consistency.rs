@@ -44,7 +44,7 @@ fn test_band_density() {
 #[test]
 fn test_shape_semantics_tokens() {
     const _: () = assert!(SHAPE_FULL >= 999.0);
-    assert!((4.0..=8.0).contains(&SHAPE_EXTRA_SMALL));
+    assert_eq!(SHAPE_EXTRA_SMALL, 0.0);
 }
 
 #[test]

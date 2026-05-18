@@ -1,7 +1,7 @@
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::tokens::{COLOR_OUTLINE, ELEVATION_0, SHAPE_LARGE, SPACE_12, SPACE_16};
+use crate::ui::tokens::{ELEVATION_0, SPACE_12, SPACE_16};
 use iced::widget::{canvas, container};
 use iced::{Color, Element, Length, Padding};
 
@@ -63,12 +63,9 @@ fn graph_container_style(_theme: &iced::Theme) -> container::Style {
     container::Style {
         background: Some(ELEVATION_0.into()),
         border: iced::Border {
-            color: Color {
-                a: 0.2,
-                ..COLOR_OUTLINE
-            },
-            width: 1.0,
-            radius: SHAPE_LARGE.into(),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
         },
         ..Default::default()
     }
