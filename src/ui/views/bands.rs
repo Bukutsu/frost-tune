@@ -177,63 +177,6 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
                     }),
-                text("Filter quality factor (width)"),
-                tooltip::Position::Bottom,
-            )
-            .style(theme::tooltip_style),
-        )
-        .padding([0.0, SPACE_4])
-        .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
-        .into(),
-    );
-    elements.push(
-        container(
-            tooltip(
-                text("FREQ (Hz)")
-                    .size(TYPE_TINY)
-                    .color(COLOR_ON_SURFACE)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-                text("Center frequency of the filter band"),
-                tooltip::Position::Bottom,
-            )
-            .style(theme::tooltip_style),
-        )
-        .padding([0.0, SPACE_4])
-        .width(Length::Fixed(BAND_FREQ_INPUT_WIDTH))
-        .into(),
-    );
-    elements.push(
-        container(
-            tooltip(
-                text("GAIN (dB)")
-                    .size(TYPE_TINY)
-                    .color(COLOR_ON_SURFACE)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
-                text("Boost or cut level. Range: +/-10 dB"),
-                tooltip::Position::Bottom,
-            )
-            .style(theme::tooltip_style),
-        )
-        .padding([0.0, SPACE_4])
-        .width(Length::Fill)
-        .into(),
-    );
-    elements.push(
-        container(
-            tooltip(
-                text("Q")
-                    .size(TYPE_TINY)
-                    .color(COLOR_ON_SURFACE)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    }),
                 text("Quality factor. Lower = wider, higher = narrower"),
                 tooltip::Position::Bottom,
             )
@@ -287,16 +230,12 @@ fn render_input_field<'a>(
     } else {
         input.on_input(on_input).on_submit(on_submit)
     };
-    column![
-        input,
-        if let Some(err) = error {
-            text(err).size(TYPE_TINY).color(COLOR_ERROR)
-        } else {
-            text("").size(0)
-        }
-    ]
-    .spacing(SPACE_2)
-    .into()
+    let error_row: Element<'_, Message> = if let Some(err) = error {
+        text(err).size(TYPE_TINY).color(COLOR_ERROR).into()
+    } else {
+        iced::widget::Space::new().height(TYPE_TINY).into()
+    };
+    column![input, error_row].spacing(SPACE_2).into()
 }
 
 fn render_type_buttons<'a>(
