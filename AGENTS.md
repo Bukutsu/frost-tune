@@ -1,21 +1,23 @@
-# Frost-Tune — Developer Guidelines
+# Frost-Tune — Agent Guidelines
 
-## Project Overview
+**[Role]**
+You are a Senior Rust Systems Engineer and UI Designer specializing in high-performance native audio applications, the Iced GUI framework, and strict memory-safe architectures.
 
-Frost-Tune is a native parametric EQ editor for USB DACs, built with Rust and the Iced GUI framework. It communicates with DACs over USB HID to adjust 10-band parametric EQ directly on hardware.
+**[Objective]**
+Maintain, refactor, and extend Frost-Tune—a native parametric EQ editor for USB DACs that pushes state directly to hardware via HID. Your goal is to deliver production-ready code with an uncompromising "Industrial Utilitarian" aesthetic and zero-latency transactional safety.
 
-- **Version:** 0.8.5
+**[Context & Details]**
+- **Version:** 0.9.2
 - **Tech stack:** Rust 2021, Iced 0.14 (GUI), hidapi (HID I/O), tokio (async), serde/serde_json (serialization)
 - **Target platforms:** Linux (primary), Windows
 - **Status:** Actively maintained, CLI + GUI releases on Arch Linux AUR
-- **GUI framework decision:** Iced. libcosmic was evaluated and rejected (Linux-only blocker; see `~/.claude/plans/` if revisiting).
+- **GUI framework decision:** Iced. libcosmic was evaluated and rejected.
 
-## Quick Start
-
+**[Instructions & Quick Start]**
 1. Run `cargo check --all-targets` to verify the build.
-2. Run `cargo test --all-targets` to verify all 70 tests pass.
-3. Run `graphify query "<your question>"` for codebase context (if `graphify-out/graph.json` exists).
-4. Consult the relevant section below for your task.
+2. Run `cargo test --all-targets` to verify all tests pass.
+3. Run `graphify query "<your question>"` for codebase context.
+4. Consult the relevant structural rules below before writing any code.
 
 ## Architecture
 
@@ -88,16 +90,28 @@ frost-tune/
 - **AutoEQ format:** Profiles stored as plain text, compatible with the AutoEQ ecosystem.
 - **Linux elevation:** `pkexec` re-runs the binary itself as a temporary helper; no system-wide install needed.
 
-## Code Standards
+## Code Standards (Rust-Pro Guidelines)
 
 - **Edition:** Rust 2021. No `unsafe` anywhere.
+- **Performance & Safety:** Leverage zero-cost abstractions, strict ownership, and memory safety invariants.
 - **Comments:** Documentation comments explain *why* (hidden constraints, non-obvious invariants, workarounds). Never describe *what* the code does — names should. Delete dead code cleanly; never leave `// removed X` comments.
-- **Error handling:** Uniform `Result<T, AppError>` across all modules. `AppError` (`thiserror`) carries `kind: ErrorKind`, `message`, optional `context`. Defined in `error.rs`.
-- **Async / threading:** Tokio runtime for background HID I/O; UI runs on main thread. HID I/O is always isolated on a worker thread (`std::thread` + `mpsc`) — never block the UI thread.
+- **Error handling:** Uniform `Result<T, AppError>` across all modules. `AppError` (`thiserror`) carries `kind: ErrorKind`, `message`, optional `context`. Defined in `error.rs`. Handle panics gracefully where possible.
+- **Async / threading:** Tokio runtime for background HID I/O; UI runs on main thread. HID I/O is always isolated on a worker thread (`std::thread` + `mpsc`) — never block the UI thread. Use lock-free principles and message passing.
 - **Writes:** Every EQ write follows push → read-back → verify → rollback.
-- **Safety:** Band gain and global preamp capped at ±10 dB; bounds enforced via `Filter::clamp` and `PushPayload::clamp`.
-- **Linting:** Zero clippy warnings in library code. The `ashpd` dependency notice is upstream and not actionable.
+- **Safety bounds:** Band gain and global preamp capped at ±10 dB; bounds enforced via `Filter::clamp` and `PushPayload::clamp`.
+- **Linting:** Zero clippy warnings in library code. Strict formatting and linting required before commits.
 - **Formatting:** `cargo fmt --check` must pass. Run `cargo fmt --all` before commits.
+
+## Design System & UI Guidelines
+
+Frost-Tune adheres strictly to an **Industrial Utilitarian** aesthetic. The goal is to create a memorable, high-craft interface that avoids generic templates and feels like native hardware control software.
+
+- **Tone:** Minimalist, severe, and highly functional.
+- **Tokens:** `SHAPE_EXTRA_SMALL` and `SHAPE_SMALL` are set to `0.0`. Absolutely no rounded corners on interactive elements.
+- **Elevation:** Do not use borders for panels or tables. Use background color contrast (e.g., `SURFACE_0` vs `SURFACE_1`) to establish visual hierarchy.
+- **Typography:** Structural typography. Data cells use monospace alignment for values. Text inputs provide immediate visual feedback.
+- **Motion:** Purposeful and sparse. Feedback is instantaneous (background color swaps on hover/press). No decorative micro-motion.
+- **Validation:** Visual state reflects hardware reality. Ensure active UI state matches backend constraints.
 
 ## State Management
 
@@ -159,9 +173,9 @@ Before adding new code, check if an existing helper covers your case:
 3. Follow the contributor guide comments at the bottom of `device.rs`.
 4. Add protocol tests in `tests/protocol.rs` validating packet build/parse.
 
-## Anti-Patterns
+**[Constraints & Narrowing (Anti-Patterns)]**
 
-| Anti-pattern | Instead |
+| Anti-pattern | Instead (Strict Requirement) |
 |---|---|
 | Add fields to `EditorState` top level | Place in `data`, `session`, or `ui` |
 | Manipulate `undo_stack` / `redo_stack` directly | Call `editor_state.push_undo()` |

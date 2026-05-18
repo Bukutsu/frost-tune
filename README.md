@@ -1,6 +1,6 @@
 # Frost-Tune
 
-A native parametric EQ editor for USB DACs. Plug in your device, shape your sound, and push it directly to hardware.
+A native, high-performance parametric EQ editor for USB DACs. Built with an uncompromising **Industrial Utilitarian** design philosophy, Frost-Tune allows you to plug in your device, shape your sound with zero-latency precision, and push state directly to hardware with transactional safety.
 
 ![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=flat-square&logo=rust)
 ![Iced](https://img.shields.io/badge/Iced-0.14-blue?style=flat-square)
@@ -30,14 +30,16 @@ Frost-Tune provides a streamlined, native interface for configuring the internal
 
 ---
 
-## Tech Stack
+## Tech Stack & Architecture
 
-- **Language**: [Rust](https://www.rust-lang.org/) (2021 Edition)
-- **GUI Framework**: [Iced](https://iced.rs/) (0.14)
-- **USB Communication**: [hidapi](https://github.com/libusb/hidapi)
-- **Concurrency**: [Tokio](https://tokio.rs/)
-- **Serialization**: [Serde](https://serde.rs/)
-- **Styling**: Tokyo Night inspired theme with custom Iced widgets
+Frost-Tune is engineered as a robust systems application leveraging the Rust 1.75+ ecosystem:
+
+- **Core**: [Rust](https://www.rust-lang.org/) (2021 Edition) utilizing zero-cost abstractions and memory safety guarantees.
+- **GUI Framework**: [Iced](https://iced.rs/) (0.14) implementing an Elm-inspired state architecture.
+- **USB Communication**: [hidapi](https://github.com/libusb/hidapi) wrapper for low-level, cross-platform hardware access.
+- **Concurrency**: [Tokio](https://tokio.rs/) for asynchronous worker threads and lock-free message passing.
+- **Serialization**: [Serde](https://serde.rs/) for rigid profile parsing and IPC payloads.
+- **Design Language**: Custom **Industrial Utilitarian** aesthetic with blocky `0.0` border radii, zero unnecessary borders, and immediate visual feedback.
 
 ---
 
