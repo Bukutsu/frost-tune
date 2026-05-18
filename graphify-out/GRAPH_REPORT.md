@@ -1,16 +1,16 @@
 # Graph Report - frost-tune  (2026-05-17)
 
 ## Corpus Check
-- 57 files · ~44,687 words
+- 57 files · ~44,851 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 499 nodes · 723 edges · 43 communities (24 shown, 19 thin omitted)
-- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 112 edges (avg confidence: 0.8)
+- 502 nodes · 738 edges · 43 communities (24 shown, 19 thin omitted)
+- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 118 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5fc255eb`
+- Built from commit: `1096802d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -79,8 +79,8 @@
 ## Communities (43 total, 19 thin omitted)
 
 ### Community 0 - "Profile & Connection Management"
-Cohesion: 0.1
-Nodes (37): peq_to_autoeq(), test_peq_to_autoeq_format(), main(), append_diagnostics_log(), delete_profile(), export_profile(), get_base_dir(), get_diagnostics_log_path() (+29 more)
+Cohesion: 0.11
+Nodes (33): main(), append_diagnostics_log(), delete_profile(), get_base_dir(), get_diagnostics_log_path(), get_profiles_dir(), get_profiles_dir_mtime(), get_ui_preferences_path() (+25 more)
 
 ### Community 1 - "Main Window UI"
 Cohesion: 0.07
@@ -96,7 +96,7 @@ Nodes (23): assemble_filters(), delay_ms(), flush_hid_buffer(), get_next_nonce()
 
 ### Community 4 - "Theme & UI Tokens"
 Cohesion: 0.08
-Nodes (23): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), gain_color(), gain_slider_style(), m3_filled_button(), m3_filled_button_error() (+15 more)
+Nodes (24): contrast_ratio(), linear_channel(), test_disabled_button_contrast_wcag_aa(), enforce_disabled_button_contrast(), gain_color(), gain_slider_style(), m3_filled_button(), m3_filled_button_error() (+16 more)
 
 ### Community 5 - "Editor State Buffers"
 Cohesion: 0.1
@@ -111,12 +111,12 @@ Cohesion: 0.11
 Nodes (6): DeviceProtocol, test_tp35pro_build_filter_write_packet(), test_tp35pro_build_flash_eq_packet(), test_tp35pro_build_global_gain_write_packet(), test_tp35pro_build_temp_write_packet(), TP35ProProtocol
 
 ### Community 8 - "AutoEQ Format Parsing"
-Cohesion: 0.24
-Nodes (17): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+9 more)
+Cohesion: 0.16
+Nodes (22): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+14 more)
 
 ### Community 9 - "Diagnostics System"
-Cohesion: 0.12
-Nodes (7): DiagnosticEvent, DiagnosticsStore, format_diagnostics(), LogLevel, parse_diagnostic_log_line(), Source, handle_autoeq()
+Cohesion: 0.13
+Nodes (6): DiagnosticEvent, DiagnosticsStore, format_diagnostics(), LogLevel, parse_diagnostic_log_line(), Source
 
 ### Community 10 - "Elevated Errors Transport"
 Cohesion: 0.09
@@ -135,7 +135,7 @@ Cohesion: 0.2
 Nodes (6): sync_toolbar_button(), view_header(), icon_button(), small_action_button(), toolbar_button(), view_status_banner()
 
 ### Community 15 - "EQ Bands Table UI"
-Cohesion: 0.33
+Cohesion: 0.39
 Nodes (7): render_band_column(), render_band_row(), render_freq_cell(), render_gain_cell(), render_q_cell(), render_type_buttons(), view_bands()
 
 ### Community 19 - "Message Routing Types"
@@ -154,10 +154,8 @@ Nodes (30): 1. Clone the Repository, 2. Build and Run, 3. (Linux Only) Setup USB
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `MainWindow` connect `Main Window UI` to `Theme & UI Tokens`?**
-  _High betweenness centrality (0.168) - this node is a cross-community bridge._
 - **Why does `assemble_filters()` connect `HID Operations Pipeline` to `Domain Rules Snapping`?**
-  _High betweenness centrality (0.165) - this node is a cross-community bridge._
+  _High betweenness centrality (0.169) - this node is a cross-community bridge._
 - **Why does `handle_editor()` connect `Domain Rules Snapping` to `Profile & Connection Management`, `Main Window UI`?**
   _High betweenness centrality (0.105) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `parse_autoeq_text()` (e.g. with `.enabled()` and `load_all_profiles()`) actually correct?**
@@ -165,6 +163,8 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `Profile`, `UiPreferences`, `CommandSpec` to the rest of the system?**
   _77 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Profile & Connection Management` be split into smaller, more focused modules?**
-  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
 - **Should `Main Window UI` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+- **Should `Hardware Worker Server` be split into smaller, more focused modules?**
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._

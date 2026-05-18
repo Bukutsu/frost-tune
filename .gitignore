@@ -13,6 +13,8 @@
 *.tar.gz
 *.pkg.tar.*
 .SRCINFO
+!/packaging/arch/.SRCINFO
+!/packaging/arch-bin/.SRCINFO
 
 # IDE and AI tools
 /.cargo/
