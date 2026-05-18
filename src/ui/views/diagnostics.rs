@@ -4,7 +4,7 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_WARNING, DIAGNOSTICS_LEVEL_WIDTH,
-    DIAGNOSTICS_TIME_WIDTH, SPACE_12, SPACE_4, SPACE_8, TYPE_TINY,
+    DIAGNOSTICS_TIME_WIDTH, DIVIDER_HEIGHT, SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_TINY,
 };
 use crate::ui::views::small_action_button;
 use iced::widget::{column, container, row, scrollable, text};
@@ -48,6 +48,11 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
                 LogLevel::Warn => COLOR_WARNING,
                 LogLevel::Error => COLOR_ERROR,
             };
+            let level_prefix = match e.level {
+                LogLevel::Info => "[I]",
+                LogLevel::Warn => "[W]",
+                LogLevel::Error => "[E]",
+            };
             row![
                 text(&e.timestamp)
                     .size(TYPE_TINY)
@@ -57,6 +62,13 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
                     .size(TYPE_TINY)
                     .color(COLOR_ON_SURFACE_VARIANT)
                     .width(Length::Fixed(DIAGNOSTICS_TIME_WIDTH)),
+                text(level_prefix)
+                    .size(TYPE_TINY)
+                    .color(c)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
                 text(&e.message)
                     .size(TYPE_TINY)
                     .color(c)
@@ -68,7 +80,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
         })
         .collect();
 
-    let log_content = scrollable(column(diag_events).spacing(2)).height(Length::Shrink);
+    let log_content = scrollable(column(diag_events).spacing(SPACE_2)).height(Length::Shrink);
 
     container(
         column![
@@ -88,10 +100,12 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
             ]
             .spacing(SPACE_8)
             .align_y(Alignment::Center),
-            container(text("")).height(1.0).style(|_| container::Style {
-                background: Some(iced::Background::Color(COLOR_ON_SURFACE_VARIANT)),
-                ..Default::default()
-            }),
+            container(text(""))
+                .height(DIVIDER_HEIGHT)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(COLOR_ON_SURFACE_VARIANT)),
+                    ..Default::default()
+                }),
             log_content,
         ]
         .spacing(SPACE_4),

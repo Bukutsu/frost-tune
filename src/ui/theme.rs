@@ -1,7 +1,9 @@
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE,
-    COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM, COLOR_WARNING, ELEVATION_0,
-    ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
+    COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM,
+    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL,
+    STATE_DISABLED_CONTAINER_OPACITY, STATE_DISABLED_CONTENT_OPACITY, STATE_HOVER_OPACITY,
+    STATE_PRESSED_OPACITY,
 };
 use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
@@ -85,12 +87,42 @@ pub fn tooltip_style(_theme: &Theme) -> container::Style {
 pub fn m3_filled_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::primary(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
+    match status {
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_HOVER_OPACITY,
+                ..COLOR_ON_PRIMARY
+            }));
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_PRESSED_OPACITY,
+                ..COLOR_ON_PRIMARY
+            }));
+        }
+        _ => {}
+    }
     enforce_disabled_button_contrast(style, status)
 }
 
 pub fn m3_tonal_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::secondary(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
+    match status {
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_HOVER_OPACITY,
+                ..COLOR_ON_SURFACE
+            }));
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_PRESSED_OPACITY,
+                ..COLOR_ON_SURFACE
+            }));
+        }
+        _ => {}
+    }
     enforce_disabled_button_contrast(style, status)
 }
 
@@ -98,9 +130,26 @@ pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::
     let mut style = button::danger(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
 
-    if matches!(status, button::Status::Active) {
-        style.background = Some(Background::Color(COLOR_ERROR));
-        style.text_color = COLOR_ON_PRIMARY;
+    match status {
+        button::Status::Active => {
+            style.background = Some(Background::Color(COLOR_ERROR));
+            style.text_color = COLOR_ON_PRIMARY;
+        }
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_HOVER_OPACITY,
+                ..COLOR_ERROR
+            }));
+            style.text_color = COLOR_ON_PRIMARY;
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_PRESSED_OPACITY,
+                ..COLOR_ERROR
+            }));
+            style.text_color = COLOR_ON_PRIMARY;
+        }
+        _ => {}
     }
 
     enforce_disabled_button_contrast(style, status)
@@ -116,10 +165,7 @@ pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
             ..COLOR_ON_SURFACE
         }));
         style.border.width = 1.0;
-        style.border.color = Color {
-            a: 0.2,
-            ..COLOR_ON_SURFACE
-        };
+        style.border.color = COLOR_OUTLINE_VARIANT;
     }
 
     enforce_disabled_button_contrast(style, status)
@@ -360,23 +406,67 @@ pub fn checkbox_style(_theme: &Theme, status: checkbox::Status) -> checkbox::Sty
         checkbox::Status::Disabled { is_checked } => is_checked,
     };
 
+    let is_disabled = matches!(status, checkbox::Status::Disabled { .. });
+
+    let icon_color = if is_disabled {
+        Color {
+            a: STATE_DISABLED_CONTENT_OPACITY,
+            ..COLOR_ON_PRIMARY
+        }
+    } else {
+        COLOR_ON_PRIMARY
+    };
+
+    let border_color = if is_checked {
+        if is_disabled {
+            Color {
+                a: STATE_DISABLED_CONTENT_OPACITY,
+                ..COLOR_PRIMARY
+            }
+        } else {
+            COLOR_PRIMARY
+        }
+    } else if is_disabled {
+        Color {
+            a: STATE_DISABLED_CONTAINER_OPACITY,
+            ..COLOR_OUTLINE
+        }
+    } else {
+        COLOR_OUTLINE
+    };
+
     checkbox::Style {
         background: if is_checked {
-            Background::Color(COLOR_PRIMARY)
+            if is_disabled {
+                Background::Color(Color {
+                    a: STATE_DISABLED_CONTENT_OPACITY,
+                    ..COLOR_PRIMARY
+                })
+            } else {
+                Background::Color(COLOR_PRIMARY)
+            }
+        } else if is_disabled {
+            Background::Color(Color {
+                a: STATE_DISABLED_CONTAINER_OPACITY,
+                ..COLOR_SURFACE
+            })
         } else {
             Background::Color(Color::TRANSPARENT)
         },
-        icon_color: COLOR_ON_PRIMARY,
+        icon_color,
         border: Border {
             radius: SHAPE_EXTRA_SMALL.into(),
             width: 1.0,
-            color: if is_checked {
-                COLOR_PRIMARY
-            } else {
-                COLOR_OUTLINE
-            },
+            color: border_color,
         },
-        text_color: Some(COLOR_ON_SURFACE),
+        text_color: if is_disabled {
+            Some(Color {
+                a: STATE_DISABLED_CONTENT_OPACITY,
+                ..COLOR_ON_SURFACE
+            })
+        } else {
+            Some(COLOR_ON_SURFACE)
+        },
     }
 }
 

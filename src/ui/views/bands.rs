@@ -3,11 +3,11 @@ use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
-    BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
+    BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
     BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
     BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE,
-    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_LABEL,
-    TYPE_TINY,
+    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_12, SPACE_2, SPACE_4, SPACE_8,
+    STATE_DISABLED_CONTAINER_OPACITY, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
 };
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
@@ -19,7 +19,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     let show_enable = state.supports_per_band_enable();
 
     responsive(move |size| {
-        if size.width < 1100.0 {
+        if size.width < BANDS_TWO_COLUMN_BREAK {
             // Single column for narrow/medium widths
             let col = render_band_column(
                 0,
@@ -125,7 +125,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
                     ..Default::default()
                 }),
         )
-        .padding([0.0, 5.0])
+        .padding([0.0, SPACE_4])
         .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
         .into(),
     );
@@ -144,7 +144,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, 5.0])
+        .padding([0.0, SPACE_4])
         .width(Length::Fixed(BAND_FREQ_INPUT_WIDTH))
         .into(),
     );
@@ -163,7 +163,64 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, 5.0])
+        .padding([0.0, SPACE_4])
+        .width(Length::Fill)
+        .into(),
+    );
+    elements.push(
+        container(
+            tooltip(
+                text("Q")
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Filter quality factor (width)"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
+        )
+        .padding([0.0, SPACE_4])
+        .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
+        .into(),
+    );
+    elements.push(
+        container(
+            tooltip(
+                text("FREQ (Hz)")
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Center frequency of the filter band"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
+        )
+        .padding([0.0, SPACE_4])
+        .width(Length::Fixed(BAND_FREQ_INPUT_WIDTH))
+        .into(),
+    );
+    elements.push(
+        container(
+            tooltip(
+                text("GAIN (dB)")
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    }),
+                text("Boost or cut level. Range: +/-10 dB"),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
+        )
+        .padding([0.0, SPACE_4])
         .width(Length::Fill)
         .into(),
     );
@@ -182,7 +239,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, 5.0])
+        .padding([0.0, SPACE_4])
         .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
         .into(),
     );
@@ -198,7 +255,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             .width(Length::Fill)
             .style(move |_| container::Style {
                 background: Some(Background::Color(Color {
-                    a: 0.2,
+                    a: STATE_DISABLED_CONTAINER_OPACITY,
                     ..COLOR_ON_SURFACE_VARIANT
                 })),
                 ..Default::default()
@@ -220,7 +277,7 @@ fn render_input_field<'a>(
         .style(move |theme, status| {
             let mut style = theme::m3_transparent_input(theme, status);
             if !is_active {
-                style.value.a = 0.3;
+                style.value.a = STATE_DISABLED_CONTENT_OPACITY;
             }
             style
         })
@@ -235,7 +292,7 @@ fn render_input_field<'a>(
         if let Some(err) = error {
             text(err).size(TYPE_TINY).color(COLOR_ERROR)
         } else {
-            text("").size(1)
+            text("").size(0)
         }
     ]
     .spacing(SPACE_2)
@@ -262,7 +319,7 @@ fn render_type_buttons<'a>(
                                 COLOR_ON_PRIMARY
                             } else {
                                 Color {
-                                    a: 0.5,
+                                    a: STATE_DISABLED_CONTENT_OPACITY,
                                     ..COLOR_ON_PRIMARY
                                 }
                             }
@@ -270,7 +327,7 @@ fn render_type_buttons<'a>(
                             COLOR_ON_SURFACE
                         } else {
                             Color {
-                                a: 0.3,
+                                a: STATE_DISABLED_CONTENT_OPACITY,
                                 ..COLOR_ON_SURFACE
                             }
                         })
@@ -293,9 +350,9 @@ fn render_type_buttons<'a>(
 
                 if !is_active {
                     if let Some(Background::Color(c)) = &mut style.background {
-                        c.a *= 0.3;
+                        c.a *= STATE_DISABLED_CONTENT_OPACITY;
                     }
-                    style.text_color.a *= 0.3;
+                    style.text_color.a *= STATE_DISABLED_CONTENT_OPACITY;
                 }
                 style
             });

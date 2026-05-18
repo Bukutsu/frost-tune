@@ -372,8 +372,10 @@ impl MainWindow {
     }
 
     fn view_medium(&self) -> Element<'_, Message> {
+        use crate::ui::tokens::{GRAPH_HEIGHT_MEDIUM, WINDOW_MAX_CONTENT_WIDTH};
+
         let graph_section = container(views::graph_panel::view_graph(self))
-            .height(Length::Fixed(220.0))
+            .height(Length::Fixed(GRAPH_HEIGHT_MEDIUM))
             .width(Length::Fill);
 
         let left_column = column![
@@ -389,17 +391,21 @@ impl MainWindow {
         let right_column = scrollable(
             column![
                 views::tools_panel::view_tools_panel(self),
-                views::diagnostics::view_diagnostics_section(self),
+                views::diagnostics::view_diagnostics(self),
             ]
             .spacing(SPACE_16),
         )
         .width(Length::FillPortion(2));
 
-        row![left_column, right_column]
-            .spacing(SPACE_16)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        container(
+            row![left_column, right_column]
+                .spacing(SPACE_16)
+                .width(Length::Fill)
+                .height(Length::Fill),
+        )
+        .max_width(WINDOW_MAX_CONTENT_WIDTH)
+        .center_x(Length::Fill)
+        .into()
     }
 
     fn view_wide(&self) -> Element<'_, Message> {

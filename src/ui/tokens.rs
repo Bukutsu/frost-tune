@@ -84,8 +84,9 @@ pub const TYPE_TITLE: f32 = 22.0;
 pub const TYPE_SUBTITLE: f32 = 18.0;
 pub const TYPE_BODY: f32 = 16.0;
 pub const TYPE_LABEL: f32 = 13.0;
+pub const TYPE_AXIS_LABEL: f32 = 12.0;
 pub const TYPE_CAPTION: f32 = 11.0;
-pub const TYPE_TINY: f32 = 9.0;
+pub const TYPE_TINY: f32 = 11.0;
 
 // ── Component Dimensions ───────────────────────────────────────────────
 pub const BUTTON_HEIGHT_LARGE: f32 = 48.0;
@@ -118,8 +119,35 @@ pub const PROFILE_LIST_HEIGHT: f32 = 200.0;
 pub const DIAGNOSTICS_LEVEL_WIDTH: f32 = 70.0;
 pub const DIAGNOSTICS_TIME_WIDTH: f32 = 40.0;
 
+// ── Graph Canvas Colors ────────────────────────────────────────────────
+pub const COLOR_GRAPH_GRID: Color = Color {
+    r: 0.5,
+    g: 0.5,
+    b: 0.5,
+    a: 0.2,
+};
+pub const COLOR_GRAPH_BAND_STROKE: Color = Color {
+    r: 0.49,
+    g: 0.81,
+    b: 1.0,
+    a: 0.25,
+};
+pub const COLOR_GRAPH_BAND_FILL: Color = Color {
+    r: 0.49,
+    g: 0.81,
+    b: 1.0,
+    a: 0.15,
+};
+
 // ── Icons ──────────────────────────────────────────────────────────────
 pub const ICON_FONT: iced::Font = iced::Font::with_name("Material Icons");
+pub const ICON_SIZE_SMALL: f32 = 18.0;
+pub const ICON_SIZE_MEDIUM: f32 = 20.0;
+
+// ── Layout Breakpoints ─────────────────────────────────────────────────
+pub const BANDS_TWO_COLUMN_BREAK: f32 = 1100.0;
+pub const GRAPH_HEIGHT_MEDIUM: f32 = 220.0;
+pub const DIVIDER_HEIGHT: f32 = 1.0;
 pub const ICON_FOLDER: &str = "\u{e2c7}";
 pub const ICON_RELOAD: &str = "\u{e5d5}";
 pub const ICON_CLOSE: &str = "\u{e5cd}";

@@ -1,8 +1,11 @@
 use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
 use crate::models::Filter;
-use crate::ui::tokens::{COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY};
+use crate::ui::tokens::{
+    COLOR_GRAPH_BAND_FILL, COLOR_GRAPH_BAND_STROKE, COLOR_GRAPH_GRID, COLOR_ON_SURFACE_VARIANT,
+    COLOR_PRIMARY, TYPE_AXIS_LABEL,
+};
 use iced::widget::canvas::{Cache, Geometry, Path, Program, Stroke, Text};
-use iced::{Color, Point, Rectangle, Renderer, Theme};
+use iced::{Point, Rectangle, Renderer, Theme};
 
 type BiquadCoeffs = (f64, f64, f64, f64, f64, f64);
 
@@ -53,13 +56,12 @@ impl<Message> Program<Message> for EqGraph {
         &self,
         _state: &Self::State,
         renderer: &Renderer,
-        theme: &Theme,
+        _theme: &Theme,
         bounds: Rectangle,
         _cursor: iced::mouse::Cursor,
     ) -> Vec<Geometry> {
         let grid = self.grid_cache.draw(renderer, bounds.size(), |frame| {
-            let _palette = theme.palette();
-            let grid_color = Color::from_rgba(0.5, 0.5, 0.5, 0.2);
+            let grid_color = COLOR_GRAPH_GRID;
             let text_color = COLOR_ON_SURFACE_VARIANT;
 
             let freqs: [f64; 10] = [
@@ -89,7 +91,7 @@ impl<Message> Program<Message> for EqGraph {
                     content: label,
                     position: Point::new(x as f32 + 2.0, bounds.height - 15.0),
                     color: text_color,
-                    size: 12.0.into(),
+                    size: TYPE_AXIS_LABEL.into(),
                     ..Default::default()
                 });
             }
@@ -114,7 +116,7 @@ impl<Message> Program<Message> for EqGraph {
                     content: format!("{}{}dB", if db > 0.0 { "+" } else { "" }, db),
                     position: Point::new(5.0, y as f32 - 12.0),
                     color: text_color,
-                    size: 12.0.into(),
+                    size: TYPE_AXIS_LABEL.into(),
                     ..Default::default()
                 });
             }
@@ -178,7 +180,7 @@ impl<Message> Program<Message> for EqGraph {
                 frame.stroke(
                     &band_path,
                     Stroke::default()
-                        .with_color(Color::from_rgba(0.49, 0.81, 1.0, 0.25))
+                        .with_color(COLOR_GRAPH_BAND_STROKE)
                         .with_width(1.0),
                 );
             }
@@ -195,7 +197,7 @@ impl<Message> Program<Message> for EqGraph {
                 builder.line_to(Point::new(bounds.width, zero_db_y));
                 builder.line_to(Point::new(0.0, zero_db_y));
             });
-            frame.fill(&fill_path, Color::from_rgba(0.49, 0.81, 1.0, 0.15));
+            frame.fill(&fill_path, COLOR_GRAPH_BAND_FILL);
 
             let path = Path::new(|builder| {
                 for (i, &db) in responses.iter().enumerate() {

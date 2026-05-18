@@ -10,7 +10,8 @@ pub mod tools_panel;
 use crate::ui::messages::Message;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_COMPACT, BUTTON_HEIGHT_LARGE, BUTTON_HEIGHT_SMALL, BUTTON_HORIZONTAL_PADDING,
-    COLOR_ON_SURFACE, ICON_BUTTON_SIZE, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL,
+    COLOR_ON_SURFACE, ICON_BUTTON_SIZE, ICON_SIZE_MEDIUM, ICON_SIZE_SMALL, SPACE_4, SPACE_8,
+    TYPE_CAPTION, TYPE_LABEL,
 };
 use iced::widget::{button, container, row, text};
 use iced::{Element, Length};
@@ -45,9 +46,13 @@ pub fn small_action_button<'a>(label: &'a str) -> iced::widget::Button<'a, Messa
 
 pub fn icon_button<'a>(icon: &'a str) -> iced::widget::Button<'a, Message> {
     button(
-        container(text(icon).font(crate::ui::tokens::ICON_FONT).size(20.0))
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
+        container(
+            text(icon)
+                .font(crate::ui::tokens::ICON_FONT)
+                .size(ICON_SIZE_MEDIUM),
+        )
+        .center_x(Length::Fill)
+        .center_y(Length::Fill),
     )
     .style(crate::ui::theme::m3_text_button)
     .padding(0.0)
@@ -84,7 +89,9 @@ pub fn icon_action_button<'a>(icon: &'a str, label: &'a str) -> iced::widget::Bu
     button(
         container(
             row![
-                text(icon).font(crate::ui::tokens::ICON_FONT).size(18.0),
+                text(icon)
+                    .font(crate::ui::tokens::ICON_FONT)
+                    .size(ICON_SIZE_SMALL),
                 text(label).size(TYPE_LABEL),
             ]
             .spacing(SPACE_4)

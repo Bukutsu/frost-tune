@@ -3,9 +3,9 @@ use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    COLOR_INFO, COLOR_ON_PRIMARY, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS,
-    COLOR_WARNING, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY,
-    TYPE_TITLE,
+    COLOR_INFO, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY,
+    COLOR_SUCCESS, COLOR_WARNING, SPACE_12, SPACE_16, SPACE_2, SPACE_8,
+    STATE_DISABLED_CONTENT_OPACITY, TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;
@@ -69,7 +69,16 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                     }),
             )
         } else {
-            let btn = toolbar_button("Write").style(theme::m3_filled_button);
+            let btn = toolbar_button("Write").style(|theme, status| {
+                let mut s = theme::m3_filled_button(theme, status);
+                if matches!(status, iced::widget::button::Status::Active) {
+                    s.background = Some(iced::Background::Color(
+                        COLOR_PRIMARY.scale_alpha(STATE_DISABLED_CONTENT_OPACITY),
+                    ));
+                    s.text_color = COLOR_ON_SURFACE.scale_alpha(STATE_DISABLED_CONTENT_OPACITY);
+                }
+                s
+            });
             if let Some(reason) = state.disabled_reason_for_action("write") {
                 Element::from(
                     tooltip(btn, text(reason), tooltip::Position::Bottom)

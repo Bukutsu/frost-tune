@@ -3,8 +3,8 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, ICON_CHECK_CIRCLE,
-    ICON_CLOSE, ICON_ERROR, ICON_FONT, ICON_INFO, ICON_WARNING, SHAPE_EXTRA_SMALL, SPACE_16,
-    TYPE_BODY,
+    ICON_CLOSE, ICON_ERROR, ICON_FONT, ICON_INFO, ICON_SIZE_SMALL, ICON_WARNING, SHAPE_EXTRA_SMALL,
+    SPACE_16, TYPE_BODY,
 };
 use crate::ui::views::{icon_button, small_action_button};
 use iced::widget::{column, container, row, text};
@@ -44,7 +44,7 @@ pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
             row![
                 text(icon)
                     .font(ICON_FONT)
-                    .size(18.0)
+                    .size(ICON_SIZE_SMALL)
                     .color(COLOR_ON_PRIMARY),
                 text(&msg.content).size(TYPE_BODY).color(COLOR_ON_PRIMARY),
                 container(text("")).width(Length::Fill),
