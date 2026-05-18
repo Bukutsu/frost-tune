@@ -1,6 +1,6 @@
 # Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
 pkgname=frost-tune
-pkgver=0.9.3
+pkgver=0.9.4
 pkgrel=1
 pkgdesc="Native parametric EQ editor for USB DACs"
 arch=('x86_64')
@@ -12,7 +12,7 @@ provides=('frost-tune')
 conflicts=('frost-tune-bin' 'frost-tune-git')
 install=frost-tune.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('dc3378f72803e55ef246115de3f67a1a265d970d3158efb86649ca8f641ddd38')
+sha256sums=('SKIP')
 
 build() {
     cd "$pkgname-$pkgver"
