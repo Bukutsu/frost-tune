@@ -12,7 +12,7 @@ provides=('frost-tune')
 conflicts=('frost-tune-bin' 'frost-tune-git')
 install=frost-tune.install
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('f2fe278670b55b06ed9ec309b9a490ae273f949fb03918694c9dcd99b283c446')
 
 build() {
     cd "$pkgname-$pkgver"
