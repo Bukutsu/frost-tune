@@ -1,5 +1,5 @@
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::packet_builder::{init_device_session, NUM_FILTERS};
+use crate::hardware::packet_builder::init_device_session;
 use crate::hardware::packet_format::{ReadTiming, READ, REPORT_ID};
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Device, DeviceInfo, Filter, PEQData};
@@ -104,11 +104,12 @@ pub fn pull_peq_internal(
     let cfg = proto.read_timing();
     init_device_session(device, proto)?;
 
-    let mut filter_responses = vec![None; NUM_FILTERS as usize];
+    let num_bands = proto.num_bands();
+    let mut filter_responses = vec![None; num_bands];
 
     let mut had_mismatch = false;
 
-    for i in 0u8..NUM_FILTERS {
+    for i in 0u8..num_bands as u8 {
         let filter_nonce = get_next_nonce();
         let request = proto.build_filter_read_request(i, filter_nonce);
         send_report(device, &request[..], proto.report_id())?;
@@ -137,7 +138,7 @@ pub fn pull_peq_internal(
 
     let global_nonce = get_next_nonce();
     let global_gain = read_global_gain(device, proto, &cfg, global_nonce)?;
-    let filters = assemble_filters(proto, filter_responses);
+    let filters = assemble_filters(num_bands, proto, filter_responses);
 
     Ok(PEQData {
         filters,
@@ -154,6 +155,9 @@ fn read_single_filter_with_nonce(
 ) -> Option<Vec<u8>> {
     let mut attempts = 0;
     let mut mismatches = 0;
+    // Worst-case per filter: MAX_FILTER_READ_ATTEMPTS(60) × read_timeout_ms(60ms) ×
+    // mismatch limit (8) ≈ 28.8s. Designed for noisy USB pipes where the device
+    // may echo stale frames before delivering the correct response.
     while attempts < MAX_FILTER_READ_ATTEMPTS {
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
@@ -223,7 +227,11 @@ fn read_global_gain(
     ))
 }
 
-fn assemble_filters(proto: &dyn DeviceProtocol, responses: Vec<Option<Vec<u8>>>) -> Vec<Filter> {
+fn assemble_filters(
+    num_bands: usize,
+    proto: &dyn DeviceProtocol,
+    responses: Vec<Option<Vec<u8>>>,
+) -> Vec<Filter> {
     let mut filters = Vec::new();
     for (i, resp) in responses.into_iter().enumerate() {
         match resp {
@@ -242,7 +250,7 @@ fn assemble_filters(proto: &dyn DeviceProtocol, responses: Vec<Option<Vec<u8>>>)
         }
     }
 
-    while filters.len() < 10 {
+    while filters.len() < num_bands {
         let idx = filters.len() as u8;
         filters.push(Filter::enabled(idx, false));
     }

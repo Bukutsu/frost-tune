@@ -1,16 +1,16 @@
 # Graph Report - frost-tune  (2026-05-18)
 
 ## Corpus Check
-- 57 files · ~45,222 words
+- 57 files · ~45,909 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 503 nodes · 742 edges · 42 communities (23 shown, 19 thin omitted)
-- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 120 edges (avg confidence: 0.8)
+- 550 nodes · 802 edges · 44 communities (25 shown, 19 thin omitted)
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 121 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2ae3f88b`
+- Built from commit: `6715b9d1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -50,18 +50,20 @@
 - [[_COMMUNITY_UI Graph Panel|UI Graph Panel]]
 - [[_COMMUNITY_UI Band Controls|UI Band Controls]]
 - [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 44|Community 44]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `MainWindow` - 25 edges
 2. `Frost-Tune — Developer Guidelines` - 18 edges
 3. `parse_autoeq_text()` - 16 edges
-4. `TP35ProProtocol` - 15 edges
-5. `enforce_disabled_button_contrast()` - 14 edges
-6. `Frost-Tune` - 13 edges
-7. `push_with_verify()` - 11 edges
-8. `handle_profiles()` - 11 edges
-9. `InputBuffer` - 10 edges
-10. `load_all_profiles()` - 9 edges
+4. `Frost-Tune — Agent Guidelines` - 16 edges
+5. `Frost-Tune — Agent Guidelines` - 16 edges
+6. `Frost-Tune — Agent Guidelines` - 16 edges
+7. `TP35ProProtocol` - 15 edges
+8. `enforce_disabled_button_contrast()` - 14 edges
+9. `Frost-Tune` - 14 edges
+10. `push_with_verify()` - 11 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `test_disabled_button_contrast_wcag_aa()` --calls--> `theme()`  [INFERRED]
@@ -75,7 +77,7 @@
 - `handle_editor()` --calls--> `parse_freq_string()`  [INFERRED]
   src/ui/update/editor.rs → src/ui/main_window.rs
 
-## Communities (42 total, 19 thin omitted)
+## Communities (44 total, 19 thin omitted)
 
 ### Community 0 - "Profile & Connection Management"
 Cohesion: 0.09
@@ -118,8 +120,8 @@ Cohesion: 0.13
 Nodes (6): DiagnosticEvent, DiagnosticsStore, format_diagnostics(), LogLevel, parse_diagnostic_log_line(), Source
 
 ### Community 10 - "Elevated Errors Transport"
-Cohesion: 0.09
-Nodes (22): Adding New Components, Anti-Patterns, Architecture, Architecture Patterns, Code Standards, code:block1 (frost-tune/), code:bash (# Development workflow), Contribution Workflow (+14 more)
+Cohesion: 0.12
+Nodes (25): Adding New Components, Anti-Patterns, Architecture, Architecture Patterns, Code Standards, Code Standards (Rust-Pro Guidelines), code:block1 (frost-tune/), code:bash (# Development workflow) (+17 more)
 
 ### Community 11 - "Domain Rules Snapping"
 Cohesion: 0.09
@@ -139,10 +141,18 @@ Nodes (3): Message, StatusMessage, StatusSeverity
 
 ### Community 30 - "Project README"
 Cohesion: 0.06
-Nodes (30): 1. Clone the Repository, 2. Build and Run, 3. (Linux Only) Setup USB Permissions, Acknowledgments, Arch Linux Manual Install, Architecture, Available Scripts, code:bash (git clone https://github.com/Bukutsu/frost-tune.git) (+22 more)
+Nodes (31): 1. Clone the Repository, 2. Build and Run, 3. (Linux Only) Setup USB Permissions, Acknowledgments, Arch Linux Manual Install, Architecture, Available Scripts, code:bash (git clone https://github.com/Bukutsu/frost-tune.git) (+23 more)
+
+### Community 43 - "Community 43"
+Cohesion: 0.1
+Nodes (20): Adding New Components, Architecture, Architecture Patterns, Code Standards (Rust-Pro Guidelines), code:block1 (frost-tune/), code:bash (# Development workflow), Contribution Workflow, Cutting a Release (+12 more)
+
+### Community 44 - "Community 44"
+Cohesion: 0.1
+Nodes (20): Adding New Components, Architecture, Architecture Patterns, Code Standards (Rust-Pro Guidelines), code:block1 (frost-tune/), code:bash (# Development workflow), Contribution Workflow, Cutting a Release (+12 more)
 
 ## Knowledge Gaps
-- **71 isolated node(s):** `Profile`, `UiPreferences`, `CommandSpec`, `DeviceProtocol`, `HelperRequest` (+66 more)
+- **95 isolated node(s):** `Profile`, `CommandSpec`, `DeviceProtocol`, `HelperRequest`, `HelperResponse` (+90 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -150,13 +160,13 @@ Nodes (30): 1. Clone the Repository, 2. Build and Run, 3. (Linux Only) Setup USB
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `assemble_filters()` connect `HID Operations Pipeline` to `Domain Rules Snapping`?**
-  _High betweenness centrality (0.169) - this node is a cross-community bridge._
+  _High betweenness centrality (0.142) - this node is a cross-community bridge._
 - **Why does `handle_editor()` connect `Domain Rules Snapping` to `Profile & Connection Management`, `Main Window UI`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
+  _High betweenness centrality (0.088) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `parse_autoeq_text()` (e.g. with `.enabled()` and `load_all_profiles()`) actually correct?**
   _`parse_autoeq_text()` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Profile`, `UiPreferences`, `CommandSpec` to the rest of the system?**
-  _77 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Profile`, `CommandSpec`, `DeviceProtocol` to the rest of the system?**
+  _101 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Profile & Connection Management` be split into smaller, more focused modules?**
   _Cohesion score 0.09 - nodes in this community are weakly interconnected._
 - **Should `Main Window UI` be split into smaller, more focused modules?**

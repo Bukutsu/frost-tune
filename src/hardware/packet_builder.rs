@@ -5,8 +5,6 @@ use crate::hardware::protocol::DeviceProtocol;
 use crate::models::Filter;
 use hidapi::HidDevice;
 
-pub const NUM_FILTERS: u8 = 10;
-
 pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<()> {
     crate::hardware::hid::reset_nonce();
     send_report(
@@ -31,10 +29,9 @@ pub fn write_filters_and_gain(
     global_gain: i8,
     timing: &WriteTiming,
 ) -> Result<()> {
-    for i in 0u8..NUM_FILTERS {
-        let filter = &filters[i as usize];
+    for (i, filter) in filters.iter().enumerate() {
         let packet = proto.build_filter_write_packet(
-            i,
+            i as u8,
             filter.enabled,
             filter.freq as f64,
             filter.gain,

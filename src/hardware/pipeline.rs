@@ -87,7 +87,7 @@ pub fn push_with_verify(
     }
 
     for attempt in 0..3 {
-        let backoff_ms = 200 * (2u64.pow(attempt as u32));
+        let backoff_ms = 200_u64.saturating_mul(2u64.saturating_pow(attempt as u32));
         delay_ms(backoff_ms);
         match pull_peq_data(device, proto, true) {
             Ok(read_back) => {

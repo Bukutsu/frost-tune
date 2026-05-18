@@ -12,10 +12,24 @@ pub struct Profile {
     pub modified: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiPreferences {
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
     pub advanced_filters_expanded: bool,
+    #[serde(default)]
     pub diagnostics_expanded: bool,
+}
+
+impl Default for UiPreferences {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            advanced_filters_expanded: false,
+            diagnostics_expanded: false,
+        }
+    }
 }
 
 fn get_base_dir() -> Result<PathBuf> {
@@ -144,12 +158,13 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "txt") {
             if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                let content = fs::read_to_string(&path).map_err(|e| {
-                    AppError::new(
-                        ErrorKind::StorageError,
-                        format!("Failed to read profile {}: {}", name, e),
-                    )
-                })?;
+                let content = match fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        errors.push(format!("Cannot read profile '{}': {}", name, e));
+                        continue;
+                    }
+                };
                 match autoeq::parse_autoeq_text(&content) {
                     Ok((data, warnings)) => {
                         if !warnings.is_empty() {
@@ -381,8 +396,12 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>> {
     if lines.len() > MAX_LOG_LINES {
         let keep_count = limit.clamp(100, 2000);
         lines = lines.split_off(lines.len() - keep_count);
-        if let Err(e) = std::fs::write(&path, lines.join("\n") + "\n") {
+        let tmp = path.with_extension("log.tmp");
+        if let Err(e) =
+            std::fs::write(&tmp, lines.join("\n") + "\n").and_then(|_| std::fs::rename(&tmp, &path))
+        {
             log::warn!("Failed to truncate diagnostics log: {}", e);
+            let _ = std::fs::remove_file(&tmp);
         }
     } else if lines.len() > limit {
         lines = lines.split_off(lines.len() - limit);

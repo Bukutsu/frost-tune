@@ -1,8 +1,7 @@
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE,
-    COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM,
-    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, SHAPE_SMALL,
-    STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
+    COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM, COLOR_WARNING, ELEVATION_0,
+    ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, STATE_HOVER_OPACITY, STATE_PRESSED_OPACITY,
 };
 use iced::theme::Palette;
 use iced::widget::{button, checkbox, container, pick_list, slider, text_input};
@@ -48,9 +47,9 @@ pub fn card_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(ELEVATION_1)),
         border: Border {
-            color: COLOR_OUTLINE_VARIANT,
-            width: 1.0,
-            radius: SHAPE_SMALL.into(),
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
         },
         ..Default::default()
     }
@@ -74,7 +73,7 @@ pub fn tooltip_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: COLOR_OUTLINE,
             width: 1.0,
-            radius: SHAPE_SMALL.into(),
+            radius: 0.0.into(),
         },
         text_color: Some(COLOR_ON_SURFACE),
         ..Default::default()

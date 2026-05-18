@@ -8,6 +8,8 @@ use crate::hardware::elevated_transport::ElevatedTransport;
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 
+// cfg-gated Linux elevation branches create early-return paths that clippy
+// flags as needless on non-Linux targets where those branches are absent.
 #[allow(clippy::needless_return)]
 pub fn worker_connect(
     backend: &mut Option<TransportBackend>,

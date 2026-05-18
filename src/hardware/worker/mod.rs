@@ -135,7 +135,6 @@ impl WorkerState {
                     }
                     #[cfg(target_os = "linux")]
                     TransportBackend::Elevated { transport, .. } => {
-                        let ping_result = transport.round_trip(&HelperRequest::Ping);
                         let status_result = transport.round_trip(&HelperRequest::Status);
 
                         let elevated_failed = match &status_result {
@@ -206,9 +205,6 @@ impl WorkerState {
                         } else {
                             self.elevated_respawn_attempts = 0;
                             self.last_elevated_respawn = None;
-                            if ping_result.is_err() {
-                                log::warn!("Elevated backend ping failed, may be unresponsive");
-                            }
                         }
                     }
                 }
@@ -357,6 +353,7 @@ impl UsbWorker {
                         let msg = panic_message(&panic_info);
                         log::error!("Worker thread panicked: {}", msg);
                         state.fatal_error = Some(msg);
+                        crate::hardware::hid::reset_nonce();
                         state.backend = None;
                         state.generation = state.generation.saturating_add(1);
                     }

@@ -307,7 +307,7 @@ fn render_type_buttons<'a>(
             }
         })
         .collect::<Vec<Element<Message>>>())
-    .spacing(SPACE_2)
+    .spacing(0)
     .into()
 }
 
