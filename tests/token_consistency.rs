@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use frost_tune::ui::theme;
 use frost_tune::ui::tokens::{
     BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, SHAPE_EXTRA_SMALL, SHAPE_FULL, SPACE_8, TYPE_BODY,

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 pub mod bands;
 pub mod confirm_dialog;
 pub mod diagnostics;

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::ui::messages::Message;
 use crate::ui::state::{MainWindow, ToolsTab};
 use crate::ui::theme;

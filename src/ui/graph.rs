@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
 use crate::models::Filter;
 use crate::ui::tokens::{

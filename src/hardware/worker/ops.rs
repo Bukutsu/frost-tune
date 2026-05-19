@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::worker::backend::TransportBackend;
 use crate::models::{OperationResult, PEQData, PushPayload};

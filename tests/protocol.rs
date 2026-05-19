@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use frost_tune::hardware::protocol::{
     DeviceProtocol, TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
 };

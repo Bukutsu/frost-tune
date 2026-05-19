@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 /// # Hardware Interaction Layer
 ///
 /// This module provides the infrastructure for discovering, authenticating, and communicating

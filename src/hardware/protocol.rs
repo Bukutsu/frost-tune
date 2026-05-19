@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
 use crate::hardware::packet_format::{ReadTiming, WriteTiming};
 pub use crate::hardware::packet_format::{

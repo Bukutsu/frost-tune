@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::models::{Device, DeviceInfo};
 
 #[cfg(target_os = "linux")]

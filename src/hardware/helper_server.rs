@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 #[cfg(target_os = "linux")]
 use crate::hardware::hid::{device_info_from_hid, find_device_info};
 #[cfg(target_os = "linux")]

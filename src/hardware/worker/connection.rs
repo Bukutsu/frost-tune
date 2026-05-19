@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind, Result as AppResult};
 use crate::hardware::hid::{device_info_from_hid, find_device_info};
 use crate::hardware::worker::backend::{BackendKind, TransportBackend};

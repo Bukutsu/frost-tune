@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use frost_tune::error::{AppError, ErrorKind};
 use frost_tune::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
 use frost_tune::hardware::worker::{UsbWorker, WorkerStatus};

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::hardware::packet_format::{
     OFFSET_FILTER_TYPE, OFFSET_FREQ_H, OFFSET_FREQ_L, OFFSET_GAIN_H, OFFSET_GAIN_L, OFFSET_INDEX,
     OFFSET_Q_H, OFFSET_Q_L,

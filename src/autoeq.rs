@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::models::{
     Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN, MAX_Q, MIN_BAND_GAIN,
     MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q,

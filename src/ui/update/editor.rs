@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::models::*;
 use crate::ui::main_window::parse_freq_string;

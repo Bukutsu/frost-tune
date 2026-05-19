@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 pub mod graph;
 pub mod main_window;
 pub mod messages;

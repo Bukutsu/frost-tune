@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::models::constants::*;
 use serde::{Deserialize, Serialize};
 

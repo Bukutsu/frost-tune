@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 use std::io::{BufRead, BufReader, Write};

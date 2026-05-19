@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::diagnostics::{
     parse_diagnostic_log_line, DiagnosticEvent, DiagnosticsStore, LogLevel, Source,
 };

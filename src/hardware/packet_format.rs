@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 pub const REPORT_ID: u8 = 0x4B;
 
 pub const CMD_FLASH_EQ: u8 = 0x01;

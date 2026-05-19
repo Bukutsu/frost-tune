@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

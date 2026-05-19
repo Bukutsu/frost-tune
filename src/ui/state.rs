@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::diagnostics::DiagnosticsStore;
 use crate::hardware::worker::UsbWorker;
 use crate::models::{DeviceInfo, Filter};

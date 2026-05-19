@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::ui::messages::Message;
 use crate::ui::theme;
 use crate::ui::tokens::{

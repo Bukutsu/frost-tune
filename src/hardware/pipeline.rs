@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::delay_ms;
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};

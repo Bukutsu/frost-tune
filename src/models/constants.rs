@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 pub const MAX_BAND_GAIN: f64 = 10.0;
 pub const MIN_BAND_GAIN: f64 = -10.0;
 pub const GAIN_STEP: f64 = 0.01;

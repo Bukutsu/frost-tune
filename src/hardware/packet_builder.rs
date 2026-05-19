@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::Result;
 use crate::hardware::hid::{delay_ms, send_report};
 use crate::hardware::packet_format::{WriteTiming, END, READ};

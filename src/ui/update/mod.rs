@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 pub mod autoeq;
 pub mod connection;
 pub mod editor;

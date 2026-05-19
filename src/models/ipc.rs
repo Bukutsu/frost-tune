@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind};
 use crate::models::constants::*;
 use crate::models::device::DeviceInfo;

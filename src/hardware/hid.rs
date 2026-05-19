@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
 use crate::hardware::packet_format::{ReadTiming, READ, REPORT_ID};

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::error::AppError;
 use crate::hardware::worker::WorkerStatus;
 use crate::models::{ConnectionResult, DeviceInfo, OperationResult};

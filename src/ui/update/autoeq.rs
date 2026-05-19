@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
 use crate::autoeq;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::models::PEQData;
