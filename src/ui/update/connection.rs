@@ -191,7 +191,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     let backend = Some(BackendKind::Local);
 
                     let rx = worker.connect(Some(device), backend);
-                    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+                    match tokio::time::timeout(std::time::Duration::from_secs(60), rx).await {
                         Ok(Ok(res)) => res,
                         _ => timed_out_connection_result("Connection request timed out"),
                     }

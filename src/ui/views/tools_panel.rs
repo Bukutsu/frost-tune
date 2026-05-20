@@ -5,8 +5,8 @@ use crate::ui::messages::Message;
 use crate::ui::state::{MainWindow, ToolsTab};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE, PROFILE_LIST_HEIGHT, SPACE_12,
-    SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL,
+    BUTTON_HEIGHT_SMALL, CHECKBOX_SIZE, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE,
+    PROFILE_LIST_HEIGHT, SHAPE_NONE, SPACE_0, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL,
 };
 use crate::ui::views::{action_button, icon_action_button, icon_button};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
@@ -28,7 +28,7 @@ fn tab_button<'a>(
         .center_x(Length::Fill)
         .center_y(Length::Fill),
     )
-    .padding(0.0)
+    .padding(SPACE_0)
     .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
     .width(Length::Fill)
     .on_press(Message::ToolsTabSelected(tab))
@@ -171,7 +171,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                             .size(crate::ui::tokens::TYPE_BODY)
                             .align_y(iced::Alignment::Center),
                     )
-                    .padding([0.0, SPACE_12])
+                    .padding([SPACE_0, SPACE_12])
                     .center_y(Length::Fill)
                     .height(Length::Fill),
                 )
@@ -195,7 +195,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             border: iced::Border {
                 color: iced::Color::TRANSPARENT,
                 width: 0.0,
-                radius: 0.0.into(),
+                radius: SHAPE_NONE.into(),
             },
             ..Default::default()
         })
@@ -280,7 +280,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         checkbox(state.editor_state.ui.snap_to_iso_enabled)
             .label("Snap to ISO frequencies")
             .on_toggle(Message::ToggleSnapToIso)
-            .size(16)
+            .size(CHECKBOX_SIZE)
             .text_size(crate::ui::tokens::TYPE_CAPTION)
             .style(theme::checkbox_style),
         profile_name_input.width(Length::Fill),
@@ -291,8 +291,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let tab_strip = row![
         tab_button("Preset", ToolsTab::Preset, active_tab),
         tab_button("AUTO-EQ", ToolsTab::AutoEq, active_tab),
-    ]
-    .spacing(SPACE_8);
+    ];
 
     let tab_body: Element<'_, Message> = match active_tab {
         ToolsTab::Preset => preset_body.into(),

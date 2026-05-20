@@ -64,6 +64,7 @@ pub enum ErrorKind {
     ParseError,
     StorageError,
     IpcError,
+    InvalidPayload,
     Unknown,
 }
 
@@ -87,6 +88,7 @@ impl ErrorKind {
             ErrorKind::ParseError => "Failed to parse data.",
             ErrorKind::StorageError => "Profile storage error.",
             ErrorKind::IpcError => "IPC communication error with background helper.",
+            ErrorKind::InvalidPayload => "Invalid or malformed data payload.",
             ErrorKind::Unknown => "Unknown error.",
         }
     }

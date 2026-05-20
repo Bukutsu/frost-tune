@@ -25,9 +25,11 @@ impl ElevatedTransport {
             args: vec!["--hid-helper".to_string()],
         })?;
 
-        // Version check
+        // Version check with a long timeout for the human polkit prompt
         use crate::hardware::helper_ipc::IPC_VERSION;
-        match transport.round_trip(&HelperRequest::Version)? {
+        match transport
+            .round_trip_with_timeout(&HelperRequest::Version, std::time::Duration::from_secs(120))?
+        {
             HelperResponse::Version { version } => {
                 if version != IPC_VERSION {
                     return Err(AppError::new(
@@ -51,6 +53,14 @@ impl ElevatedTransport {
     }
 
     pub fn round_trip(&mut self, request: &HelperRequest) -> Result<HelperResponse> {
+        self.round_trip_with_timeout(request, std::time::Duration::from_secs(15))
+    }
+
+    pub fn round_trip_with_timeout(
+        &mut self,
+        request: &HelperRequest,
+        timeout: std::time::Duration,
+    ) -> Result<HelperResponse> {
         let payload = serde_json::to_string(request).map_err(|e| {
             AppError::new(
                 ErrorKind::ParseError,
@@ -79,7 +89,7 @@ impl ElevatedTransport {
             )
         })?;
 
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let deadline = std::time::Instant::now() + timeout;
         let line =
             loop {
                 if let Some(status) = self.child.try_wait().map_err(|e| {
@@ -94,7 +104,7 @@ impl ElevatedTransport {
                 if std::time::Instant::now() > deadline {
                     return Err(AppError::new(
                         ErrorKind::ReadTimeout,
-                        "Elevated helper response timed out (15s)",
+                        format!("Elevated helper response timed out ({:?})", timeout),
                     ));
                 }
 
@@ -125,7 +135,11 @@ impl ElevatedTransport {
     }
 
     pub fn shutdown(&mut self) {
-        let _ = self.round_trip(&HelperRequest::Shutdown);
+        if let Ok(payload) = serde_json::to_string(&HelperRequest::Shutdown) {
+            let _ = self.child_stdin.write_all(payload.as_bytes());
+            let _ = self.child_stdin.write_all(b"\n");
+            let _ = self.child_stdin.flush();
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
@@ -229,10 +243,20 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
         )
     })?;
 
-    if metadata.permissions().mode() & 0o002 != 0 {
+    // Check world-writable and group-writable
+    if metadata.permissions().mode() & 0o022 != 0 {
         return Err(AppError::new(
             ErrorKind::IpcError,
-            "Executable is world-writable; refusing to elevate.",
+            "Executable is group-writable or world-writable; refusing to elevate.",
+        ));
+    }
+
+    let uid = nix::unistd::Uid::current().as_raw();
+    let exe_owner = metadata.uid();
+    if exe_owner != 0 && exe_owner != uid {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Executable is not owned by current user or root.",
         ));
     }
 

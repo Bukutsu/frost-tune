@@ -92,25 +92,27 @@ mod tests {
     }
 
     #[test]
-    fn test_push_payload_invalid_with_disabled_band() {
+    fn test_push_payload_valid_with_disabled_band() {
         let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, true)).collect();
         filters[2].enabled = false;
         let payload = PushPayload {
             filters,
             global_gain: Some(0),
         };
-        assert!(payload.is_valid().is_err());
+        assert!(payload.is_valid().is_ok());
     }
 
     #[test]
-    fn test_push_payload_clamp_enables_all_bands() {
+    fn test_push_payload_clamp_preserves_band_enable() {
         let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        filters[0].enabled = true;
         let mut payload = PushPayload {
             filters: std::mem::take(&mut filters),
             global_gain: Some(0),
         };
         payload.clamp();
-        assert!(payload.filters.iter().all(|f| f.enabled));
+        assert!(payload.filters[0].enabled);
+        assert!(!payload.filters[1].enabled);
     }
 
     #[test]

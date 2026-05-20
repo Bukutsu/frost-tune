@@ -68,6 +68,7 @@ pub const WINDOW_MAX_CONTENT_WIDTH: f32 = 1280.0;
 pub const SIDEBAR_WIDTH: f32 = 320.0;
 
 // ── Spacing Scale (4dp base) ───────────────────────────────────────────
+pub const SPACE_0: f32 = 0.0;
 pub const SPACE_1: f32 = 1.0;
 pub const SPACE_2: f32 = 2.0;
 pub const SPACE_4: f32 = 4.0;
@@ -119,8 +120,10 @@ pub const BAND_FILTER_BUTTON_WIDTH: f32 = 28.0;
 pub const BAND_FILTER_BUTTON_HEIGHT: f32 = 26.0;
 pub const PREAMP_LABEL_WIDTH: f32 = 120.0;
 pub const PROFILE_LIST_HEIGHT: f32 = 200.0;
-pub const DIAGNOSTICS_LEVEL_WIDTH: f32 = 70.0;
-pub const DIAGNOSTICS_TIME_WIDTH: f32 = 40.0;
+pub const DIAG_TIMESTAMP_WIDTH: f32 = 90.0;
+pub const DIAG_SOURCE_WIDTH: f32 = 60.0;
+pub const DIAG_LOG_MAX_HEIGHT: f32 = 240.0;
+pub const DIAG_MAX_VISIBLE_EVENTS: usize = 30;
 
 // ── Graph Canvas Colors ────────────────────────────────────────────────
 pub const COLOR_GRAPH_GRID: Color = Color {
@@ -146,8 +149,19 @@ pub const COLOR_GRAPH_BAND_FILL: Color = Color {
 pub const ICON_FONT: iced::Font = iced::Font::with_name("Material Icons");
 pub const ICON_SIZE_SMALL: f32 = 18.0;
 pub const ICON_SIZE_MEDIUM: f32 = 20.0;
+pub const CHECKBOX_SIZE: f32 = 16.0;
 
 // ── Layout Breakpoints ─────────────────────────────────────────────────
+pub const LAYOUT_WINDOW_MIN_WIDTH: f32 = 900.0;
+pub const LAYOUT_WINDOW_MIN_HEIGHT: f32 = 580.0;
+pub const LAYOUT_DEVICES_MAX_WIDTH: f32 = 480.0;
+pub const LAYOUT_GRAPH_BREAKPOINT_SMALL: f32 = 600.0;
+pub const LAYOUT_GRAPH_BREAKPOINT_LARGE: f32 = 1000.0;
+pub const LAYOUT_GRAPH_HEIGHT_SMALL: f32 = 240.0;
+pub const LAYOUT_GRAPH_HEIGHT_MEDIUM: f32 = 280.0;
+pub const LAYOUT_GRAPH_HEIGHT_LARGE: f32 = 320.0;
+pub const LAYOUT_HEADER_BUSY_WIDTH: f32 = 120.0;
+
 pub const BANDS_TWO_COLUMN_BREAK: f32 = 1100.0;
 pub const GRAPH_HEIGHT_MEDIUM: f32 = 220.0;
 pub const DIVIDER_HEIGHT: f32 = 1.0;

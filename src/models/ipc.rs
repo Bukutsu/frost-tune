@@ -55,7 +55,6 @@ pub struct PushPayload {
 impl PushPayload {
     pub fn clamp(&mut self) {
         for filter in &mut self.filters {
-            filter.enabled = true;
             filter.clamp(
                 (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
                 (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
@@ -76,9 +75,6 @@ impl PushPayload {
             ));
         }
         for f in &self.filters {
-            if !f.enabled {
-                return Err(format!("Band {} must be enabled in push payload", f.index));
-            }
             if !f.gain.is_finite() {
                 return Err(format!("Band {} gain is not a finite number", f.index));
             }

@@ -6,7 +6,7 @@ use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, ICON_CHECK_CIRCLE,
-    ICON_CLOSE, ICON_ERROR, ICON_FONT, ICON_INFO, ICON_SIZE_SMALL, ICON_WARNING, SPACE_16,
+    ICON_CLOSE, ICON_ERROR, ICON_FONT, ICON_INFO, ICON_SIZE_SMALL, ICON_WARNING, SPACE_16, SPACE_4,
     TYPE_BODY,
 };
 use crate::ui::views::{icon_button, small_action_button};
@@ -14,8 +14,6 @@ use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 
 pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
-    let banner_height = 36.0;
-
     if let Some(msg) = &state.editor_state.session.status_message {
         let (color, icon) = match msg.severity {
             StatusSeverity::Info => (COLOR_INFO, ICON_INFO),
@@ -56,9 +54,9 @@ pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
             .spacing(SPACE_16)
             .align_y(iced::Alignment::Center),
         )
-        .padding([4.0, SPACE_16])
+        .padding([SPACE_4, SPACE_16])
         .width(Length::Fill)
-        .height(Length::Fixed(banner_height))
+        .height(Length::Shrink)
         .style(move |theme| theme::status_banner_style(theme, color))
         .into()
     } else {

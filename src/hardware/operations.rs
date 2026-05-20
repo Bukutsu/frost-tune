@@ -80,6 +80,16 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
             ),
         ));
     }
+    if actual.filters.len() != filters.len() {
+        return Err(AppError::new(
+            ErrorKind::VerifyFailed,
+            format!(
+                "Filter count mismatch: expected {}, got {}",
+                filters.len(),
+                actual.filters.len()
+            ),
+        ));
+    }
     for (a, f) in actual.filters.iter().zip(filters.iter()) {
         if (a.gain - f.gain).abs() > 0.15 {
             return Err(AppError::new(

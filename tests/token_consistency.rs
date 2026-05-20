@@ -3,7 +3,8 @@
 
 use frost_tune::ui::theme;
 use frost_tune::ui::tokens::{
-    BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, SHAPE_EXTRA_SMALL, SHAPE_FULL, SPACE_8, TYPE_BODY,
+    BAND_ROW_MIN_HEIGHT, BAND_ROW_PADDING, SHAPE_EXTRA_SMALL, SHAPE_FULL, SHAPE_NONE, SHAPE_SMALL,
+    SPACE_8, TYPE_BODY,
 };
 use iced::widget::button;
 
@@ -47,7 +48,9 @@ fn test_band_density() {
 #[test]
 fn test_shape_semantics_tokens() {
     const _: () = assert!(SHAPE_FULL >= 999.0);
+    assert_eq!(SHAPE_NONE, 0.0);
     assert_eq!(SHAPE_EXTRA_SMALL, 0.0);
+    assert_eq!(SHAPE_SMALL, 0.0);
 }
 
 #[test]

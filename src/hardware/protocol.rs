@@ -4,9 +4,10 @@
 use crate::hardware::dsp::{compute_iir_filter, convert_to_2byte_array};
 use crate::hardware::packet_format::{ReadTiming, WriteTiming};
 pub use crate::hardware::packet_format::{
-    CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, FILTER_SLOT,
-    OFFSET_BIQUAD_START, OFFSET_CMD, OFFSET_CMD_TYPE, OFFSET_GAIN_VALUE, OFFSET_INDEX,
-    OFFSET_NONCE, OFFSET_SLOT, READ, REPORT_ID, WRITE,
+    CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, CONST_FLASH_EQ_LEN,
+    CONST_GLOBAL_GAIN_LEN, CONST_PEQ_PAYLOAD_LEN, CONST_TEMP_WRITE_LEN, CONST_TEMP_WRITE_MAGIC_A,
+    CONST_TEMP_WRITE_MAGIC_B, END, FILTER_SLOT, OFFSET_BIQUAD_START, OFFSET_CMD, OFFSET_CMD_TYPE,
+    OFFSET_GAIN_VALUE, OFFSET_INDEX, OFFSET_NONCE, OFFSET_SLOT, READ, REPORT_ID, WRITE,
 };
 use crate::models::Filter;
 
@@ -146,7 +147,15 @@ impl DeviceProtocol for TP35ProProtocol {
         let b_arr = compute_iir_filter(freq, gain, q);
 
         let mut packet = Vec::with_capacity(36);
-        packet.extend_from_slice(&[WRITE, CMD_PEQ_VALUES, 0x18, 0x00, index, 0x00, 0x00]);
+        packet.extend_from_slice(&[
+            WRITE,
+            CMD_PEQ_VALUES,
+            CONST_PEQ_PAYLOAD_LEN,
+            0x00,
+            index,
+            0x00,
+            0x00,
+        ]);
         packet.extend_from_slice(&b_arr);
         packet.extend_from_slice(&convert_to_2byte_array(freq.round() as i32));
         packet.extend_from_slice(&convert_to_2byte_array((q * 256.0).round() as i32));
@@ -157,15 +166,31 @@ impl DeviceProtocol for TP35ProProtocol {
     }
 
     fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8> {
-        vec![WRITE, CMD_GLOBAL_GAIN, 0x02, 0x00, gain as u8, END]
+        vec![
+            WRITE,
+            CMD_GLOBAL_GAIN,
+            CONST_GLOBAL_GAIN_LEN,
+            0x00,
+            gain as u8,
+            END,
+        ]
     }
 
     fn build_temp_write_packet(&self) -> Vec<u8> {
-        vec![WRITE, CMD_TEMP_WRITE, 0x04, 0x00, 0x00, 0xFF, 0xFF, END]
+        vec![
+            WRITE,
+            CMD_TEMP_WRITE,
+            CONST_TEMP_WRITE_LEN,
+            0x00,
+            0x00,
+            CONST_TEMP_WRITE_MAGIC_A,
+            CONST_TEMP_WRITE_MAGIC_B,
+            END,
+        ]
     }
 
     fn build_flash_eq_packet(&self) -> Vec<u8> {
-        vec![WRITE, CMD_FLASH_EQ, 0x01, FILTER_SLOT, END]
+        vec![WRITE, CMD_FLASH_EQ, CONST_FLASH_EQ_LEN, FILTER_SLOT, END]
     }
 
     fn parse_filter_packet(&self, data: &[u8]) -> Option<Filter> {

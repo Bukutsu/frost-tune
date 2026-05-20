@@ -13,6 +13,13 @@ pub const READ: u8 = 0x80;
 pub const WRITE: u8 = 0x01;
 pub const END: u8 = 0x00;
 
+pub const CONST_TEMP_WRITE_MAGIC_A: u8 = 0xFF;
+pub const CONST_TEMP_WRITE_MAGIC_B: u8 = 0xFF;
+pub const CONST_PEQ_PAYLOAD_LEN: u8 = 0x18;
+pub const CONST_GLOBAL_GAIN_LEN: u8 = 0x02;
+pub const CONST_TEMP_WRITE_LEN: u8 = 0x04;
+pub const CONST_FLASH_EQ_LEN: u8 = 0x01;
+
 pub const FILTER_SLOT: u8 = 101;
 
 pub const OFFSET_CMD_TYPE: usize = 0;

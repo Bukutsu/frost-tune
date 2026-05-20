@@ -32,19 +32,20 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
         Some(TransportBackend::Elevated { transport, info: _ }) => {
             match transport.round_trip(&HelperRequest::PullPeq { strict: false }) {
                 Ok(HelperResponse::Pulled { data }) => {
-                    let peq = serde_json::from_value::<PEQData>(data).ok();
-                    let success = peq.is_some();
-                    OperationResult {
-                        success,
-                        error: if !success {
-                            Some(AppError::new(
-                                ErrorKind::ParseError,
-                                "Failed to parse data from helper",
-                            ))
-                        } else {
-                            None
+                    match serde_json::from_value::<PEQData>(data) {
+                        Ok(peq) => OperationResult {
+                            success: true,
+                            data: Some(peq),
+                            error: None,
                         },
-                        data: peq,
+                        Err(e) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(
+                                ErrorKind::ParseError,
+                                format!("Failed to parse data from helper: {}", e),
+                            )),
+                        },
                     }
                 }
                 Ok(HelperResponse::Error { error, .. }) => OperationResult {
@@ -108,19 +109,20 @@ pub fn worker_push_peq(
                 global_gain: payload.global_gain,
             }) {
                 Ok(HelperResponse::Pushed { data }) => {
-                    let peq = serde_json::from_value::<PEQData>(data).ok();
-                    let success = peq.is_some();
-                    OperationResult {
-                        success,
-                        error: if !success {
-                            Some(AppError::new(
-                                ErrorKind::ParseError,
-                                "Failed to parse data from helper",
-                            ))
-                        } else {
-                            None
+                    match serde_json::from_value::<PEQData>(data) {
+                        Ok(peq) => OperationResult {
+                            success: true,
+                            data: Some(peq),
+                            error: None,
                         },
-                        data: peq,
+                        Err(e) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(
+                                ErrorKind::ParseError,
+                                format!("Failed to parse data from helper: {}", e),
+                            )),
+                        },
                     }
                 }
                 Ok(HelperResponse::Error { error, .. }) => OperationResult {

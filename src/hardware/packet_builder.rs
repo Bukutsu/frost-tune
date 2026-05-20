@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::error::Result;
+use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, send_report};
 use crate::hardware::packet_format::{WriteTiming, END, READ};
 use crate::hardware::protocol::DeviceProtocol;
@@ -17,10 +17,12 @@ pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Re
     )?;
     delay_ms(50);
     let mut drain = [0u8; 64];
+    let mut iterations = 0;
     while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
-        if count == 0 {
+        if count == 0 || iterations > 100 {
             break;
         }
+        iterations += 1;
     }
     Ok(())
 }
@@ -32,6 +34,17 @@ pub fn write_filters_and_gain(
     global_gain: i8,
     timing: &WriteTiming,
 ) -> Result<()> {
+    if filters.len() > proto.num_bands() {
+        return Err(AppError::new(
+            ErrorKind::InvalidPayload,
+            format!(
+                "Payload exceeds device capacity. Provided: {}, max allowed: {}",
+                filters.len(),
+                proto.num_bands()
+            ),
+        ));
+    }
+
     for (i, filter) in filters.iter().enumerate() {
         let packet = proto.build_filter_write_packet(
             i as u8,

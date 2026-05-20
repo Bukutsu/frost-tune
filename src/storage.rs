@@ -160,6 +160,15 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "txt") {
+            if let Ok(metadata) = fs::metadata(&path) {
+                if metadata.len() > 1024 * 1024 {
+                    if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                        errors.push(format!("Profile '{}' is too large (> 1MB)", name));
+                    }
+                    continue;
+                }
+            }
+
             if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                 let content = match fs::read_to_string(&path) {
                     Ok(c) => c,
@@ -272,6 +281,20 @@ pub fn delete_profile(name: &str) -> Result<()> {
 }
 
 pub fn import_profile(path: &std::path::Path) -> Result<Profile> {
+    let metadata = fs::metadata(path).map_err(|e| {
+        AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to stat profile file: {}", e),
+        )
+    })?;
+
+    if metadata.len() > 1024 * 1024 {
+        return Err(AppError::new(
+            ErrorKind::StorageError,
+            "Profile file is too large (> 1MB), refusing to read.",
+        ));
+    }
+
     let content = fs::read_to_string(path).map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
@@ -387,6 +410,14 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>> {
     if !path.exists() {
         return Ok(Vec::new());
     }
+
+    if let Ok(metadata) = fs::metadata(&path) {
+        if metadata.len() > 10 * 1024 * 1024 {
+            let _ = fs::remove_file(&path);
+            return Ok(Vec::new());
+        }
+    }
+
     let content = std::fs::read_to_string(&path).map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,

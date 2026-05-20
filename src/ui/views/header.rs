@@ -6,8 +6,9 @@ use crate::ui::messages::Message;
 use crate::ui::state::{ConnectionStatus, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, SPACE_12,
-    SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
+    COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING,
+    LAYOUT_HEADER_BUSY_WIDTH, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION,
+    TYPE_TINY, TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;
@@ -147,7 +148,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             } else {
                 Element::from(text(""))
             })
-            .width(Length::Fixed(120.0))
+            .width(Length::Fixed(LAYOUT_HEADER_BUSY_WIDTH))
             .align_x(iced::Alignment::End),
             sync_buttons,
         ]

@@ -128,7 +128,7 @@ pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
         gain_raw as i16
     };
 
-    let q = ((q_raw as f64) / Q_FLOAT_TO_U16_DIVISOR * 100.0).round() / 100.0;
+    let q = (((q_raw as f64) / Q_FLOAT_TO_U16_DIVISOR * 100.0).round() / 100.0).max(0.01);
     let gain = ((gain_from_device as f64) / GAIN_FLOAT_TO_U16_DIVISOR * 100.0).round() / 100.0;
     let filter_type = FilterType::from(packet[OFFSET_FILTER_TYPE]);
     let enabled = !(freq == 0 && gain_from_device == 0);

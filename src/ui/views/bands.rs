@@ -8,9 +8,9 @@ use crate::ui::theme;
 use crate::ui::tokens::{
     BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
     BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
-    BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE,
-    COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_12, SPACE_2, SPACE_4, SPACE_8,
-    STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
+    BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, CHECKBOX_SIZE, COLOR_ERROR, COLOR_ON_PRIMARY,
+    COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_0, SPACE_1, SPACE_12, SPACE_2,
+    SPACE_4, SPACE_8, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
 };
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
@@ -128,7 +128,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
                     ..Default::default()
                 }),
         )
-        .padding([0.0, SPACE_4])
+        .padding([SPACE_0, SPACE_4])
         .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
         .into(),
     );
@@ -147,7 +147,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, SPACE_4])
+        .padding([SPACE_0, SPACE_4])
         .width(Length::Fixed(BAND_FREQ_INPUT_WIDTH))
         .into(),
     );
@@ -166,7 +166,7 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, SPACE_4])
+        .padding([SPACE_0, SPACE_4])
         .width(Length::Fill)
         .into(),
     );
@@ -185,24 +185,20 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
             )
             .style(theme::tooltip_style),
         )
-        .padding([0.0, SPACE_4])
+        .padding([SPACE_0, SPACE_4])
         .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
         .into(),
     );
 
     column![
         row(elements).spacing(SPACE_4).padding(Padding {
-            top: 0.0,
+            top: SPACE_0,
             right: SPACE_4,
             bottom: SPACE_4,
             left: SPACE_4,
         }),
-        container(iced::widget::Space::new().width(Length::Fill).height(1.0))
+        container(iced::widget::rule::horizontal(SPACE_1).style(theme::divider_rule_style))
             .width(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(Background::Color(crate::ui::tokens::COLOR_OUTLINE)),
-                ..Default::default()
-            })
     ]
     .into()
 }
@@ -288,7 +284,7 @@ fn render_type_buttons<'a>(
             )
             .width(Length::Fixed(BAND_FILTER_BUTTON_WIDTH))
             .height(Length::Fixed(BAND_FILTER_BUTTON_HEIGHT))
-            .padding(0)
+            .padding(SPACE_0)
             .style(move |theme, status| {
                 let mut style = theme::m3_text_button(theme, status);
                 style.border.width = 0.0;
@@ -474,7 +470,7 @@ fn render_band_row<'a>(
                             Message::BandEnabledToggled(i, en)
                         }
                     })
-                    .size(16)
+                    .size(CHECKBOX_SIZE)
                     .style(theme::checkbox_style),
             )
             .width(Length::Fixed(BAND_ENABLE_ICON_WIDTH))

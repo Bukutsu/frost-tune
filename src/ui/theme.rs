@@ -54,7 +54,7 @@ pub fn card_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 0.0.into(),
+            radius: crate::ui::tokens::SHAPE_NONE.into(),
         },
         ..Default::default()
     }
@@ -66,7 +66,7 @@ pub fn dialog_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 0.0.into(),
+            radius: crate::ui::tokens::SHAPE_NONE.into(),
         },
         ..Default::default()
     }
@@ -78,7 +78,7 @@ pub fn header_card_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 0.0.into(),
+            radius: crate::ui::tokens::SHAPE_NONE.into(),
         },
         ..Default::default()
     }
@@ -90,7 +90,7 @@ pub fn tooltip_style(_theme: &Theme) -> container::Style {
         border: Border {
             color: COLOR_OUTLINE,
             width: 1.0,
-            radius: 0.0.into(),
+            radius: crate::ui::tokens::SHAPE_NONE.into(),
         },
         text_color: Some(COLOR_ON_SURFACE),
         ..Default::default()
@@ -182,6 +182,34 @@ pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
         button::Status::Pressed => {
             style.background = Some(Background::Color(Color {
                 a: STATE_PRESSED_OPACITY,
+                ..COLOR_ON_SURFACE
+            }));
+        }
+        _ => {}
+    }
+
+    enforce_disabled_button_contrast(style, status)
+}
+
+pub fn m3_text_button_active(theme: &Theme, status: button::Status) -> button::Style {
+    let mut style = button::text(theme, status);
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
+    style.text_color = COLOR_PRIMARY;
+    style.background = Some(Background::Color(Color {
+        a: 0.12,
+        ..COLOR_PRIMARY
+    }));
+
+    match status {
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_HOVER_OPACITY + 0.12,
+                ..COLOR_ON_SURFACE
+            }));
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_PRESSED_OPACITY + 0.12,
                 ..COLOR_ON_SURFACE
             }));
         }
@@ -596,7 +624,7 @@ pub fn slider_style(_theme: &Theme, status: slider::Status) -> slider::Style {
             ),
             width: 4.0,
             border: Border {
-                radius: 0.0.into(),
+                radius: crate::ui::tokens::SHAPE_NONE.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
@@ -604,7 +632,7 @@ pub fn slider_style(_theme: &Theme, status: slider::Status) -> slider::Style {
         handle: slider::Handle {
             shape: slider::HandleShape::Rectangle {
                 width: 6,
-                border_radius: 0.0.into(),
+                border_radius: crate::ui::tokens::SHAPE_NONE.into(),
             },
             background: Background::Color(handle_bg),
             border_width: 0.0,
@@ -657,7 +685,7 @@ pub fn gain_slider_style(
                 ),
                 width: 4.0,
                 border: Border {
-                    radius: 0.0.into(),
+                    radius: crate::ui::tokens::SHAPE_NONE.into(),
                     width: 0.0,
                     color: Color::TRANSPARENT,
                 },
@@ -665,12 +693,22 @@ pub fn gain_slider_style(
             handle: slider::Handle {
                 shape: slider::HandleShape::Rectangle {
                     width: 8,
-                    border_radius: 0.0.into(),
+                    border_radius: crate::ui::tokens::SHAPE_NONE.into(),
                 },
                 background: Background::Color(handle_bg),
                 border_width: 0.0,
                 border_color: Color::TRANSPARENT,
             },
         }
+    }
+}
+
+pub fn divider_rule_style(theme: &Theme) -> iced::widget::rule::Style {
+    let palette = theme.extended_palette();
+    iced::widget::rule::Style {
+        color: palette.background.strong.color,
+        radius: crate::ui::tokens::SHAPE_NONE.into(),
+        fill_mode: iced::widget::rule::FillMode::Full,
+        snap: true,
     }
 }

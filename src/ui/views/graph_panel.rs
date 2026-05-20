@@ -4,19 +4,23 @@
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::tokens::{ELEVATION_1, SPACE_12, SPACE_16};
+use crate::ui::tokens::{
+    ELEVATION_1, LAYOUT_GRAPH_BREAKPOINT_LARGE, LAYOUT_GRAPH_BREAKPOINT_SMALL,
+    LAYOUT_GRAPH_HEIGHT_LARGE, LAYOUT_GRAPH_HEIGHT_MEDIUM, LAYOUT_GRAPH_HEIGHT_SMALL, SHAPE_NONE,
+    SPACE_12, SPACE_16,
+};
 use iced::widget::{canvas, container};
 use iced::{Color, Element, Length, Padding};
 
 /// Graph with a fixed height based on width — for scrollable layouts (narrow, medium).
 pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
     iced::widget::responsive(move |size| {
-        let height = if size.width < 600.0 {
-            240.0
-        } else if size.width < 1000.0 {
-            280.0
+        let height = if size.width < LAYOUT_GRAPH_BREAKPOINT_SMALL {
+            LAYOUT_GRAPH_HEIGHT_SMALL
+        } else if size.width < LAYOUT_GRAPH_BREAKPOINT_LARGE {
+            LAYOUT_GRAPH_HEIGHT_MEDIUM
         } else {
-            320.0
+            LAYOUT_GRAPH_HEIGHT_LARGE
         };
 
         container(
@@ -70,7 +74,7 @@ fn graph_container_style(_theme: &iced::Theme) -> container::Style {
         border: iced::Border {
             color: Color::TRANSPARENT,
             width: 0.0,
-            radius: 0.0.into(),
+            radius: SHAPE_NONE.into(),
         },
         ..Default::default()
     }

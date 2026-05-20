@@ -10,7 +10,8 @@ use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
 use crate::ui::state::{ConfirmAction, ConnectionStatus, EditorState, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    SPACE_16, SPACE_24, SPACE_4, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX,
+    LAYOUT_DEVICES_MAX_WIDTH, LAYOUT_WINDOW_MIN_HEIGHT, LAYOUT_WINDOW_MIN_WIDTH, SPACE_0, SPACE_16,
+    SPACE_24, SPACE_4, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TITLE, WINDOW_MEDIUM_MAX,
     WINDOW_NARROW_MAX,
 };
 use crate::ui::views;
@@ -394,9 +395,15 @@ impl MainWindow {
         let right_column = scrollable(
             column![
                 views::tools_panel::view_tools_panel(self),
-                views::diagnostics::view_diagnostics(self),
+                views::diagnostics::view_diagnostics_section(self),
             ]
-            .spacing(SPACE_16),
+            .spacing(SPACE_16)
+            .padding(Padding {
+                top: SPACE_0,
+                right: SPACE_8,
+                bottom: SPACE_0,
+                left: SPACE_0,
+            }),
         )
         .width(Length::FillPortion(2));
 
@@ -438,7 +445,7 @@ impl MainWindow {
                     top: SPACE_16,
                     right: SPACE_16,
                     bottom: SPACE_16,
-                    left: 0.0,
+                    left: SPACE_0,
                 }),
             )
             .height(Length::Fill),
@@ -565,7 +572,7 @@ impl MainWindow {
             }
         }
 
-        container(devices_col.max_width(480))
+        container(devices_col.max_width(LAYOUT_DEVICES_MAX_WIDTH))
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
@@ -658,7 +665,10 @@ impl MainWindow {
 
 pub fn run() -> iced::Result {
     let mut window_settings = iced::window::Settings {
-        min_size: Some(iced::Size::new(900.0, 580.0)),
+        min_size: Some(iced::Size::new(
+            LAYOUT_WINDOW_MIN_WIDTH,
+            LAYOUT_WINDOW_MIN_HEIGHT,
+        )),
         ..Default::default()
     };
     #[cfg(target_os = "linux")]
@@ -687,7 +697,10 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
         .collect();
     let diagnostics = DiagnosticsStore::from_events(events);
     let mut window_settings = iced::window::Settings {
-        min_size: Some(iced::Size::new(900.0, 580.0)),
+        min_size: Some(iced::Size::new(
+            LAYOUT_WINDOW_MIN_WIDTH,
+            LAYOUT_WINDOW_MIN_HEIGHT,
+        )),
         ..Default::default()
     };
     #[cfg(target_os = "linux")]
