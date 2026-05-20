@@ -122,12 +122,7 @@ pub fn pull_peq_internal(
         delay_ms(cfg.inter_filter_ms);
     }
 
-    if had_mismatch {
-        return Err(AppError::new(
-            ErrorKind::ReadTimeout,
-            "One or more filters failed to read",
-        ));
-    }
+    validate_filter_reads(strict, had_mismatch)?;
 
     let global_nonce = get_next_nonce();
     let global_gain = read_global_gain(device, proto, &cfg, global_nonce)?;
@@ -249,4 +244,118 @@ fn assemble_filters(
     }
 
     filters
+}
+
+fn validate_filter_reads(strict: bool, had_mismatch: bool) -> Result<()> {
+    if strict && had_mismatch {
+        return Err(AppError::new(
+            ErrorKind::ReadTimeout,
+            "One or more filters failed to read",
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hardware::packet_format::{
+        CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, READ,
+        WRITE,
+    };
+    use crate::models::FilterType;
+
+    struct TestProtocol;
+
+    impl DeviceProtocol for TestProtocol {
+        fn report_id(&self) -> u8 {
+            REPORT_ID
+        }
+
+        fn cmd_version(&self) -> u8 {
+            CMD_VERSION
+        }
+
+        fn cmd_peq_values(&self) -> u8 {
+            CMD_PEQ_VALUES
+        }
+
+        fn cmd_global_gain(&self) -> u8 {
+            CMD_GLOBAL_GAIN
+        }
+
+        fn cmd_temp_write(&self) -> u8 {
+            CMD_TEMP_WRITE
+        }
+
+        fn cmd_flash_eq(&self) -> u8 {
+            CMD_FLASH_EQ
+        }
+
+        fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8> {
+            vec![READ, CMD_PEQ_VALUES, nonce, 0x00, index, END]
+        }
+
+        fn build_global_gain_request(&self, nonce: u8) -> Vec<u8> {
+            vec![READ, CMD_GLOBAL_GAIN, nonce, END]
+        }
+
+        fn build_filter_write_packet(
+            &self,
+            index: u8,
+            _enabled: bool,
+            _freq: f64,
+            _gain: f64,
+            _q: f64,
+            _filter_type: u8,
+        ) -> Vec<u8> {
+            vec![WRITE, CMD_PEQ_VALUES, 0x00, 0x00, index, END]
+        }
+
+        fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8> {
+            vec![WRITE, CMD_GLOBAL_GAIN, 0x02, 0x00, gain as u8, END]
+        }
+
+        fn build_temp_write_packet(&self) -> Vec<u8> {
+            vec![WRITE, CMD_TEMP_WRITE, 0x04, 0x00, 0x00, 0xFF, 0xFF, END]
+        }
+
+        fn build_flash_eq_packet(&self) -> Vec<u8> {
+            vec![WRITE, CMD_FLASH_EQ, 0x01, 0x65, END]
+        }
+
+        fn parse_filter_packet(&self, data: &[u8]) -> Option<Filter> {
+            if data.len() < 34 {
+                return None;
+            }
+
+            Some(Filter {
+                index: data[4],
+                enabled: true,
+                filter_type: FilterType::Peak,
+                freq: 1000,
+                gain: 0.0,
+                q: 1.0,
+            })
+        }
+    }
+
+    #[test]
+    fn non_strict_reads_allow_missing_filters() {
+        let responses = vec![Some(vec![0; 34]), None, Some(vec![0; 34])];
+        let filters = assemble_filters(3, &TestProtocol, responses);
+
+        assert_eq!(filters.len(), 3);
+        assert!(filters[0].enabled);
+        assert!(!filters[1].enabled);
+        assert!(filters[2].enabled);
+    }
+
+    #[test]
+    fn validation_helper_rejects_missing_filters_only_in_strict_mode() {
+        assert!(validate_filter_reads(false, true).is_ok());
+        assert!(validate_filter_reads(true, false).is_ok());
+        assert!(validate_filter_reads(true, true).is_err());
+    }
 }
