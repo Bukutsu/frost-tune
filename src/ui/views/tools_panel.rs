@@ -167,7 +167,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                     .color(COLOR_ON_SURFACE_VARIANT)
                     .font(iced::Font::MONOSPACE),
             ]
-            .spacing(SPACE_8)
+            .spacing(SPACE_8),
         )
         .padding(SPACE_12)
         .align_x(iced::Alignment::Start)

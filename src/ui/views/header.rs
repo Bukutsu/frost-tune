@@ -123,15 +123,13 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         .as_deref()
         .unwrap_or("Default EQ");
 
-    let mut display_row = row![
-        text(format!("— {}", profile_name))
-            .size(TYPE_BODY)
-            .color(COLOR_ON_SURFACE_VARIANT)
-            .font(Font {
-                weight: Weight::Bold,
-                ..Default::default()
-            })
-    ]
+    let mut display_row = row![text(format!("— {}", profile_name))
+        .size(TYPE_BODY)
+        .color(COLOR_ON_SURFACE_VARIANT)
+        .font(Font {
+            weight: Weight::Bold,
+            ..Default::default()
+        })]
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
@@ -144,7 +142,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                     .font(Font {
                         weight: Weight::Bold,
                         ..Default::default()
-                    })
+                    }),
             )
             .padding([SPACE_2, SPACE_8])
             .style(|_theme| container::Style {
@@ -158,7 +156,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                     radius: 0.0.into(),
                 },
                 ..Default::default()
-            })
+            }),
         );
     }
     let profile_display: Element<'_, Message> = display_row.into();
