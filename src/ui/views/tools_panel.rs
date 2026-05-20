@@ -362,18 +362,24 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let tab_strip = row![
         tab_button("Preset", ToolsTab::Preset, active_tab),
         tab_button("AUTO-EQ", ToolsTab::AutoEq, active_tab),
+        tab_button("SETTINGS", ToolsTab::Settings, active_tab),
     ];
+
+    let settings_body = container(
+        column![checkbox(state.editor_state.ui.auto_pull_on_connect)
+            .label("Auto-pull EQ from device on connect")
+            .on_toggle(Message::ToggleAutoPullOnConnect)
+            .size(CHECKBOX_SIZE)
+            .text_size(crate::ui::tokens::TYPE_CAPTION)
+            .style(theme::checkbox_style),]
+        .spacing(SPACE_12),
+    )
+    .padding(SPACE_16);
 
     let tab_body: Element<'_, Message> = match active_tab {
         ToolsTab::Preset => preset_body.into(),
         ToolsTab::AutoEq => autoeq_section.into(),
-        ToolsTab::Settings => container(
-            text("Settings — work in progress")
-                .size(TYPE_LABEL)
-                .color(COLOR_ON_SURFACE_VARIANT),
-        )
-        .padding(SPACE_16)
-        .into(),
+        ToolsTab::Settings => settings_body.into(),
     };
 
     let shared_actions = column![

@@ -79,6 +79,7 @@ impl MainWindow {
         let worker = Arc::new(UsbWorker::new());
         let default_filters: Vec<Filter> =
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+        let settings = crate::storage::load_settings();
         let window = MainWindow {
             editor_state: EditorState {
                 data: crate::ui::state::EditorData {
@@ -87,6 +88,7 @@ impl MainWindow {
                 },
                 ui: crate::ui::state::EditorUI {
                     snap_to_iso_enabled: true,
+                    auto_pull_on_connect: settings.auto_pull_on_connect,
                     ..Default::default()
                 },
                 ..Default::default()

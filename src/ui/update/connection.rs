@@ -257,7 +257,11 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     format!("Connected to {}", device_name_owned),
                 ));
-                Task::none()
+                if window.editor_state.ui.auto_pull_on_connect {
+                    Task::done(Message::PullPressed)
+                } else {
+                    Task::none()
+                }
             } else {
                 let err = result
                     .error
@@ -331,6 +335,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                 None
             };
 
+            let mut on_connect_task: Task<Message> = Task::none();
             if status.connected && window.connection_status != ConnectionStatus::Connected {
                 window.connection_status = ConnectionStatus::Connected;
                 window.disconnect_reason = DisconnectReason::None;
@@ -342,6 +347,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     Source::Worker,
                     "Device connected (poll)",
                 ));
+                if window.editor_state.ui.auto_pull_on_connect {
+                    on_connect_task = Task::done(Message::PullPressed);
+                }
             } else if !status.connected && window.connection_status == ConnectionStatus::Connected {
                 window.connection_status = ConnectionStatus::Disconnected;
                 window.disconnect_reason = DisconnectReason::DeviceLost;
@@ -367,7 +375,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     );
                 }
             }
-            Task::none()
+            on_connect_task
         }
         Message::Tick(_) => {
             let worker = match &window.worker {

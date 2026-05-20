@@ -334,6 +334,14 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             window.editor_state.ui.snap_to_iso_enabled = enabled;
             Task::none()
         }
+        Message::ToggleAutoPullOnConnect(enabled) => {
+            window.editor_state.ui.auto_pull_on_connect = enabled;
+            // Persist immediately; ignore I/O errors so the toggle still flips in-memory.
+            let _ = crate::storage::save_settings(crate::storage::Settings {
+                auto_pull_on_connect: enabled,
+            });
+            Task::none()
+        }
         _ => Task::none(),
     }
 }
