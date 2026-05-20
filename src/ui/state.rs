@@ -6,6 +6,7 @@ use crate::hardware::worker::UsbWorker;
 use crate::models::{DeviceInfo, Filter};
 use crate::storage::Profile;
 use crate::ui::messages::StatusMessage;
+use iced::widget::canvas::Cache;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -137,13 +138,19 @@ pub enum ConfirmAction {
     ExitWithUnsavedChanges(iced::window::Id),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct EditorData {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
+pub struct GraphState {
+    pub grid_cache: Cache,
+    pub curve_cache: Cache,
+}
+
+#[derive(Debug, Default)]
 pub struct EditorSession {
     pub is_dirty: bool,
     pub is_autoeq_active: bool,
@@ -156,7 +163,7 @@ pub struct EditorSession {
     pub new_profile_name: String,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EditorUI {
     pub profiles: Vec<Profile>,
     pub selected_profile_name: Option<String>,
@@ -166,9 +173,10 @@ pub struct EditorUI {
     pub show_diagnostics: bool,
     pub snap_to_iso_enabled: bool,
     pub active_tools_tab: ToolsTab,
+    pub graph_state: GraphState,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EditorState {
     pub data: EditorData,
     pub session: EditorSession,

@@ -10,7 +10,7 @@ use crate::ui::tokens::{
     BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
     BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE,
     COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_12, SPACE_2, SPACE_4, SPACE_8,
-    STATE_DISABLED_CONTAINER_OPACITY, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
+    STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
 };
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
@@ -200,20 +200,16 @@ fn render_header_row<'a>(show_enable: bool) -> Element<'a, Message> {
         container(iced::widget::Space::new().width(Length::Fill).height(1.0))
             .width(Length::Fill)
             .style(move |_| container::Style {
-                background: Some(Background::Color(Color {
-                    a: STATE_DISABLED_CONTAINER_OPACITY,
-                    ..COLOR_ON_SURFACE_VARIANT
-                })),
+                background: Some(Background::Color(crate::ui::tokens::COLOR_OUTLINE)),
                 ..Default::default()
             })
     ]
     .into()
 }
 
-fn render_input_field<'a>(
+fn render_input_field_raw<'a>(
     value: String,
     is_busy: bool,
-    error: Option<&'a str>,
     is_active: bool,
     on_input: impl Fn(String) -> Message + 'a,
     on_submit: Message,
@@ -233,6 +229,18 @@ fn render_input_field<'a>(
     } else {
         input.on_input(on_input).on_submit(on_submit)
     };
+    input.into()
+}
+
+fn render_input_field<'a>(
+    value: String,
+    is_busy: bool,
+    error: Option<&'a str>,
+    is_active: bool,
+    on_input: impl Fn(String) -> Message + 'a,
+    on_submit: Message,
+) -> Element<'a, Message> {
+    let input = render_input_field_raw(value, is_busy, is_active, on_input, on_submit);
     let error_row: Element<'_, Message> = if let Some(err) = error {
         text(err).size(TYPE_TINY).color(COLOR_ERROR).into()
     } else {
@@ -288,6 +296,12 @@ fn render_type_buttons<'a>(
                 if is_selected {
                     style.background = Some(COLOR_PRIMARY.into());
                     style.text_color = COLOR_ON_PRIMARY;
+                } else {
+                    let base_bg = match status {
+                        iced::widget::button::Status::Hovered => crate::ui::tokens::COLOR_OUTLINE,
+                        _ => crate::ui::tokens::COLOR_SURFACE,
+                    };
+                    style.background = Some(base_bg.into());
                 }
 
                 if !is_active {
@@ -306,7 +320,7 @@ fn render_type_buttons<'a>(
             }
         })
         .collect::<Vec<Element<Message>>>())
-    .spacing(0)
+    .spacing(crate::ui::tokens::SPACE_1)
     .into()
 }
 
@@ -356,25 +370,41 @@ fn render_gain_cell<'a>(
     .width(Length::Fill)
     .style(theme::gain_slider_style(band.gain, is_active));
 
-    row![
+    let input = render_input_field_raw(
+        state
+            .editor_state
+            .session
+            .input_buffer
+            .get_gain_input(i)
+            .map_or_else(|| format!("{:.2}", band.gain), |s| s.to_string()),
+        is_busy,
+        is_active,
+        move |s| Message::BandGainInput(i, s),
+        Message::BandGainInputCommit(i),
+    );
+
+    let error_row: Element<'_, Message> = if let Some(err) = gain_error {
+        text(err).size(TYPE_TINY).color(COLOR_ERROR).into()
+    } else {
+        iced::widget::Space::new().height(TYPE_TINY).into()
+    };
+
+    let slider_and_input = row![
         slider,
-        container(render_input_field(
-            state
-                .editor_state
-                .session
-                .input_buffer
-                .get_gain_input(i)
-                .map_or_else(|| format!("{:.2}", band.gain), |s| s.to_string()),
-            is_busy,
-            gain_error,
-            is_active,
-            move |s| Message::BandGainInput(i, s),
-            Message::BandGainInputCommit(i),
-        ))
-        .width(Length::Fixed(BAND_GAIN_INPUT_WIDTH)),
+        container(input).width(Length::Fixed(BAND_GAIN_INPUT_WIDTH)),
     ]
     .spacing(SPACE_4)
     .align_y(iced::Alignment::Center)
+    .width(Length::Fill);
+
+    column![
+        slider_and_input,
+        row![
+            iced::widget::Space::new().width(Length::Fill),
+            container(error_row).width(Length::Fixed(BAND_GAIN_INPUT_WIDTH)),
+        ]
+    ]
+    .spacing(SPACE_2)
     .width(Length::Fill)
     .into()
 }
@@ -416,7 +446,7 @@ fn render_band_row<'a>(
     let gain_error = state.editor_state.session.input_buffer.get_gain_error(i);
     let q_error = state.editor_state.session.input_buffer.get_q_error(i);
 
-    let is_active = band.enabled && band.gain.abs() > 0.01;
+    let is_active = band.enabled;
     let accent_color = if is_active {
         COLOR_PRIMARY
     } else {

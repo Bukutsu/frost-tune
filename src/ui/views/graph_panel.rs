@@ -4,7 +4,7 @@
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
-use crate::ui::tokens::{ELEVATION_0, SPACE_12, SPACE_16};
+use crate::ui::tokens::{ELEVATION_1, SPACE_12, SPACE_16};
 use iced::widget::{canvas, container};
 use iced::{Color, Element, Length, Padding};
 
@@ -23,6 +23,7 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
             canvas(EqGraph::new(
                 &state.editor_state.data.filters,
                 state.editor_state.data.global_gain,
+                &state.editor_state.ui.graph_state,
             ))
             .width(Length::Fill)
             .height(Length::Fixed(height)),
@@ -46,6 +47,7 @@ pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
         canvas(EqGraph::new(
             &state.editor_state.data.filters,
             state.editor_state.data.global_gain,
+            &state.editor_state.ui.graph_state,
         ))
         .width(Length::Fill)
         .height(Length::Fill),
@@ -64,7 +66,7 @@ pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
 
 fn graph_container_style(_theme: &iced::Theme) -> container::Style {
     container::Style {
-        background: Some(ELEVATION_0.into()),
+        background: Some(ELEVATION_1.into()),
         border: iced::Border {
             color: Color::TRANSPARENT,
             width: 0.0,

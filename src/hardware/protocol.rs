@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::hardware::dsp::{compute_iir_filter, convert_to_byte_array};
+use crate::hardware::dsp::{compute_iir_filter, convert_to_2byte_array};
 use crate::hardware::packet_format::{ReadTiming, WriteTiming};
 pub use crate::hardware::packet_format::{
     CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, FILTER_SLOT,
@@ -137,25 +137,21 @@ impl DeviceProtocol for TP35ProProtocol {
     fn build_filter_write_packet(
         &self,
         index: u8,
-        enabled: bool,
+        _enabled: bool,
         freq: f64,
         gain: f64,
         q: f64,
         filter_type: u8,
     ) -> Vec<u8> {
-        let _ = enabled;
-
         let b_arr = compute_iir_filter(freq, gain, q);
 
-        let mut packet = vec![WRITE, CMD_PEQ_VALUES, 0x18, 0x00, index, 0x00, 0x00];
+        let mut packet = Vec::with_capacity(36);
+        packet.extend_from_slice(&[WRITE, CMD_PEQ_VALUES, 0x18, 0x00, index, 0x00, 0x00]);
         packet.extend_from_slice(&b_arr);
-        packet.extend_from_slice(&convert_to_byte_array(freq.round() as i32, 2));
-        packet.extend_from_slice(&convert_to_byte_array((q * 256.0).round() as i32, 2));
-        packet.extend_from_slice(&convert_to_byte_array((gain * 256.0).round() as i32, 2));
-        packet.push(filter_type);
-        packet.push(0x00);
-        packet.push(FILTER_SLOT);
-        packet.push(END);
+        packet.extend_from_slice(&convert_to_2byte_array(freq.round() as i32));
+        packet.extend_from_slice(&convert_to_2byte_array((q * 256.0).round() as i32));
+        packet.extend_from_slice(&convert_to_2byte_array((gain * 256.0).round() as i32));
+        packet.extend_from_slice(&[filter_type, 0x00, FILTER_SLOT, END]);
 
         packet
     }

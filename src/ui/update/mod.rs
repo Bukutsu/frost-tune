@@ -18,7 +18,8 @@ use self::hardware::handle_hardware;
 use self::profiles::handle_profiles;
 
 pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
-    match message {
+    let before_data = window.editor_state.data.clone();
+    let task = match message {
         Message::None => Task::none(),
         // handle_connection
         Message::ClearStatusMessage(_)
@@ -96,5 +97,9 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ConfirmOverwriteProfile
         | Message::ProfileSearchInput(..)
         | Message::ToolsTabSelected(..) => handle_profiles(window, message),
+    };
+    if window.editor_state.data != before_data {
+        window.editor_state.ui.graph_state.curve_cache.clear();
     }
+    task
 }

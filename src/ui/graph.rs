@@ -1,8 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::hardware::dsp::{get_biquad_coefficients, get_magnitude_response_with_coeffs};
+use crate::hardware::dsp::{
+    get_biquad_coefficients, get_magnitude_response_with_precomputed, PrecomputedFreq,
+};
 use crate::models::Filter;
+use crate::ui::state::GraphState;
 use crate::ui::tokens::{
     COLOR_GRAPH_BAND_FILL, COLOR_GRAPH_BAND_STROKE, COLOR_GRAPH_GRID, COLOR_ON_SURFACE_VARIANT,
     COLOR_PRIMARY, TYPE_AXIS_LABEL,
@@ -32,27 +35,40 @@ pub fn graph_label_layout(width: f32, height: f32) -> GraphLabelLayout {
     }
 }
 
-pub struct EqGraph {
+pub struct EqGraph<'a> {
     filters: Vec<Filter>,
     global_gain: i8,
-    grid_cache: Cache,
-    curve_cache: Cache,
+    grid_cache: &'a Cache,
+    curve_cache: &'a Cache,
 }
 
-impl EqGraph {
-    pub fn new(filters: &[Filter], global_gain: i8) -> Self {
-        let graph = Self {
+impl<'a> EqGraph<'a> {
+    pub fn new(filters: &[Filter], global_gain: i8, state: &'a GraphState) -> Self {
+        Self {
             filters: filters.to_vec(),
             global_gain,
-            grid_cache: Cache::new(),
-            curve_cache: Cache::new(),
-        };
-        graph.curve_cache.clear();
-        graph
+            grid_cache: &state.grid_cache,
+            curve_cache: &state.curve_cache,
+        }
     }
 }
 
-impl<Message> Program<Message> for EqGraph {
+lazy_static::lazy_static! {
+    static ref GRAPH_FREQS: Vec<PrecomputedFreq> = {
+        let points_count = 300;
+        let min_f_log = 20.0f64.log10();
+        let max_f_log = 20000.0f64.log10();
+        let f_range_log = max_f_log - min_f_log;
+        let mut freqs = Vec::with_capacity(points_count);
+        for i in 0..points_count {
+            let f_log = min_f_log + (i as f64 / (points_count as f64 - 1.0)) * f_range_log;
+            freqs.push(PrecomputedFreq::new(10.0f64.powf(f_log)));
+        }
+        freqs
+    };
+}
+
+impl<'a, Message> Program<Message> for EqGraph<'a> {
     type State = ();
 
     fn draw(
@@ -138,23 +154,17 @@ impl<Message> Program<Message> for EqGraph {
             .collect();
 
         let curve = self.curve_cache.draw(renderer, bounds.size(), |frame| {
-            let points_count = 300;
-            let min_f_log = 20.0f64.log10();
-            let max_f_log = 20000.0f64.log10();
-            let f_range_log = max_f_log - min_f_log;
-            let mut test_freqs = Vec::with_capacity(points_count);
-            for i in 0..points_count {
-                let f_log = min_f_log + (i as f64 / (points_count as f64 - 1.0)) * f_range_log;
-                test_freqs.push(10.0f64.powf(f_log));
-            }
+            let test_freqs = &*GRAPH_FREQS;
+            let points_count = test_freqs.len();
 
             let responses: Vec<f64> = test_freqs
                 .iter()
-                .map(|&f| {
+                .map(|pf| {
                     let mut total_db = self.global_gain as f64;
                     for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
-                        total_db +=
-                            get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                        total_db += get_magnitude_response_with_precomputed(
+                            *b0, *b1, *b2, *a0, *a1, *a2, pf,
+                        );
                     }
                     total_db
                 })
@@ -166,9 +176,10 @@ impl<Message> Program<Message> for EqGraph {
 
             for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
                 let band_path = Path::new(|builder| {
-                    for (i, &f) in test_freqs.iter().enumerate() {
-                        let db =
-                            get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                    for (i, pf) in test_freqs.iter().enumerate() {
+                        let db = get_magnitude_response_with_precomputed(
+                            *b0, *b1, *b2, *a0, *a1, *a2, pf,
+                        );
                         let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
                         let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
                         let p = Point::new(x, y);

@@ -4,7 +4,7 @@
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_ON_PRIMARY, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE,
     COLOR_OUTLINE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_SURFACE, COLOR_SURFACE_DIM,
-    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL,
+    COLOR_WARNING, ELEVATION_0, ELEVATION_1, ELEVATION_2, SHAPE_EXTRA_SMALL, SHAPE_SMALL,
     STATE_DISABLED_CONTAINER_OPACITY, STATE_DISABLED_CONTENT_OPACITY, STATE_HOVER_OPACITY,
     STATE_PRESSED_OPACITY,
 };
@@ -60,9 +60,21 @@ pub fn card_style(_theme: &Theme) -> container::Style {
     }
 }
 
+pub fn dialog_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(ELEVATION_2)),
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
 pub fn header_card_style(_theme: &Theme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(ELEVATION_0)),
+        background: Some(Background::Color(ELEVATION_1)),
         border: Border {
             color: Color::TRANSPARENT,
             width: 0.0,
@@ -85,23 +97,32 @@ pub fn tooltip_style(_theme: &Theme) -> container::Style {
     }
 }
 
+pub fn status_banner_style(_theme: &Theme, bg_color: Color) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(bg_color)),
+        border: Border {
+            radius: SHAPE_EXTRA_SMALL.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
 // ── Button Styles ──────────────────────────────────────────────────────
 
 pub fn m3_filled_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::primary(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
+    style.text_color = COLOR_ON_PRIMARY;
     match status {
+        button::Status::Active => {
+            style.background = Some(Background::Color(COLOR_PRIMARY));
+        }
         button::Status::Hovered => {
-            style.background = Some(Background::Color(Color {
-                a: STATE_HOVER_OPACITY,
-                ..COLOR_ON_PRIMARY
-            }));
+            style.background = Some(Background::Color(color!(0xa4e5ff)));
         }
         button::Status::Pressed => {
-            style.background = Some(Background::Color(Color {
-                a: STATE_PRESSED_OPACITY,
-                ..COLOR_ON_PRIMARY
-            }));
+            style.background = Some(Background::Color(color!(0x54b7eb)));
         }
         _ => {}
     }
@@ -111,18 +132,16 @@ pub fn m3_filled_button(theme: &Theme, status: button::Status) -> button::Style 
 pub fn m3_tonal_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::secondary(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
+    style.text_color = COLOR_ON_SURFACE;
     match status {
+        button::Status::Active => {
+            style.background = Some(Background::Color(COLOR_SURFACE));
+        }
         button::Status::Hovered => {
-            style.background = Some(Background::Color(Color {
-                a: STATE_HOVER_OPACITY,
-                ..COLOR_ON_SURFACE
-            }));
+            style.background = Some(Background::Color(color!(0x353b55)));
         }
         button::Status::Pressed => {
-            style.background = Some(Background::Color(Color {
-                a: STATE_PRESSED_OPACITY,
-                ..COLOR_ON_SURFACE
-            }));
+            style.background = Some(Background::Color(COLOR_OUTLINE));
         }
         _ => {}
     }
@@ -132,25 +151,39 @@ pub fn m3_tonal_button(theme: &Theme, status: button::Status) -> button::Style {
 pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::danger(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
-
+    style.text_color = COLOR_ON_PRIMARY;
     match status {
         button::Status::Active => {
             style.background = Some(Background::Color(COLOR_ERROR));
-            style.text_color = COLOR_ON_PRIMARY;
         }
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(color!(0xff9ebb)));
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(color!(0xd1546d)));
+        }
+        _ => {}
+    }
+    enforce_disabled_button_contrast(style, status)
+}
+
+pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
+    let mut style = button::text(theme, status);
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
+    style.text_color = COLOR_PRIMARY;
+
+    match status {
         button::Status::Hovered => {
             style.background = Some(Background::Color(Color {
                 a: STATE_HOVER_OPACITY,
-                ..COLOR_ERROR
+                ..COLOR_ON_SURFACE
             }));
-            style.text_color = COLOR_ON_PRIMARY;
         }
         button::Status::Pressed => {
             style.background = Some(Background::Color(Color {
                 a: STATE_PRESSED_OPACITY,
-                ..COLOR_ERROR
+                ..COLOR_ON_SURFACE
             }));
-            style.text_color = COLOR_ON_PRIMARY;
         }
         _ => {}
     }
@@ -158,20 +191,63 @@ pub fn m3_filled_button_error(theme: &Theme, status: button::Status) -> button::
     enforce_disabled_button_contrast(style, status)
 }
 
-pub fn m3_text_button(theme: &Theme, status: button::Status) -> button::Style {
+pub fn m3_banner_text_button(theme: &Theme, status: button::Status) -> button::Style {
     let mut style = button::text(theme, status);
     style.border.radius = SHAPE_EXTRA_SMALL.into();
+    style.text_color = COLOR_ON_PRIMARY;
 
-    if matches!(status, button::Status::Hovered) {
-        style.background = Some(Background::Color(Color {
-            a: STATE_HOVER_OPACITY,
-            ..COLOR_ON_SURFACE
-        }));
-        style.border.width = 1.0;
-        style.border.color = COLOR_OUTLINE_VARIANT;
+    match status {
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_HOVER_OPACITY,
+                ..COLOR_ON_PRIMARY
+            }));
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(Color {
+                a: STATE_PRESSED_OPACITY,
+                ..COLOR_ON_PRIMARY
+            }));
+        }
+        _ => {}
     }
 
-    enforce_disabled_button_contrast(style, status)
+    style
+}
+
+pub fn tab_button_style(_theme: &Theme, status: button::Status, is_active: bool) -> button::Style {
+    let mut style = button::Style::default();
+    style.border.radius = SHAPE_EXTRA_SMALL.into();
+
+    if is_active {
+        style.background = Some(Background::Color(COLOR_SURFACE_DIM));
+        style.text_color = COLOR_PRIMARY;
+        style.border = Border::default();
+    } else {
+        style.background = Some(Background::Color(Color::TRANSPARENT));
+        style.text_color = COLOR_ON_SURFACE_VARIANT;
+        style.border = Border::default();
+
+        match status {
+            button::Status::Hovered => {
+                style.background = Some(Background::Color(Color {
+                    a: STATE_HOVER_OPACITY,
+                    ..COLOR_ON_SURFACE
+                }));
+                style.text_color = COLOR_ON_SURFACE;
+            }
+            button::Status::Pressed => {
+                style.background = Some(Background::Color(Color {
+                    a: STATE_PRESSED_OPACITY,
+                    ..COLOR_ON_SURFACE
+                }));
+                style.text_color = COLOR_ON_SURFACE;
+            }
+            _ => {}
+        }
+    }
+
+    style
 }
 
 pub fn profile_row_style(
@@ -194,6 +270,31 @@ pub fn profile_row_style(
     }
 
     enforce_disabled_button_contrast(style, status)
+}
+
+pub fn device_button_style(_theme: &Theme, status: button::Status) -> button::Style {
+    let mut style = button::Style {
+        background: Some(Background::Color(COLOR_SURFACE_DIM)),
+        border: Border {
+            radius: SHAPE_SMALL.into(),
+            width: 1.0,
+            color: Color::TRANSPARENT,
+        },
+        text_color: COLOR_ON_SURFACE,
+        ..Default::default()
+    };
+    match status {
+        button::Status::Hovered => {
+            style.background = Some(Background::Color(COLOR_SURFACE));
+            style.border.color = COLOR_OUTLINE_VARIANT;
+        }
+        button::Status::Pressed => {
+            style.background = Some(Background::Color(COLOR_OUTLINE));
+            style.border.color = COLOR_OUTLINE;
+        }
+        _ => {}
+    }
+    style
 }
 
 pub fn m3_outlined_button(_theme: &Theme, status: button::Status) -> button::Style {
@@ -249,27 +350,24 @@ pub fn m3_outlined_button_error(_theme: &Theme, status: button::Status) -> butto
     };
     enforce_disabled_button_contrast(style, status)
 }
-
 fn enforce_disabled_button_contrast(
     mut style: button::Style,
     status: button::Status,
 ) -> button::Style {
     if matches!(status, button::Status::Disabled) {
+        // Solid opaque colors: muted foreground on darkest surface.
+        // Alpha-based disabled colors fail WCAG AA tests because the test
+        // cannot composite alpha against an arbitrary background. Using solid
+        // colors gives correct, testable contrast (>= 3.0:1) while still
+        // communicating the disabled semantic through palette dimness.
         style.text_color = COLOR_ON_SURFACE_VARIANT;
-        style.background = Some(Background::Color(Color {
-            a: 0.88,
-            ..COLOR_OUTLINE
-        }));
+        style.background = Some(Background::Color(COLOR_SURFACE));
         style.border = Border {
-            color: Color {
-                a: 0.72,
-                ..COLOR_ON_SURFACE_VARIANT
-            },
-            width: 1.0,
+            color: Color::TRANSPARENT,
+            width: 0.0,
             radius: style.border.radius,
         };
     }
-
     style
 }
 
@@ -329,6 +427,15 @@ pub fn m3_outlined_input(_theme: &Theme, status: text_input::Status) -> text_inp
         ),
     };
 
+    let value_color = if matches!(status, text_input::Status::Disabled) {
+        Color {
+            a: STATE_DISABLED_CONTENT_OPACITY,
+            ..COLOR_ON_SURFACE
+        }
+    } else {
+        COLOR_ON_SURFACE
+    };
+
     text_input::Style {
         background: Background::Color(COLOR_SURFACE),
         border: Border {
@@ -341,7 +448,7 @@ pub fn m3_outlined_input(_theme: &Theme, status: text_input::Status) -> text_inp
             a: 0.9,
             ..COLOR_ON_SURFACE_VARIANT
         },
-        value: COLOR_ON_SURFACE,
+        value: value_color,
         selection: Color {
             a: 0.55,
             ..COLOR_PRIMARY
@@ -475,7 +582,12 @@ pub fn checkbox_style(_theme: &Theme, status: checkbox::Status) -> checkbox::Sty
 
 // ── Slider Styles ──────────────────────────────────────────────────────
 
-pub fn slider_style(_theme: &Theme, _status: slider::Status) -> slider::Style {
+pub fn slider_style(_theme: &Theme, status: slider::Status) -> slider::Style {
+    let handle_bg = match status {
+        slider::Status::Hovered => color!(0x9abaff),
+        slider::Status::Dragged => color!(0xbfd4ff),
+        slider::Status::Active => TOKYO_NIGHT_BLUE,
+    };
     slider::Style {
         rail: slider::Rail {
             backgrounds: (
@@ -484,16 +596,19 @@ pub fn slider_style(_theme: &Theme, _status: slider::Status) -> slider::Style {
             ),
             width: 4.0,
             border: Border {
-                radius: 2.0.into(),
+                radius: 0.0.into(),
                 width: 0.0,
                 color: Color::TRANSPARENT,
             },
         },
         handle: slider::Handle {
-            shape: slider::HandleShape::Circle { radius: 8.0 },
-            background: Background::Color(TOKYO_NIGHT_BLUE),
-            border_width: 1.0,
-            border_color: TOKYO_NIGHT_BLUE,
+            shape: slider::HandleShape::Rectangle {
+                width: 6,
+                border_radius: 0.0.into(),
+            },
+            background: Background::Color(handle_bg),
+            border_width: 0.0,
+            border_color: Color::TRANSPARENT,
         },
     }
 }
@@ -512,11 +627,28 @@ pub fn gain_slider_style(
     gain: f64,
     is_active: bool,
 ) -> impl Fn(&Theme, slider::Status) -> slider::Style {
-    move |_theme: &Theme, _status: slider::Status| {
+    move |_theme: &Theme, status: slider::Status| {
         let mut accent = gain_color(gain);
         if !is_active {
             accent.a *= 0.3;
         }
+        let handle_bg = match status {
+            slider::Status::Hovered => {
+                let mut c = accent;
+                c.r = (c.r * 1.15).min(1.0);
+                c.g = (c.g * 1.15).min(1.0);
+                c.b = (c.b * 1.15).min(1.0);
+                c
+            }
+            slider::Status::Dragged => {
+                let mut c = accent;
+                c.r = (c.r * 1.3).min(1.0);
+                c.g = (c.g * 1.3).min(1.0);
+                c.b = (c.b * 1.3).min(1.0);
+                c
+            }
+            slider::Status::Active => accent,
+        };
         slider::Style {
             rail: slider::Rail {
                 backgrounds: (
@@ -525,16 +657,19 @@ pub fn gain_slider_style(
                 ),
                 width: 4.0,
                 border: Border {
-                    radius: 2.0.into(),
+                    radius: 0.0.into(),
                     width: 0.0,
                     color: Color::TRANSPARENT,
                 },
             },
             handle: slider::Handle {
-                shape: slider::HandleShape::Circle { radius: 8.0 },
-                background: Background::Color(accent),
-                border_width: 1.0,
-                border_color: accent,
+                shape: slider::HandleShape::Rectangle {
+                    width: 8,
+                    border_radius: 0.0.into(),
+                },
+                background: Background::Color(handle_bg),
+                border_width: 0.0,
+                border_color: Color::TRANSPARENT,
             },
         }
     }

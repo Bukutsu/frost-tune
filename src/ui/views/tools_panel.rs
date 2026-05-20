@@ -5,9 +5,8 @@ use crate::ui::messages::Message;
 use crate::ui::state::{MainWindow, ToolsTab};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE, ELEVATION_2,
-    ICON_BUTTON_SIZE, PROFILE_LIST_HEIGHT, SHAPE_SMALL, SPACE_12, SPACE_16, SPACE_2, SPACE_8,
-    TYPE_LABEL,
+    BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE, PROFILE_LIST_HEIGHT, SPACE_12,
+    SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL,
 };
 use crate::ui::views::{action_button, icon_action_button, icon_button};
 use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
@@ -33,11 +32,7 @@ fn tab_button<'a>(
     .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
     .width(Length::Fill)
     .on_press(Message::ToolsTabSelected(tab))
-    .style(if is_active {
-        theme::m3_filled_button
-    } else {
-        theme::m3_tonal_button
-    })
+    .style(move |t, s| theme::tab_button_style(t, s, is_active))
 }
 
 pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
@@ -156,7 +151,14 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         )
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
+        .height(Length::Fixed(PROFILE_LIST_HEIGHT))
+        .width(Length::Fill)
+        .style(|_theme: &iced::Theme| container::Style {
+            background: Some(iced::Background::Color(
+                crate::ui::tokens::COLOR_SURFACE_DIM,
+            )),
+            ..Default::default()
+        })
         .into()
     } else {
         let rows: Vec<Element<'_, Message>> = filtered_profiles
@@ -187,17 +189,13 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .width(Length::Fill),
         )
         .style(|_theme: &iced::Theme| container::Style {
-            background: Some(iced::Background::Color(iced::Color {
-                a: 0.2,
-                ..ELEVATION_2
-            })),
+            background: Some(iced::Background::Color(
+                crate::ui::tokens::COLOR_SURFACE_DIM,
+            )),
             border: iced::Border {
-                color: iced::Color {
-                    a: 0.3,
-                    ..COLOR_OUTLINE
-                },
-                width: 1.0,
-                radius: SHAPE_SMALL.into(),
+                color: iced::Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
             },
             ..Default::default()
         })
@@ -257,9 +255,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
             action_button("Delete")
                 .on_press(Message::DeleteProfilePressed)
-                .style(theme::m3_filled_button_error)
+                .style(theme::m3_outlined_button_error)
         } else {
-            action_button("Delete").style(theme::m3_filled_button_error)
+            action_button("Delete").style(theme::m3_outlined_button_error)
         },
     ]
     .spacing(SPACE_8)
@@ -279,16 +277,12 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             };
             date_widget
         },
-        row![
-            checkbox(state.editor_state.ui.snap_to_iso_enabled)
-                .on_toggle(Message::ToggleSnapToIso)
-                .style(theme::checkbox_style),
-            text("Snap to ISO frequencies")
-                .size(crate::ui::tokens::TYPE_CAPTION)
-                .color(COLOR_ON_SURFACE),
-        ]
-        .spacing(SPACE_8)
-        .align_y(iced::Alignment::Center),
+        checkbox(state.editor_state.ui.snap_to_iso_enabled)
+            .label("Snap to ISO frequencies")
+            .on_toggle(Message::ToggleSnapToIso)
+            .size(16)
+            .text_size(crate::ui::tokens::TYPE_CAPTION)
+            .style(theme::checkbox_style),
         profile_name_input.width(Length::Fill),
     ]
     .spacing(SPACE_12);

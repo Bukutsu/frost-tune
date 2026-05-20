@@ -6,8 +6,9 @@ use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
-    COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_WARNING, DIAGNOSTICS_LEVEL_WIDTH,
-    DIAGNOSTICS_TIME_WIDTH, DIVIDER_HEIGHT, SPACE_12, SPACE_2, SPACE_4, SPACE_8, TYPE_TINY,
+    COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_OUTLINE_VARIANT, COLOR_WARNING,
+    DIAGNOSTICS_LEVEL_WIDTH, DIAGNOSTICS_TIME_WIDTH, DIVIDER_HEIGHT, SPACE_12, SPACE_2, SPACE_4,
+    SPACE_8, TYPE_TINY,
 };
 use crate::ui::views::small_action_button;
 use iced::widget::{column, container, row, scrollable, text};
@@ -24,19 +25,35 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     let warn_count = events.iter().filter(|e| e.level == LogLevel::Warn).count();
     let info_count = events.iter().filter(|e| e.level == LogLevel::Info).count();
 
+    let err_c = if error_count > 0 {
+        COLOR_ERROR
+    } else {
+        COLOR_ON_SURFACE_VARIANT
+    };
+    let warn_c = if warn_count > 0 {
+        COLOR_WARNING
+    } else {
+        COLOR_ON_SURFACE_VARIANT
+    };
+    let info_c = if info_count > 0 {
+        COLOR_INFO
+    } else {
+        COLOR_ON_SURFACE_VARIANT
+    };
+
     let summary = row![
-        text("Errors:").size(TYPE_TINY).color(COLOR_ERROR),
+        text("Errors:").size(TYPE_TINY).color(err_c),
         text(format!("{}", error_count))
             .size(TYPE_TINY)
-            .color(COLOR_ERROR),
-        text("Warnings:").size(TYPE_TINY).color(COLOR_WARNING),
+            .color(err_c),
+        text("Warnings:").size(TYPE_TINY).color(warn_c),
         text(format!("{}", warn_count))
             .size(TYPE_TINY)
-            .color(COLOR_WARNING),
-        text("Info:").size(TYPE_TINY).color(COLOR_INFO),
+            .color(warn_c),
+        text("Info:").size(TYPE_TINY).color(info_c),
         text(format!("{}", info_count))
             .size(TYPE_TINY)
-            .color(COLOR_INFO),
+            .color(info_c),
     ]
     .spacing(SPACE_4)
     .align_y(Alignment::Center);
@@ -106,7 +123,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
             container(text(""))
                 .height(DIVIDER_HEIGHT)
                 .style(|_| container::Style {
-                    background: Some(iced::Background::Color(COLOR_ON_SURFACE_VARIANT)),
+                    background: Some(iced::Background::Color(COLOR_OUTLINE_VARIANT)),
                     ..Default::default()
                 }),
             log_content,

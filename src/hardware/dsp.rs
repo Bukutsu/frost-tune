@@ -16,16 +16,38 @@ const U16_WRAP_AROUND: i32 = 65536;
 const GAIN_I16_THRESHOLD: i32 = 32767;
 const BYTE_BIT_SHIFT: i32 = 8;
 
-pub fn quantizer(d_arr: &[f64], d_arr2: &[f64]) -> Vec<i32> {
-    let i_arr: Vec<i32> = d_arr
-        .iter()
-        .map(|d| (d * QUANTIZER_SCALE).round() as i32)
-        .collect();
-    let i_arr2: Vec<i32> = d_arr2
-        .iter()
-        .map(|d| (d * QUANTIZER_SCALE).round() as i32)
-        .collect();
-    vec![
+#[derive(Debug, Clone, Copy)]
+pub struct PrecomputedFreq {
+    pub cos_w: f64,
+    pub cos_2w: f64,
+    pub sin_w: f64,
+    pub sin_2w: f64,
+}
+
+impl PrecomputedFreq {
+    pub fn new(f: f64) -> Self {
+        let w = (f * TAU) / DSP_SAMPLE_RATE;
+        Self {
+            cos_w: w.cos(),
+            cos_2w: (2.0 * w).cos(),
+            sin_w: w.sin(),
+            sin_2w: (2.0 * w).sin(),
+        }
+    }
+}
+
+pub fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
+    let i_arr = [
+        (d_arr[0] * QUANTIZER_SCALE).round() as i32,
+        (d_arr[1] * QUANTIZER_SCALE).round() as i32,
+        (d_arr[2] * QUANTIZER_SCALE).round() as i32,
+    ];
+    let i_arr2 = [
+        (d_arr2[0] * QUANTIZER_SCALE).round() as i32,
+        (d_arr2[1] * QUANTIZER_SCALE).round() as i32,
+        (d_arr2[2] * QUANTIZER_SCALE).round() as i32,
+    ];
+    [
         i_arr2[0],
         i_arr2[1],
         i_arr2[2],
@@ -34,8 +56,8 @@ pub fn quantizer(d_arr: &[f64], d_arr2: &[f64]) -> Vec<i32> {
     ]
 }
 
-pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> Vec<u8> {
-    let mut b_arr = vec![0u8; 20];
+pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> [u8; 20] {
+    let mut b_arr = [0u8; 20];
     let sqrt = (10_f64.powf(gain / 20.0)).sqrt();
     let omega = (freq * TAU) / DSP_SAMPLE_RATE;
     let sin_omega_over_2q = omega.sin() / (2.0 * q);
@@ -47,12 +69,12 @@ pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> Vec<u8> {
             1.0,
             (omega.cos() * -2.0) / denom,
             (1.0 - sin_omega_over_2q / sqrt) / denom,
-        ][..],
+        ],
         &[
             (omega_correction + 1.0) / denom,
             omega.cos() * -2.0 / denom,
             (1.0 - omega_correction) / denom,
-        ][..],
+        ],
     );
 
     for (i, &value) in quantizer_data.iter().enumerate() {
@@ -71,6 +93,22 @@ pub fn convert_to_byte_array(value: i32, length: usize) -> Vec<u8> {
         arr.push(((value >> (BYTE_BIT_SHIFT * i as i32)) & 0xFF) as u8);
     }
     arr
+}
+
+pub fn convert_to_4byte_array(value: i32) -> [u8; 4] {
+    [
+        (value & 0xFF) as u8,
+        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
+        ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8,
+        ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8,
+    ]
+}
+
+pub fn convert_to_2byte_array(value: i32) -> [u8; 2] {
+    [
+        (value & 0xFF) as u8,
+        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
+    ]
 }
 
 pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
@@ -185,16 +223,23 @@ pub fn get_magnitude_response_with_coeffs(
     a2: f64,
     f: f64,
 ) -> f64 {
-    let w = (f * TAU) / DSP_SAMPLE_RATE;
-    let cos_w = w.cos();
-    let cos_2w = (2.0 * w).cos();
-    let sin_w = w.sin();
-    let sin_2w = (2.0 * w).sin();
+    let pf = PrecomputedFreq::new(f);
+    get_magnitude_response_with_precomputed(b0, b1, b2, a0, a1, a2, &pf)
+}
 
-    let num_real = b0 + b1 * cos_w + b2 * cos_2w;
-    let num_imag = -(b1 * sin_w + b2 * sin_2w);
-    let den_real = a0 + a1 * cos_w + a2 * cos_2w;
-    let den_imag = -(a1 * sin_w + a2 * sin_2w);
+pub fn get_magnitude_response_with_precomputed(
+    b0: f64,
+    b1: f64,
+    b2: f64,
+    a0: f64,
+    a1: f64,
+    a2: f64,
+    pf: &PrecomputedFreq,
+) -> f64 {
+    let num_real = b0 + b1 * pf.cos_w + b2 * pf.cos_2w;
+    let num_imag = -(b1 * pf.sin_w + b2 * pf.sin_2w);
+    let den_real = a0 + a1 * pf.cos_w + a2 * pf.cos_2w;
+    let den_imag = -(a1 * pf.sin_w + a2 * pf.sin_2w);
 
     let num_mag_sq = num_real * num_real + num_imag * num_imag;
     let den_mag_sq = den_real * den_real + den_imag * den_imag;
@@ -212,7 +257,11 @@ pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
     get_magnitude_response_with_coeffs(b0, b1, b2, a0, a1, a2, f)
 }
 
-pub fn calculate_total_response(filters: &[Filter], global_gain: i8, freqs: &[f64]) -> Vec<f64> {
+pub fn calculate_total_response(
+    filters: &[Filter],
+    global_gain: i8,
+    freqs: &[PrecomputedFreq],
+) -> Vec<f64> {
     let precomputed_coeffs: Vec<Option<BiquadCoeffs>> = filters
         .iter()
         .map(|f| {
@@ -226,10 +275,11 @@ pub fn calculate_total_response(filters: &[Filter], global_gain: i8, freqs: &[f6
 
     freqs
         .iter()
-        .map(|&f| {
+        .map(|pf| {
             let mut total_db = global_gain as f64;
             for (b0, b1, b2, a0, a1, a2) in precomputed_coeffs.iter().flatten() {
-                total_db += get_magnitude_response_with_coeffs(*b0, *b1, *b2, *a0, *a1, *a2, f);
+                total_db +=
+                    get_magnitude_response_with_precomputed(*b0, *b1, *b2, *a0, *a1, *a2, pf);
             }
             total_db
         })
@@ -294,7 +344,7 @@ mod tests {
                 filter_type: FilterType::Peak,
             },
         ];
-        let freqs = vec![1000.0];
+        let freqs = vec![PrecomputedFreq::new(1000.0)];
         let total = calculate_total_response(&filters, 0, &freqs);
         assert!((total[0] - 4.0).abs() < 0.1);
 
@@ -334,8 +384,8 @@ mod tests {
 
     #[test]
     fn test_quantizer_no_overflow() {
-        let d_arr: Vec<f64> = vec![1.0, -1000.0, 1000.0];
-        let d_arr2: Vec<f64> = vec![1.0, 2.0, 3.0];
+        let d_arr: [f64; 3] = [1.0, -10.0, 10.0];
+        let d_arr2: [f64; 3] = [1.0, 2.0, 3.0];
         let result = quantizer(&d_arr, &d_arr2);
         assert_eq!(result.len(), 5);
     }

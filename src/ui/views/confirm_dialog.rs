@@ -49,7 +49,7 @@ fn dialog_container<'a>(
     );
 
     container(col.spacing(SPACE_12).padding(SPACE_16))
-        .style(theme::card_style)
+        .style(theme::dialog_style)
         .width(Length::Fixed(DIALOG_WIDTH_SMALL))
         .into()
 }
@@ -84,7 +84,7 @@ pub fn view_exit_dialog<'a>(
                     .style(theme::m3_tonal_button),
                 action_button(exit_label)
                     .on_press(exit_msg)
-                    .style(theme::m3_filled_button_error),
+                    .style(theme::m3_outlined_button_error),
                 action_button(save_label)
                     .on_press(save_msg)
                     .style(theme::m3_filled_button),
@@ -94,7 +94,7 @@ pub fn view_exit_dialog<'a>(
         .spacing(SPACE_12)
         .padding(SPACE_16),
     )
-    .style(theme::card_style)
+    .style(theme::dialog_style)
     .width(Length::Fixed(DIALOG_WIDTH))
     .into()
 }

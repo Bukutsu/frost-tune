@@ -421,7 +421,7 @@ impl MainWindow {
         .width(Length::Fill)
         .height(Length::Fill)
         .padding(Padding {
-            top: 0.0,
+            top: SPACE_16,
             right: SPACE_16,
             bottom: SPACE_8,
             left: SPACE_16,
@@ -435,7 +435,7 @@ impl MainWindow {
                 ]
                 .spacing(SPACE_16)
                 .padding(Padding {
-                    top: 0.0,
+                    top: SPACE_16,
                     right: SPACE_16,
                     bottom: SPACE_16,
                     left: 0.0,
@@ -557,16 +557,7 @@ impl MainWindow {
 
                 let dev_btn =
                     iced::widget::button(container(dev_row).padding(SPACE_16).width(Length::Fill))
-                        .style(move |_theme, _status| iced::widget::button::Style {
-                            background: Some(crate::ui::tokens::COLOR_SURFACE_DIM.into()),
-                            border: iced::Border {
-                                radius: crate::ui::tokens::SHAPE_SMALL.into(),
-                                width: 1.0,
-                                color: iced::Color::TRANSPARENT,
-                            },
-                            text_color: crate::ui::tokens::COLOR_ON_SURFACE,
-                            ..Default::default()
-                        })
+                        .style(theme::device_button_style)
                         .on_press(Message::ConnectPressed(dev.clone()))
                         .width(Length::Fill);
 
