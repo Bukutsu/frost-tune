@@ -24,13 +24,9 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
         };
 
         container(
-            canvas(EqGraph::new(
-                &state.editor_state.data.filters,
-                state.editor_state.data.global_gain,
-                &state.editor_state.ui.graph_state,
-            ))
-            .width(Length::Fill)
-            .height(Length::Fixed(height)),
+            canvas(EqGraph::new(&state.editor_state.ui.graph_state))
+                .width(Length::Fill)
+                .height(Length::Fixed(height)),
         )
         .padding(Padding {
             top: SPACE_16,
@@ -48,13 +44,9 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
 /// Graph that expands to fill all available vertical space — for the wide layout.
 pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
     container(
-        canvas(EqGraph::new(
-            &state.editor_state.data.filters,
-            state.editor_state.data.global_gain,
-            &state.editor_state.ui.graph_state,
-        ))
-        .width(Length::Fill)
-        .height(Length::Fill),
+        canvas(EqGraph::new(&state.editor_state.ui.graph_state))
+            .width(Length::Fill)
+            .height(Length::Fill),
     )
     .padding(Padding {
         top: SPACE_16,

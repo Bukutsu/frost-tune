@@ -364,7 +364,12 @@ fn render_gain_cell<'a>(
     })
     .step(crate::models::constants::GAIN_STEP)
     .width(Length::Fill)
-    .style(theme::gain_slider_style(band.gain, is_active));
+    .style(theme::gain_slider_style(band.gain, is_active))
+    .on_release(if is_busy {
+        Message::None
+    } else {
+        Message::BandGainReleased(i)
+    });
 
     let input = render_input_field_raw(
         state

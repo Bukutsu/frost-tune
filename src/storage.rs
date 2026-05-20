@@ -4,7 +4,6 @@
 use crate::autoeq;
 use crate::error::{AppError, ErrorKind, Result};
 use crate::models::PEQData;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
@@ -13,26 +12,6 @@ pub struct Profile {
     pub name: String,
     pub data: PEQData,
     pub modified: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UiPreferences {
-    #[serde(default)]
-    pub version: u32,
-    #[serde(default)]
-    pub advanced_filters_expanded: bool,
-    #[serde(default)]
-    pub diagnostics_expanded: bool,
-}
-
-impl Default for UiPreferences {
-    fn default() -> Self {
-        Self {
-            version: 1,
-            advanced_filters_expanded: false,
-            diagnostics_expanded: false,
-        }
-    }
 }
 
 fn get_base_dir() -> Result<PathBuf> {
@@ -72,71 +51,8 @@ fn get_profiles_dir() -> Result<PathBuf> {
     Ok(profiles_dir)
 }
 
-fn get_ui_preferences_path() -> Result<PathBuf> {
-    Ok(get_base_dir()?.join("ui_preferences.json"))
-}
-
 pub fn get_diagnostics_log_path() -> Result<PathBuf> {
     Ok(get_base_dir()?.join("diagnostics.log"))
-}
-
-pub fn load_ui_preferences() -> Result<UiPreferences> {
-    let path = get_ui_preferences_path()?;
-    if !path.exists() {
-        return Ok(UiPreferences::default());
-    }
-
-    let content = fs::read_to_string(&path).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to read UI preferences: {}", e),
-        )
-    })?;
-
-    serde_json::from_str::<UiPreferences>(&content).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to parse UI preferences: {}", e),
-        )
-    })
-}
-
-pub fn save_ui_preferences(prefs: &UiPreferences) -> Result<()> {
-    let path = get_ui_preferences_path()?;
-    let content = serde_json::to_string_pretty(prefs).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to serialize UI preferences: {}", e),
-        )
-    })?;
-
-    let base_dir = get_base_dir()?;
-    let tmp_path = base_dir.join(".ui_preferences.json.tmp");
-
-    fs::write(&tmp_path, content).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to write temp UI preferences: {}", e),
-        )
-    })?;
-    fs::rename(&tmp_path, &path).map_err(|e| {
-        if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
-            log::warn!(
-                "Failed to clean up temp file after rename error: {}",
-                cleanup_err
-            );
-        }
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to finalize UI preferences save: {}", e),
-        )
-    })?;
-
-    if let Ok(dir_file) = fs::File::open(&base_dir) {
-        let _ = dir_file.sync_all();
-    }
-
-    Ok(())
 }
 
 pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {

@@ -174,6 +174,13 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             }
         }
         Message::ProfileSelected(name) => {
+            if window.editor_state.session.is_dirty {
+                window.editor_state.session.pending_confirm =
+                    crate::ui::state::ConfirmAction::LoadProfile { name };
+                return Task::none();
+            }
+
+            window.editor_state.push_undo();
             let (profile_name, was_truncated) = match window
                 .editor_state
                 .ui
@@ -278,6 +285,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
 
                 match crate::storage::save_profile(&name, &data) {
                     Ok(_) => {
+                        window.editor_state.push_undo();
                         let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
                         window.editor_state.session.import_name_input = String::new();
                         window.editor_state.session.pending_confirm = ConfirmAction::None;
@@ -330,6 +338,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             {
                 match crate::storage::save_profile(&name, &data) {
                     Ok(_) => {
+                        window.editor_state.push_undo();
                         apply_peq_to_editor(window, data);
                         window.editor_state.session.pending_confirm = ConfirmAction::None;
                         window.editor_state.session.new_profile_name = name.clone();
@@ -367,38 +376,88 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 window.editor_state.session.pending_confirm,
                 ConfirmAction::DeleteProfile
             ) {
-                let name = match &window.editor_state.ui.selected_profile_name {
-                    Some(n) => n.clone(),
-                    None => return Task::none(),
-                };
+                window.editor_state.session.pending_confirm = ConfirmAction::None;
+            } else {
+                return Task::none();
+            }
+
+            if let Some(name) = window.editor_state.ui.selected_profile_name.clone() {
                 match crate::storage::delete_profile(&name) {
                     Ok(_) => {
+                        window.editor_state.session.is_dirty = false;
                         window.editor_state.ui.selected_profile_name = None;
-                        window.editor_state.session.new_profile_name = String::new();
-                        window.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Info,
-                            Source::UI,
-                            format!("Deleted profile: {}", name),
-                        ));
-                        let reload_task = reload_profiles_task();
-                        let status_task = window.set_status(
+                        window.editor_state.session.new_profile_name.clear();
+                        return window.set_status(
                             format!("Deleted profile: {}", name),
                             StatusSeverity::Success,
                         );
-                        window.editor_state.session.pending_confirm = ConfirmAction::None;
-                        Task::batch(vec![reload_task, status_task])
                     }
                     Err(e) => {
-                        window.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Error,
-                            Source::UI,
-                            format!("Delete failed: {}", e),
-                        ));
-                        window.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error)
+                        return window
+                            .set_status(format!("Failed to delete: {}", e), StatusSeverity::Error);
                     }
                 }
+            }
+            Task::none()
+        }
+        Message::ConfirmLoadProfile => {
+            let name = match &window.editor_state.session.pending_confirm {
+                ConfirmAction::LoadProfile { name } => name.clone(),
+                _ => {
+                    window.editor_state.session.pending_confirm = ConfirmAction::None;
+                    return Task::none();
+                }
+            };
+            window.editor_state.session.pending_confirm = ConfirmAction::None;
+            window.editor_state.push_undo();
+
+            let (profile_name, was_truncated) = match window
+                .editor_state
+                .ui
+                .profiles
+                .iter()
+                .find(|p| p.name == name)
+            {
+                Some(profile) => {
+                    let profile_name = profile.name.clone();
+                    let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
+                    window.editor_state.ui.selected_profile_name = Some(name.clone());
+                    window.editor_state.session.new_profile_name = profile_name.clone();
+                    window.editor_state.ui.profile_search.clear();
+                    window.editor_state.session.is_autoeq_active = false;
+                    (profile_name, was_truncated)
+                }
+                None => return Task::none(),
+            };
+
+            if was_truncated {
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Warn,
+                    Source::UI,
+                    format!(
+                        "Profile {} truncated to {} bands",
+                        profile_name,
+                        window.num_bands()
+                    ),
+                ));
+                window.set_status(
+                    format!(
+                        "Loaded profile: {} (truncated to {})",
+                        profile_name,
+                        window.num_bands()
+                    ),
+                    StatusSeverity::Warning,
+                )
             } else {
-                Task::none()
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::UI,
+                    format!("Loaded profile: {}", profile_name),
+                ));
+                window.set_status(
+                    format!("Loaded profile: {}", profile_name),
+                    StatusSeverity::Info,
+                )
             }
         }
         Message::ImportFromFilePressed => Task::perform(

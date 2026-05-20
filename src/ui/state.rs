@@ -135,6 +135,10 @@ pub enum ConfirmAction {
         data: crate::models::PEQData,
     },
     PullDevice,
+    PushToDevice,
+    LoadProfile {
+        name: String,
+    },
     ExitWithUnsavedChanges(iced::window::Id),
 }
 
@@ -142,12 +146,16 @@ pub enum ConfirmAction {
 pub struct EditorData {
     pub filters: Vec<Filter>,
     pub global_gain: i8,
+    pub generation: u64,
 }
 
 #[derive(Debug, Default)]
 pub struct GraphState {
     pub grid_cache: Cache,
     pub curve_cache: Cache,
+    pub cached_filters_hash: u64,
+    pub cached_combined_response: Vec<f64>,
+    pub cached_band_responses: Vec<Vec<f64>>,
 }
 
 #[derive(Debug, Default)]
@@ -196,6 +204,7 @@ impl EditorState {
             self.session.undo_stack.remove(0);
         }
         self.session.redo_stack.clear();
+        self.data.generation += 1;
     }
 }
 

@@ -61,16 +61,6 @@ pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
     devices
 }
 
-pub fn detect_device(api: &hidapi::HidApi) -> Device {
-    for device in api.device_list() {
-        let device_type = Device::from_vid_pid(device.vendor_id(), device.product_id());
-        if device_type != Device::Unknown {
-            return device_type;
-        }
-    }
-    Device::Unknown
-}
-
 pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Result<()> {
     let mut buf = [0u8; 65];
     buf[0] = report_id;

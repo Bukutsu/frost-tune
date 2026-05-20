@@ -22,12 +22,19 @@ fn sync_toolbar_button<'a>(
     state: &'a MainWindow,
     is_busy: bool,
     is_connected: bool,
+    shortcut: &'a str,
 ) -> Element<'a, Message> {
     if !is_busy && is_connected {
+        let btn = toolbar_button(label)
+            .on_press(on_press)
+            .style(theme::m3_tonal_button);
         Element::from(
-            toolbar_button(label)
-                .on_press(on_press)
-                .style(theme::m3_tonal_button),
+            tooltip(
+                btn,
+                text(format!("{} ({})", label, shortcut)).size(TYPE_TINY),
+                tooltip::Position::Bottom,
+            )
+            .style(theme::tooltip_style),
         )
     } else {
         let btn = toolbar_button(label).style(theme::m3_tonal_button);
@@ -56,13 +63,20 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             "read",
             state,
             is_busy,
-            is_connected
+            is_connected,
+            "Ctrl+R"
         ),
         if !is_busy && is_connected && !state.editor_state.session.input_buffer.has_errors() {
+            let btn = toolbar_button("Write")
+                .on_press(Message::PushPressed)
+                .style(theme::m3_filled_button);
             Element::from(
-                toolbar_button("Write")
-                    .on_press(Message::PushPressed)
-                    .style(theme::m3_filled_button),
+                tooltip(
+                    btn,
+                    text("Write to device (Enter)").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
             )
         } else {
             let btn = toolbar_button("Write").style(theme::m3_filled_button);
@@ -86,6 +100,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             state,
             is_busy,
             is_connected,
+            "",
         ));
     }
 

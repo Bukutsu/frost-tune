@@ -184,7 +184,6 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             Task::none()
         }
         Message::BandFreqSliderChanged(index, v) => {
-            window.editor_state.push_undo();
             if let Some(band) = window.editor_state.data.filters.get_mut(index) {
                 let hz = 10f64.powf(v).round() as u16;
                 band.freq = if window.editor_state.ui.snap_to_iso_enabled {
@@ -207,9 +206,12 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             }
             Task::none()
         }
+        Message::BandFreqSliderReleased(_index) => {
+            window.editor_state.push_undo();
+            Task::none()
+        }
         Message::BandGainChanged(index, v) => {
             let (min_gain, max_gain) = window.gain_range();
-            window.editor_state.push_undo();
             if let Some(band) = window.editor_state.data.filters.get_mut(index) {
                 band.gain = v.clamp(min_gain, max_gain);
                 band.enabled = true;
@@ -226,6 +228,10 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                     }
                 }
             }
+            Task::none()
+        }
+        Message::BandGainReleased(_index) => {
+            window.editor_state.push_undo();
             Task::none()
         }
         Message::BandQChanged(index, v) => {
@@ -302,6 +308,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.session.redo_stack.push(current);
                 window.editor_state.data.filters = prev.filters;
                 window.editor_state.data.global_gain = prev.global_gain;
+                window.editor_state.data.generation += 1;
                 window.editor_state.session.is_dirty = true;
                 window.editor_state.session.input_buffer.active_draft = None;
             }
@@ -316,6 +323,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.session.undo_stack.push(current);
                 window.editor_state.data.filters = next.filters;
                 window.editor_state.data.global_gain = next.global_gain;
+                window.editor_state.data.generation += 1;
                 window.editor_state.session.is_dirty = true;
                 window.editor_state.session.input_buffer.active_draft = None;
             }

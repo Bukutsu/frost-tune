@@ -39,31 +39,18 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             if is_hw_busy(window) {
                 return Task::none();
             }
-            window.operation_lock.is_pushing = true;
-            window.diagnostics.push(DiagnosticEvent::new(
-                LogLevel::Info,
-                Source::UI,
-                "Push pressed",
-            ));
-            let worker = match window.worker.as_ref() {
-                Some(w) => Arc::clone(w),
-                None => return Task::none(),
-            };
-            let filters = window.editor_state.data.filters.clone();
-            let global_gain = window.editor_state.data.global_gain;
-            let push_task = Task::perform(
-                async move {
-                    let payload = PushPayload {
-                        filters,
-                        global_gain: Some(global_gain),
-                    };
-                    let rx = worker.push_peq(payload);
-                    recv_operation_result(rx).await
-                },
-                Message::WorkerPushed,
-            );
-            let status_task = window.set_status("Writing to device...", StatusSeverity::Info);
-            Task::batch(vec![push_task, status_task])
+
+            if window.editor_state.session.is_dirty {
+                window.editor_state.session.pending_confirm =
+                    crate::ui::state::ConfirmAction::PushToDevice;
+                return Task::none();
+            }
+
+            perform_push(window)
+        }
+        Message::ConfirmPushPressed => {
+            window.editor_state.session.pending_confirm = crate::ui::state::ConfirmAction::None;
+            perform_push(window)
         }
         Message::WorkerPulled(result) => {
             window.operation_lock.is_pulling = false;
@@ -72,6 +59,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 if let Some(peq) = result.data {
                     window.editor_state.data.filters = peq.filters;
                     window.editor_state.data.global_gain = peq.global_gain;
+                    window.editor_state.data.generation += 1;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
@@ -116,6 +104,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 if let Some(peq) = result.data {
                     window.editor_state.data.filters = peq.filters;
                     window.editor_state.data.global_gain = peq.global_gain;
+                    window.editor_state.data.generation += 1;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
@@ -204,4 +193,32 @@ fn perform_pull(window: &mut MainWindow) -> Task<Message> {
     );
     let status_task = window.set_status("Reading from device...", StatusSeverity::Info);
     Task::batch(vec![pull_task, status_task])
+}
+
+fn perform_push(window: &mut MainWindow) -> Task<Message> {
+    window.operation_lock.is_pushing = true;
+    window.diagnostics.push(DiagnosticEvent::new(
+        LogLevel::Info,
+        Source::UI,
+        "Push pressed",
+    ));
+    let worker = match window.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
+    let filters = window.editor_state.data.filters.clone();
+    let global_gain = window.editor_state.data.global_gain;
+    let push_task = Task::perform(
+        async move {
+            let payload = PushPayload {
+                filters,
+                global_gain: Some(global_gain),
+            };
+            let rx = worker.push_peq(payload);
+            recv_operation_result(rx).await
+        },
+        Message::WorkerPushed,
+    );
+    let status_task = window.set_status("Writing to device...", StatusSeverity::Info);
+    Task::batch(vec![push_task, status_task])
 }

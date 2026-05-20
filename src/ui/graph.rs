@@ -36,20 +36,62 @@ pub fn graph_label_layout(width: f32, height: f32) -> GraphLabelLayout {
 }
 
 pub struct EqGraph<'a> {
-    filters: Vec<Filter>,
-    global_gain: i8,
     grid_cache: &'a Cache,
     curve_cache: &'a Cache,
+    cached_combined_response: Vec<f64>,
+    cached_band_responses: Vec<Vec<f64>>,
 }
 
 impl<'a> EqGraph<'a> {
-    pub fn new(filters: &[Filter], global_gain: i8, state: &'a GraphState) -> Self {
+    pub fn new(state: &'a GraphState) -> Self {
         Self {
-            filters: filters.to_vec(),
-            global_gain,
             grid_cache: &state.grid_cache,
             curve_cache: &state.curve_cache,
+            cached_combined_response: state.cached_combined_response.clone(),
+            cached_band_responses: state.cached_band_responses.clone(),
         }
+    }
+
+    pub fn compute_responses(filters: &[Filter], global_gain: i8) -> (Vec<f64>, Vec<Vec<f64>>) {
+        let test_freqs = &*GRAPH_FREQS;
+        let coeffs: Vec<Option<BiquadCoeffs>> = filters
+            .iter()
+            .map(|f| {
+                if f.freq == 0 || !f.enabled {
+                    None
+                } else {
+                    Some(get_biquad_coefficients(f))
+                }
+            })
+            .collect();
+
+        let combined: Vec<f64> = test_freqs
+            .iter()
+            .map(|pf| {
+                let mut total_db = global_gain as f64;
+                for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
+                    total_db +=
+                        get_magnitude_response_with_precomputed(*b0, *b1, *b2, *a0, *a1, *a2, pf);
+                }
+                total_db
+            })
+            .collect();
+
+        let bands: Vec<Vec<f64>> = coeffs
+            .iter()
+            .filter_map(|c| {
+                c.map(|(b0, b1, b2, a0, a1, a2)| {
+                    test_freqs
+                        .iter()
+                        .map(|pf| {
+                            get_magnitude_response_with_precomputed(b0, b1, b2, a0, a1, a2, pf)
+                        })
+                        .collect()
+                })
+            })
+            .collect();
+
+        (combined, bands)
     }
 }
 
@@ -141,45 +183,19 @@ impl<'a, Message> Program<Message> for EqGraph<'a> {
             }
         });
 
-        let coeffs: Vec<Option<BiquadCoeffs>> = self
-            .filters
-            .iter()
-            .map(|f| {
-                if f.freq == 0 || !f.enabled {
-                    None
-                } else {
-                    Some(get_biquad_coefficients(f))
-                }
-            })
-            .collect();
-
         let curve = self.curve_cache.draw(renderer, bounds.size(), |frame| {
             let test_freqs = &*GRAPH_FREQS;
             let points_count = test_freqs.len();
-
-            let responses: Vec<f64> = test_freqs
-                .iter()
-                .map(|pf| {
-                    let mut total_db = self.global_gain as f64;
-                    for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
-                        total_db += get_magnitude_response_with_precomputed(
-                            *b0, *b1, *b2, *a0, *a1, *a2, pf,
-                        );
-                    }
-                    total_db
-                })
-                .collect();
+            let responses = &self.cached_combined_response;
+            let band_responses = &self.cached_band_responses;
 
             let min_db = -18.0;
             let max_db = 18.0;
             let db_range = max_db - min_db;
 
-            for (b0, b1, b2, a0, a1, a2) in coeffs.iter().flatten() {
+            for band_data in band_responses {
                 let band_path = Path::new(|builder| {
-                    for (i, pf) in test_freqs.iter().enumerate() {
-                        let db = get_magnitude_response_with_precomputed(
-                            *b0, *b1, *b2, *a0, *a1, *a2, pf,
-                        );
+                    for (i, &db) in band_data.iter().enumerate() {
                         let x = (i as f32 / (points_count - 1) as f32) * bounds.width;
                         let y = (1.0 - ((db - min_db) / db_range)) as f32 * bounds.height;
                         let p = Point::new(x, y);

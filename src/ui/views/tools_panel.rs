@@ -7,9 +7,12 @@ use crate::ui::theme;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_SMALL, CHECKBOX_SIZE, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE,
     PROFILE_LIST_HEIGHT, SHAPE_NONE, SPACE_0, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_LABEL,
+    TYPE_TINY,
 };
 use crate::ui::views::{action_button, icon_action_button, icon_button};
-use iced::widget::{button, checkbox, column, container, row, scrollable, text, text_input};
+use iced::widget::{
+    button, checkbox, column, container, row, scrollable, text, text_input, tooltip,
+};
 use iced::{Element, Length};
 
 fn tab_button<'a>(
@@ -215,49 +218,99 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     };
 
     let undo_redo_row = row![
-        action_button("Undo")
-            .on_press_maybe(
-                if is_busy || state.editor_state.session.undo_stack.is_empty() {
-                    None
-                } else {
-                    Some(Message::Undo)
-                }
+        {
+            let btn = action_button("Undo")
+                .on_press_maybe(
+                    if is_busy || state.editor_state.session.undo_stack.is_empty() {
+                        None
+                    } else {
+                        Some(Message::Undo)
+                    },
+                )
+                .style(theme::m3_tonal_button);
+            Element::from(
+                tooltip(
+                    btn,
+                    text("Undo (Ctrl+Z)").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
             )
-            .style(theme::m3_tonal_button),
-        action_button("Redo")
-            .on_press_maybe(
-                if is_busy || state.editor_state.session.redo_stack.is_empty() {
-                    None
-                } else {
-                    Some(Message::Redo)
-                }
+        },
+        {
+            let btn = action_button("Redo")
+                .on_press_maybe(
+                    if is_busy || state.editor_state.session.redo_stack.is_empty() {
+                        None
+                    } else {
+                        Some(Message::Redo)
+                    },
+                )
+                .style(theme::m3_tonal_button);
+            Element::from(
+                tooltip(
+                    btn,
+                    text("Redo (Ctrl+Shift+Z)").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
             )
-            .style(theme::m3_tonal_button),
+        },
     ]
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
     let actions_row = row![
-        action_button("Reset")
-            .on_press_maybe(if is_busy {
-                None
+        {
+            let btn = action_button("Reset")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::ResetFiltersPressed)
+                })
+                .style(theme::m3_tonal_button);
+            Element::from(
+                tooltip(
+                    btn,
+                    text("Reset all filters (Ctrl+Shift+R)").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
+            )
+        },
+        {
+            let btn = action_button("Save")
+                .on_press_maybe(if is_busy {
+                    None
+                } else {
+                    Some(Message::SaveProfilePressed)
+                })
+                .style(theme::m3_filled_button);
+            Element::from(
+                tooltip(
+                    btn,
+                    text("Save profile (Ctrl+S)").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
+            )
+        },
+        {
+            let btn = if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
+                action_button("Delete")
+                    .on_press(Message::DeleteProfilePressed)
+                    .style(theme::m3_outlined_button_error)
             } else {
-                Some(Message::ResetFiltersPressed)
-            })
-            .style(theme::m3_tonal_button),
-        action_button("Save")
-            .on_press_maybe(if is_busy {
-                None
-            } else {
-                Some(Message::SaveProfilePressed)
-            })
-            .style(theme::m3_filled_button),
-        if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
-            action_button("Delete")
-                .on_press(Message::DeleteProfilePressed)
-                .style(theme::m3_outlined_button_error)
-        } else {
-            action_button("Delete").style(theme::m3_outlined_button_error)
+                action_button("Delete").style(theme::m3_outlined_button_error)
+            };
+            Element::from(
+                tooltip(
+                    btn,
+                    text("Delete selected profile").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style),
+            )
         },
     ]
     .spacing(SPACE_8)

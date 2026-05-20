@@ -113,7 +113,11 @@ impl MainWindow {
     }
 
     fn title(&self) -> String {
-        "Frost-Tune".into()
+        if self.editor_state.session.is_dirty {
+            "Frost-Tune *".into()
+        } else {
+            "Frost-Tune".into()
+        }
     }
 
     fn app_theme(_state: &Self) -> iced::Theme {
@@ -505,6 +509,27 @@ impl MainWindow {
                 Message::ConfirmPullPressed,
                 false,
             )),
+            ConfirmAction::PushToDevice => {
+                let active = self.editor_state.data.filters.iter().filter(|f| f.enabled).count();
+                let gain = self.editor_state.data.global_gain;
+                Some(views::confirm_dialog::view_confirm_dialog(
+                    "Write to Device?".to_string(),
+                    format!(
+                        "This will push {} active bands (global gain: {} dB) to the hardware.\n\nThis cannot be undone.",
+                        active, gain
+                    ),
+                    "Write",
+                    Message::ConfirmPushPressed,
+                    false,
+                ))
+            }
+            ConfirmAction::LoadProfile { ref name } => Some(views::confirm_dialog::view_confirm_dialog(
+                "Unsaved Changes".to_string(),
+                format!("You have unsaved changes. Loading '{}' will replace your current editor settings. Continue?", name),
+                "Discard & Load",
+                Message::ConfirmLoadProfile,
+                true,
+            )),
             ConfirmAction::ExitWithUnsavedChanges(id) => Some(views::confirm_dialog::view_exit_dialog(
                 "Unsaved Changes".to_string(),
                 "You have unsaved EQ changes. Save before exiting?".to_string(),
@@ -646,7 +671,7 @@ impl MainWindow {
                     if key == keyboard::Key::Character("r".into()) {
                         return Some(Message::PullPressed);
                     }
-                    if key == keyboard::Key::Character("0".into()) {
+                    if modifiers.shift() && key == keyboard::Key::Character("r".into()) {
                         return Some(Message::ResetFiltersPressed);
                     }
                     if key == keyboard::Key::Named(keyboard::key::Named::Enter) {

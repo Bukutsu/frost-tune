@@ -18,7 +18,7 @@ use self::hardware::handle_hardware;
 use self::profiles::handle_profiles;
 
 pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
-    let before_data = window.editor_state.data.clone();
+    let before_generation = window.editor_state.data.generation;
     let task = match message {
         Message::None => Task::none(),
         // handle_connection
@@ -40,6 +40,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         Message::PullPressed
         | Message::ConfirmPullPressed
         | Message::PushPressed
+        | Message::ConfirmPushPressed
         | Message::WorkerPulled(..)
         | Message::WorkerPushed(..) => handle_hardware(window, message),
 
@@ -53,6 +54,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::BandFreqInput(..)
         | Message::BandQInput(..)
         | Message::BandFreqSliderChanged(..)
+        | Message::BandFreqSliderReleased(..)
+        | Message::BandGainReleased(..)
         | Message::BandFreqInputCommit(..)
         | Message::BandGainInputCommit(..)
         | Message::BandQInputCommit(..)
@@ -87,6 +90,7 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ProfileNameInput(..)
         | Message::SaveProfilePressed
         | Message::ConfirmDeleteProfile
+        | Message::ConfirmLoadProfile
         | Message::DeleteProfilePressed
         | Message::ImportFromFilePressed
         | Message::ExportToFilePressed
@@ -98,7 +102,13 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ProfileSearchInput(..)
         | Message::ToolsTabSelected(..) => handle_profiles(window, message),
     };
-    if window.editor_state.data != before_data {
+    if window.editor_state.data.generation != before_generation {
+        let (combined, bands) = crate::ui::graph::EqGraph::compute_responses(
+            &window.editor_state.data.filters,
+            window.editor_state.data.global_gain,
+        );
+        window.editor_state.ui.graph_state.cached_combined_response = combined;
+        window.editor_state.ui.graph_state.cached_band_responses = bands;
         window.editor_state.ui.graph_state.curve_cache.clear();
     }
     task
