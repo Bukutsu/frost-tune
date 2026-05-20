@@ -68,7 +68,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ToggleDiagnostics
         | Message::Undo
         | Message::Redo
-        | Message::ToggleSnapToIso(_) => handle_editor(window, message),
+        | Message::ToggleSnapToIso(_)
+        | Message::ToggleAutoPullOnConnect(..) => handle_editor(window, message),
 
         // handle_autoeq
         Message::ImportFromClipboard

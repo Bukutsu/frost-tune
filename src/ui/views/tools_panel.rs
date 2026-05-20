@@ -367,6 +367,13 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let tab_body: Element<'_, Message> = match active_tab {
         ToolsTab::Preset => preset_body.into(),
         ToolsTab::AutoEq => autoeq_section.into(),
+        ToolsTab::Settings => container(
+            text("Settings — work in progress")
+                .size(TYPE_LABEL)
+                .color(COLOR_ON_SURFACE_VARIANT),
+        )
+        .padding(SPACE_16)
+        .into(),
     };
 
     let shared_actions = column![

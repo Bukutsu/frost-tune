@@ -118,6 +118,7 @@ pub enum ToolsTab {
     #[default]
     Preset,
     AutoEq,
+    Settings,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -182,6 +183,7 @@ pub struct EditorUI {
     pub snap_to_iso_enabled: bool,
     pub active_tools_tab: ToolsTab,
     pub graph_state: GraphState,
+    pub auto_pull_on_connect: bool,
 }
 
 #[derive(Debug, Default)]
