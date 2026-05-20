@@ -1,16 +1,16 @@
-# Graph Report - frost-tune  (2026-05-20)
+# Graph Report - frost-tune  (2026-05-21)
 
 ## Corpus Check
-- 174 files · ~132,774 words
+- 174 files · ~132,987 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2877 nodes · 3083 edges · 325 communities (279 shown, 46 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 137 edges (avg confidence: 0.8)
+- 2880 nodes · 3091 edges · 325 communities (279 shown, 46 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 140 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5188aac9`
+- Built from commit: `46b047e9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -343,8 +343,8 @@
 6. `Cấu trúc của một Skill - Hiểu về Hệ thống` - 17 edges
 7. `parse_autoeq_text()` - 16 edges
 8. `Frost-Tune — Agent Guidelines` - 16 edges
-9. `Frost-Tune — Agent Guidelines` - 16 edges
-10. `Frost-Tune — Agent Guidelines` - 16 edges
+9. `Visual Quick Start Guide` - 16 edges
+10. `Hướng dẫn Nhanh bằng Hình ảnh (Visual Guide)` - 16 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `test_disabled_button_contrast_wcag_aa()` --calls--> `theme()`  [INFERRED]
@@ -361,8 +361,8 @@
 ## Communities (325 total, 46 thin omitted)
 
 ### Community 0 - "Profile & Connection Management"
-Cohesion: 0.07
-Nodes (56): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+48 more)
+Cohesion: 0.06
+Nodes (59): contains_token(), extract_fc_value(), extract_gain_value(), extract_number(), extract_number_after(), extract_q_value(), parse_autoeq_text(), parse_filter_line() (+51 more)
 
 ### Community 1 - "Main Window UI"
 Cohesion: 0.05
@@ -542,7 +542,7 @@ Nodes (18): Antigravity Skill Bundles, Beginner → Intermediate → Advanced, c
 
 ### Community 71 - "Community 71"
 Cohesion: 0.11
-Nodes (18): Active Directory Attacks (`active-directory-attacks`), auth-implementation-patterns (`auth-implementation-patterns`), Example Prompts, Example Prompts, Example Prompts, Example Prompts, Example Prompts, memory-forensics (`memory-forensics`) (+10 more)
+Nodes (18): backend-security-coder (`backend-security-coder`), Cloud Penetration Testing (`cloud-penetration-testing`), Example Prompts, Example Prompts, Example Prompts, Example Prompts, Example Prompts, memory-forensics (`memory-forensics`) (+10 more)
 
 ### Community 72 - "Community 72"
 Cohesion: 0.11
@@ -1022,7 +1022,7 @@ Nodes (3): backend-dev-guidelines (`backend-dev-guidelines`), Example Prompts, U
 
 ### Community 194 - "Community 194"
 Cohesion: 0.67
-Nodes (3): backend-security-coder (`backend-security-coder`), Example Prompts, Use Cases
+Nodes (3): Active Directory Attacks (`active-directory-attacks`), Example Prompts, Use Cases
 
 ### Community 195 - "Community 195"
 Cohesion: 0.67
@@ -1054,7 +1054,7 @@ Nodes (3): cloud-architect (`cloud-architect`), Example Prompts, Use Cases
 
 ### Community 202 - "Community 202"
 Cohesion: 0.67
-Nodes (3): Cloud Penetration Testing (`cloud-penetration-testing`), Example Prompts, Use Cases
+Nodes (3): auth-implementation-patterns (`auth-implementation-patterns`), Example Prompts, Use Cases
 
 ### Community 203 - "Community 203"
 Cohesion: 0.67
@@ -1242,7 +1242,7 @@ Nodes (3): Example Prompts, security-auditor (`security-auditor`), Use Cases
 
 ### Community 249 - "Community 249"
 Cohesion: 0.67
-Nodes (3): Example Prompts, security-compliance-compliance-check (`security-compliance-compliance-check`), Use Cases
+Nodes (3): Example Prompts, security-review (`cc-skill-security-review`), Use Cases
 
 ### Community 250 - "Community 250"
 Cohesion: 0.67
@@ -1298,7 +1298,7 @@ Nodes (3): Example Prompts, stripe-integration (`stripe-integration`), Use Cases
 
 ### Community 263 - "Community 263"
 Cohesion: 0.67
-Nodes (3): Example Prompts, terraform-specialist (`terraform-specialist`), Use Cases
+Nodes (3): Example Prompts, Use Cases, vulnerability-scanner (`vulnerability-scanner`)
 
 ### Community 264 - "Community 264"
 Cohesion: 0.67
@@ -1449,23 +1449,23 @@ Cohesion: 0.67
 Nodes (3): Example Prompts, Metasploit Framework (`metasploit-framework`), Use Cases
 
 ## Knowledge Gaps
-- **1478 isolated node(s):** `Profile`, `CommandSpec`, `DeviceProtocol`, `HelperRequest`, `HelperResponse` (+1473 more)
+- **1479 isolated node(s):** `Settings`, `Profile`, `CommandSpec`, `DeviceProtocol`, `HelperRequest` (+1474 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Security-Related Skills Report` connect `Community 71` to `Community 173`, `Community 186`, `Community 187`, `Community 188`, `Community 189`, `Community 190`, `Community 191`, `Community 192`, `Community 193`, `Community 194`, `Community 195`, `Community 196`, `Community 197`, `Community 198`, `Community 199`, `Community 200`, `Community 201`, `Community 202`, `Community 203`, `Community 204`, `Community 205`, `Community 206`, `Community 207`, `Community 208`, `Community 209`, `Community 210`, `Community 211`, `Community 212`, `Community 213`, `Community 214`, `Community 215`, `Community 216`, `Community 217`, `Community 218`, `Community 219`, `Community 220`, `Community 221`, `Community 222`, `Community 223`, `Community 224`, `Community 225`, `Community 226`, `Community 227`, `Community 228`, `Community 229`, `Community 230`, `Community 231`, `Community 232`, `Community 233`, `Community 234`, `Community 235`, `Community 236`, `Community 237`, `Community 238`, `Community 239`, `Community 240`, `Community 241`, `Community 242`, `Community 243`, `Community 244`, `Community 245`, `Community 246`, `Community 247`, `Community 248`, `Community 249`, `Community 250`, `Community 251`, `Community 252`, `Community 253`, `Community 254`, `Community 255`, `Community 256`, `Community 257`, `Community 258`, `Community 259`, `Community 260`, `Community 261`, `Community 262`, `Community 263`, `Community 264`, `Community 265`, `Community 266`, `Community 267`, `Community 268`, `Community 269`, `Community 270`, `Community 271`, `Community 272`, `Community 273`, `Community 274`, `Community 275`, `Community 276`, `Community 277`, `Community 278`, `Community 279`, `Community 280`, `Community 281`, `Community 282`, `Community 283`, `Community 284`, `Community 285`, `Community 286`, `Community 287`, `Community 288`, `Community 289`, `Community 290`, `Community 291`, `Community 292`, `Community 293`, `Community 294`, `Community 295`, `Community 296`, `Community 297`, `Community 298`, `Community 299`, `Community 300`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
-- **Why does `update()` connect `Profile & Connection Management` to `Domain Rules Snapping`, `IPC Payload Validation`, `DSP Math & Graph Drawing`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **Why does `handle_editor()` connect `Domain Rules Snapping` to `Profile & Connection Management`, `Main Window UI`?**
-  _High betweenness centrality (0.008) - this node is a cross-community bridge._
-- **What connects `Profile`, `CommandSpec`, `DeviceProtocol` to the rest of the system?**
-  _1510 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Why does `assemble_filters()` connect `Hardware Worker Server` to `Domain Rules Snapping`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Why does `Security-Related Skills Report` connect `Community 71` to `Community 173`, `Community 186`, `Community 187`, `Community 188`, `Community 189`, `Community 190`, `Community 191`, `Community 192`, `Community 193`, `Community 194`, `Community 195`, `Community 196`, `Community 197`, `Community 198`, `Community 199`, `Community 200`, `Community 201`, `Community 202`, `Community 203`, `Community 204`, `Community 205`, `Community 206`, `Community 207`, `Community 208`, `Community 209`, `Community 210`, `Community 211`, `Community 212`, `Community 213`, `Community 214`, `Community 215`, `Community 216`, `Community 217`, `Community 218`, `Community 219`, `Community 220`, `Community 221`, `Community 222`, `Community 223`, `Community 224`, `Community 225`, `Community 226`, `Community 227`, `Community 228`, `Community 229`, `Community 230`, `Community 231`, `Community 232`, `Community 233`, `Community 234`, `Community 235`, `Community 236`, `Community 237`, `Community 238`, `Community 239`, `Community 240`, `Community 241`, `Community 242`, `Community 243`, `Community 244`, `Community 245`, `Community 246`, `Community 247`, `Community 248`, `Community 249`, `Community 250`, `Community 251`, `Community 252`, `Community 253`, `Community 254`, `Community 255`, `Community 256`, `Community 257`, `Community 258`, `Community 259`, `Community 260`, `Community 261`, `Community 262`, `Community 263`, `Community 264`, `Community 265`, `Community 266`, `Community 267`, `Community 268`, `Community 269`, `Community 270`, `Community 271`, `Community 272`, `Community 273`, `Community 274`, `Community 275`, `Community 276`, `Community 277`, `Community 278`, `Community 279`, `Community 280`, `Community 281`, `Community 282`, `Community 283`, `Community 284`, `Community 285`, `Community 286`, `Community 287`, `Community 288`, `Community 289`, `Community 290`, `Community 291`, `Community 292`, `Community 293`, `Community 294`, `Community 295`, `Community 296`, `Community 297`, `Community 298`, `Community 299`, `Community 300`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **What connects `Settings`, `Profile`, `CommandSpec` to the rest of the system?**
+  _1511 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Profile & Connection Management` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
 - **Should `Main Window UI` be split into smaller, more focused modules?**
   _Cohesion score 0.05 - nodes in this community are weakly interconnected._
 - **Should `Hardware Worker Server` be split into smaller, more focused modules?**

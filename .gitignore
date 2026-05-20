@@ -23,6 +23,8 @@
 /.claude/
 /.gemini/
 /.agents/
+/.antigravitycli/
+/.opencode/
 /opencode.json
 /mcp_error.log
 
