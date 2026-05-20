@@ -19,6 +19,26 @@ Maintain, refactor, and extend Frost-Tune—a native parametric EQ editor for US
 3. Run `graphify query "<your question>"` for codebase context.
 4. Consult the relevant structural rules below before writing any code.
 
+## Pre-Push Checklist (Non-Negotiable)
+
+CI (`.github/workflows/ci.yml`) runs the four commands below in order and fails the build if any step fails. **Run the same four locally before every `git push`** — skipping wastes a CI round-trip and a force-push to fix.
+
+```bash
+cargo fmt --all                              # apply formatting
+cargo fmt --all -- --check                   # CI step: verify no drift
+cargo clippy --all-targets -- -D warnings    # CI step: warnings → errors
+cargo build --all-targets --locked           # CI step: Cargo.lock must match
+cargo test --all-targets --locked            # CI step: all 70 tests
+```
+
+Rules:
+- **`cargo fmt --all` is mandatory** — pre-existing drift in untouched files will still fail CI when you push. `fmt --check` alone is not enough; actually apply the formatting.
+- **`-D warnings` on clippy** mirrors CI; a local `cargo clippy` without it can pass while CI fails.
+- **`--locked` on build/test** mirrors CI; if `Cargo.lock` drifts (e.g., after editing `Cargo.toml`), regenerate with `cargo check` and commit it.
+- **Do not bypass with `--no-verify` or skip clippy.** Fix the root cause.
+- **Re-run after rebases / merges** — they can reintroduce drift.
+- **If a check fails after CI failed**, look at `.github/workflows/ci.yml` — the source of truth is there, not this file.
+
 ## Architecture
 
 ```
@@ -29,7 +49,7 @@ frost-tune/
 │   ├── autoeq.rs                  # AutoEQ profile format parsing
 │   ├── diagnostics.rs             # Device diagnostics utilities
 │   ├── error.rs                   # AppError + ErrorKind (thiserror)
-│   ├── storage.rs                 # Profile persistence (save/load)
+│   ├── storage.rs                 # Profile + app Settings persistence (save/load)
 │   ├── hardware/                  # HID / protocol layer
 │   │   ├── dsp.rs                 # Biquad filter computation
 │   │   ├── elevated_transport.rs  # Linux privilege escalation via pkexec
@@ -54,7 +74,7 @@ frost-tune/
 │   └── ui/                        # Iced GUI
 │       ├── graph.rs               # Frequency response canvas (EqGraph: Program)
 │       ├── main_window.rs         # Window layout, subscription, bootstrap
-│       ├── messages.rs            # Message enum (69 variants)
+│       ├── messages.rs            # Message enum (77 variants)
 │       ├── state.rs               # MainWindow + EditorState (data/session/ui)
 │       ├── theme.rs               # Tokyo Night styling, 15 style fns
 │       ├── tokens.rs              # Design tokens (spacing, type, radii, icon font)
@@ -98,8 +118,8 @@ frost-tune/
 - **Async / threading:** Tokio runtime for background HID I/O; UI runs on main thread. HID I/O is always isolated on a worker thread (`std::thread` + `mpsc`) — never block the UI thread. Use lock-free principles and message passing.
 - **Writes:** Every EQ write follows push → read-back → verify → rollback.
 - **Safety bounds:** Band gain and global preamp capped at ±10 dB; bounds enforced via `Filter::clamp` and `PushPayload::clamp`.
-- **Linting:** Zero clippy warnings in library code. Strict formatting and linting required before commits.
-- **Formatting:** `cargo fmt --check` must pass. Run `cargo fmt --all` before commits.
+- **Linting:** Zero new clippy warnings. CI runs `cargo clippy --all-targets -- -D warnings`, so any warning becomes a hard failure.
+- **Formatting:** `cargo fmt --all -- --check` must pass. **Always** run `cargo fmt --all` before committing — see [Pre-Push Checklist](#pre-push-checklist-non-negotiable).
 
 ## Design System & UI Guidelines
 
@@ -125,7 +145,7 @@ Frost-Tune adheres strictly to an **Industrial Utilitarian** aesthetic. The goal
 |---|---|---|
 | `data` | Persistent EQ state | `filters`, `global_gain` |
 | `session` | Transient per-session | `input_buffer`, `undo_stack`/`redo_stack`, `pending_confirm`, `status_message`, `is_dirty`, `new_profile_name` |
-| `ui` | UI cache + preferences | `profiles`, `selected_profile_name`, `profile_search`, `snap_to_iso_enabled`, `active_tools_tab` |
+| `ui` | UI cache + preferences | `profiles`, `selected_profile_name`, `profile_search`, `snap_to_iso_enabled`, `active_tools_tab`, `auto_pull_on_connect` |
 
 **Rule:** When adding a method that touches `EditorState` shape, add a unit test alongside it — `EditorState::default()` is cheap to construct.
 
@@ -141,6 +161,10 @@ Before adding new code, check if an existing helper covers your case:
 
 **State / domain:**
 - `EditorState::push_undo()` — snapshots current `data`, pushes onto `undo_stack`, clears `redo_stack`, trims to `MAX_UNDO`. Use this; do not manipulate the stacks directly.
+
+**Persistence** (`src/storage.rs`):
+- `load_all_profiles()` / `save_profile()` — EQ profile files in the user's profile directory.
+- `load_settings()` / `save_settings(Settings)` — app preferences (`<data>/settings.json`). Use at bootstrap (`main_window.rs`) and after any preference toggle.
 
 **Update handlers** (`src/ui/update/`):
 - `editor.rs`: `handle_band_text_input()` consolidates freq/gain/Q draft input; `cancel_band_draft_input()` handles all three cancel variants.
@@ -219,27 +243,30 @@ When adding a new module method that touches `EditorState` shape, add a unit tes
 ## Contribution Workflow
 
 - **Branch naming:** `feature/description`, `fix/description`, `chore/description`
-- **Commit messages:** Use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`)
-- **Before pushing:** `cargo fmt --all && cargo clippy --all-targets && cargo test --all-targets`
+- **Commit messages:** Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `style:`, `perf:`). Scope when useful: `feat(settings): ...`, `chore(packaging): ...`.
+- **Before pushing:** Run the [Pre-Push Checklist](#pre-push-checklist-non-negotiable). All four steps must pass — they mirror `.github/workflows/ci.yml`.
 - **Code review:** All PRs require review. Keep PRs focused on a single concern.
 - **After modifying code:** Run `graphify update .` to keep the knowledge graph current (AST-only, no API cost).
 
 ## Essential Commands
 
 ```bash
-# Development workflow
-cargo fmt --all                  # Format code (required before commit)
-cargo fmt --check                # Verify formatting
-cargo clippy --all-targets       # Lint (target: 0 new warnings)
-cargo test --all-targets         # Run all 70 tests
-cargo check --all-targets        # Fast build check
-cargo run --release              # Start the app with optimizations
+# Day-to-day
+cargo check --all-targets                    # fast build check
+cargo run --release                          # launch the app
+cargo fmt --all                              # apply formatting
+
+# Pre-push (see Pre-Push Checklist for context — these mirror CI)
+cargo fmt --all -- --check                   # CI: format check
+cargo clippy --all-targets -- -D warnings    # CI: lint (warnings → errors)
+cargo build --all-targets --locked           # CI: build with locked deps
+cargo test --all-targets --locked            # CI: 70 tests
 
 # Knowledge graph
-graphify query "<question>"      # Query codebase context (when graphify-out/graph.json exists)
-graphify path "<A>" "<B>"        # Find relationships between two concepts
-graphify explain "<concept>"     # Explain a focused concept
-graphify update .                # Refresh AST graph after code changes (AST-only, no API cost)
+graphify query "<question>"                  # query codebase context
+graphify path "<A>" "<B>"                    # find relationships
+graphify explain "<concept>"                 # explain a focused concept
+graphify update .                            # refresh AST graph (AST-only, no API cost)
 ```
 
 ## Cutting a Release
