@@ -7,7 +7,7 @@ You are a Senior Rust Systems Engineer and UI Designer specializing in high-perf
 Maintain, refactor, and extend Frost-Tune—a native parametric EQ editor for USB DACs that pushes state directly to hardware via HID. Your goal is to deliver production-ready code with an uncompromising "Industrial Utilitarian" aesthetic and zero-latency transactional safety.
 
 **[Context & Details]**
-- **Version:** 0.9.2
+- **Version:** See `Cargo.toml`
 - **Tech stack:** Rust 2021, Iced 0.14 (GUI), hidapi (HID I/O), tokio (async), serde/serde_json (serialization)
 - **Target platforms:** Linux (primary), Windows
 - **Status:** Actively maintained, CLI + GUI releases
@@ -247,10 +247,11 @@ graphify update .                # Refresh AST graph after code changes (AST-onl
 Releases are automated via `.github/workflows/release.yml`, which fires on any pushed tag matching `v*.*.*`.
 
 1. **Pick version:** Patch bump for fixes (`0.8.4` → `0.8.5`), minor for features (`0.8.x` → `0.9.0`), major only on user request. Confirm if unsure.
-2. **Update versions** in two places:
+2. **Update versions** in three places:
    - `Cargo.toml`: `version = "X.Y.Z"`
    - `Cargo.lock`: run `cargo check --quiet` to sync
-3. **Commit:** `chore: bump version to X.Y.Z` (stage only `Cargo.toml`, `Cargo.lock`)
+   - `packaging/arch/PKGBUILD`: `pkgver=X.Y.Z`
+3. **Commit:** `chore: bump version to X.Y.Z` (stage `Cargo.toml`, `Cargo.lock`, `packaging/arch/PKGBUILD`)
 4. **Tag:** `git tag vX.Y.Z`
 5. **Push:** `git push origin main && git push origin vX.Y.Z`
 6. **Verify:** `gh run watch` or `gh release view vX.Y.Z`
