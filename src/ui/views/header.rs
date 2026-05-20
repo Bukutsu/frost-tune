@@ -116,6 +116,53 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             .into(),
     };
 
+    let profile_name = state
+        .editor_state
+        .ui
+        .selected_profile_name
+        .as_deref()
+        .unwrap_or("Default EQ");
+
+    let mut display_row = row![
+        text(format!("— {}", profile_name))
+            .size(TYPE_BODY)
+            .color(COLOR_ON_SURFACE_VARIANT)
+            .font(Font {
+                weight: Weight::Bold,
+                ..Default::default()
+            })
+    ]
+    .spacing(SPACE_8)
+    .align_y(iced::Alignment::Center);
+
+    if state.editor_state.session.is_dirty {
+        display_row = display_row.push(
+            container(
+                text("UNSAVED")
+                    .size(TYPE_TINY)
+                    .color(COLOR_WARNING)
+                    .font(Font {
+                        weight: Weight::Bold,
+                        ..Default::default()
+                    })
+            )
+            .padding([SPACE_2, SPACE_8])
+            .style(|_theme| container::Style {
+                background: Some(iced::Background::Color(iced::Color {
+                    a: 0.1,
+                    ..COLOR_WARNING
+                })),
+                border: iced::Border {
+                    color: COLOR_WARNING,
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+                ..Default::default()
+            })
+        );
+    }
+    let profile_display: Element<'_, Message> = display_row.into();
+
     let device_info: Element<'_, Message> = if let Some(ref dev) = state.connected_device {
         let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
         tooltip(
@@ -150,6 +197,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                             weight: Weight::Bold,
                             ..Default::default()
                         }),
+                    profile_display,
                     status_indicator,
                 ]
                 .spacing(SPACE_12)

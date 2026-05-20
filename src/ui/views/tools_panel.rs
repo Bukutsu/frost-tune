@@ -147,13 +147,31 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     let profile_list: Element<'_, Message> = if filtered_profiles.is_empty() {
+        let profiles_dir_str = crate::storage::get_profiles_dir_display();
         container(
-            text("No profiles found")
-                .size(crate::ui::tokens::TYPE_CAPTION)
-                .color(COLOR_ON_SURFACE_VARIANT),
+            column![
+                text("[!] NO MATCHING PROFILES")
+                    .size(TYPE_TINY)
+                    .color(crate::ui::tokens::COLOR_WARNING)
+                    .font(iced::Font::MONOSPACE),
+                text("-----------------------------------------")
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE_VARIANT)
+                    .font(iced::Font::MONOSPACE),
+                text(format!("Directory: {}", profiles_dir_str))
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE_VARIANT)
+                    .font(iced::Font::MONOSPACE),
+                text("Use search filters or create/import a new preset below.")
+                    .size(TYPE_TINY)
+                    .color(COLOR_ON_SURFACE_VARIANT)
+                    .font(iced::Font::MONOSPACE),
+            ]
+            .spacing(SPACE_8)
         )
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
+        .padding(SPACE_12)
+        .align_x(iced::Alignment::Start)
+        .align_y(iced::Alignment::Start)
         .height(Length::Fixed(PROFILE_LIST_HEIGHT))
         .width(Length::Fill)
         .style(|_theme: &iced::Theme| container::Style {

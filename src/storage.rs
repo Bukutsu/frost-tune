@@ -61,6 +61,21 @@ pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
         .and_then(|dir| fs::metadata(dir).ok().and_then(|m| m.modified().ok()))
 }
 
+pub fn get_profiles_dir_display() -> String {
+    get_profiles_dir()
+        .map(|p| {
+            let path_str = p.to_string_lossy().into_owned();
+            if let Some(home) = dirs::home_dir() {
+                let home_str = home.to_string_lossy();
+                if path_str.starts_with(home_str.as_ref()) {
+                    return path_str.replacen(home_str.as_ref(), "~", 1);
+                }
+            }
+            path_str
+        })
+        .unwrap_or_else(|_| "~/.local/share/frost-tune/profiles".to_string())
+}
+
 pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
     let dir = get_profiles_dir()?;
     let mut profiles = Vec::new();
