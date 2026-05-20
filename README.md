@@ -17,15 +17,13 @@
 <h3 align="center">Frost-Tune</h3>
 
   <p align="center">
-    A native, high-performance parametric EQ editor for USB DACs.
-    <br />
-    Shape your sound with zero-latency precision and push state directly to hardware.
+    Native parametric EQ editor for USB DACs. Offline, transactional, zero-latency.
     <br />
     <br />
-    <a href="https://github.com/Bukutsu/frost-tune/releases/latest"><strong>Download Latest Release »</strong></a>
+    <a href="https://github.com/Bukutsu/frost-tune/releases/latest"><strong>Download »</strong></a>
     <br />
     <br />
-    <a href="#usage">View Usage</a>
+    <a href="#usage">Usage</a>
     ·
     <a href="https://github.com/Bukutsu/frost-tune/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
@@ -38,7 +36,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li>
-      <a href="#about-the-project">About The Project</a>
+      <a href="#about-the-project">About</a>
       <ul>
         <li><a href="#key-features">Key Features</a></li>
         <li><a href="#supported-devices">Supported Devices</a></li>
@@ -67,26 +65,26 @@
 
 ![Frost-Tune Screenshot][product-screenshot]
 
-Frost-Tune is a native, cross-platform parametric EQ editor that communicates directly with USB DACs over HID. It runs fully offline, stores profiles locally in the standard AutoEQ format, and ensures hardware safety through a transactional verification model — every write is read back and verified, with automatic rollback on mismatch.
+Talks HID directly to USB DACs. Runs offline, stores AutoEQ-compatible profiles. Every write is read back and verified; mismatches roll back automatically.
 
-Built with an uncompromising **Industrial Utilitarian** design philosophy: blocky geometry, zero decorative motion, and immediate visual feedback that mirrors hardware reality.
+Industrial Utilitarian UI — blocky geometry, no decorative motion.
 
 ### Key Features
 
-* **Direct Hardware Control** — Real-time communication with DACs over USB HID
-* **10-Band Parametric EQ** — Frequency, gain, Q-factor, and filter type per band
-* **AutoEQ Support** — Import and export profiles in the industry-standard AutoEQ format
-* **Transactional Writes** — Every change is verified by reading back hardware state with automatic rollback on mismatch
-* **Offline First** — No cloud dependencies or account required
-* **Hardware Safety** — Gain and preamp values hard-capped at ±10 dB to protect your equipment
+* Direct USB HID — no driver shim
+* 10-band parametric EQ (frequency, gain, Q, type per band)
+* AutoEQ import/export
+* Transactional writes with automatic rollback
+* Offline, no account, no cloud
+* ±10 dB hard cap on gain and preamp
 
 ### Supported Devices
 
-| Device | Vendor ID | Product ID | Status |
-|--------|-----------|------------|--------|
-| **EPZ TP35 Pro** | `0x3302` | `0x43E6` | ✓ Supported |
+| Device | VID | PID | Status |
+|---|---|---|---|
+| EPZ TP35 Pro | `0x3302` | `0x43E6` | ✓ |
 
-> More devices can be added by implementing the `DeviceProtocol` trait. See [Contributing](#contributing) for details.
+> Add devices by implementing the `DeviceProtocol` trait — see [Contributing](#contributing).
 
 ### Built With
 
@@ -101,94 +99,65 @@ Built with an uncompromising **Industrial Utilitarian** design philosophy: block
 
 ### Prerequisites
 
-#### Linux
-* **Rust Toolchain**: 1.75 or higher
-* **System Libraries**: `libhidapi-dev`, `pkg-config`
-* **Polkit**: Required for privileged USB access (unless udev rules are configured)
+| Platform | Needs |
+|---|---|
+| Linux | Rust ≥ 1.75, `libhidapi-dev`, `pkg-config`, polkit (or udev rule) |
+| Windows | Rust ≥ 1.75, Visual C++ Build Tools |
 
-  ```sh
-  # Debian/Ubuntu
-  sudo apt install libhidapi-dev pkg-config
-
-  # Arch Linux
-  sudo pacman -S hidapi pkgconf
-
-  # Fedora
-  sudo dnf install hidapi-devel pkgconfig
-  ```
-
-#### Windows
-* **Rust Toolchain**: 1.75 or higher
-* **Build Tools**: Visual C++ Build Tools (included with Visual Studio)
+```sh
+# Debian/Ubuntu
+sudo apt install libhidapi-dev pkg-config
+# Arch
+sudo pacman -S hidapi pkgconf
+# Fedora
+sudo dnf install hidapi-devel pkgconfig
+```
 
 ### Installation
 
-#### From Releases (Recommended)
+**Pre-built:** grab a `.deb`, `.rpm`, `.msi`, or raw Linux binary from [Releases](https://github.com/Bukutsu/frost-tune/releases/latest).
 
-Download the latest pre-built binary for your platform from the [Releases page](https://github.com/Bukutsu/frost-tune/releases/latest):
-
-| Platform | Package |
-|----------|---------|
-| **Linux (generic)** | `frost-tune-vX.Y.Z-x86_64-unknown-linux-gnu` |
-| **Debian/Ubuntu** | `frost-tune-vX.Y.Z-amd64.deb` |
-| **Fedora/RHEL** | `frost-tune-vX.Y.Z-x86_64.rpm` |
-| **Arch Linux** | Build from `PKGBUILD` (see below) |
-| **Windows** | `frost-tune-vX.Y.Z-x86_64.msi` |
-
-#### From Source
-
-1. Clone the repo
-   ```sh
-   git clone https://github.com/Bukutsu/frost-tune.git
-   cd frost-tune
-   ```
-2. Build and run
-   ```sh
-   cargo run --release
-   ```
-
-#### Arch Linux (PKGBUILD)
-
-The PKGBUILD lives under `packaging/arch/` to avoid colliding with Cargo's `src/` layout:
+**From source:**
 
 ```sh
-cd packaging/arch
-makepkg -si
+git clone https://github.com/Bukutsu/frost-tune.git
+cd frost-tune
+cargo run --release
 ```
 
-#### Linux USB Permissions
-
-By default, Linux requires root privileges to access USB HID devices. Frost-Tune will prompt for a Polkit password. To avoid this, install a udev rule for your device:
+**Arch (PKGBUILD lives under `packaging/arch/` to avoid colliding with Cargo's `src/`):**
 
 ```sh
-# Example for EPZ TP35 Pro (VID: 3302, PID: 43e6)
+cd packaging/arch && makepkg -si
+```
+
+**Skip the polkit prompt** with a udev rule:
+
+```sh
 echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", MODE="0666"' \
   | sudo tee /etc/udev/rules.d/99-frosttune.rules
-
-# Reload rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-> If you are using a different device, update the `idVendor` and `idProduct` values to match your DAC (find these in the app header or via `lsusb`).
+> Adjust `idVendor` / `idProduct` for other devices — find them in the app header or via `lsusb`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE -->
 ## Usage
 
-1. **Connect** your supported USB DAC
-2. **Launch** Frost-Tune — it will detect the device automatically
-3. **Read** the current EQ state from hardware
-4. **Adjust** bands using the frequency, gain, and Q controls
-5. **Write** changes back to the device (automatically verified)
-6. **Save/Load** profiles in AutoEQ format for portability
+1. Connect the DAC
+2. Launch — device is detected automatically
+3. **Read** state from hardware
+4. **Adjust** bands (frequency / gain / Q)
+5. **Write** — verified automatically
+6. **Save/Load** profiles in AutoEQ format
 
-| Command | Description |
-|---------|-------------|
-| `cargo run` | Start in debug mode |
-| `cargo run --release` | Start with optimizations |
-| `cargo test --all-targets` | Run the full test suite |
-| `cargo fmt --all` | Format the codebase |
+| Command | What it does |
+|---|---|
+| `cargo run --release` | Launch |
+| `cargo test --all-targets` | Tests |
+| `cargo fmt --all` | Format |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -196,29 +165,19 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 ## Architecture
 
 ```
-frost-tune/
-├── src/
-│   ├── hardware/       # HID communication & protocol layer
-│   │   ├── worker/     # Background thread for USB I/O
-│   │   └── protocol.rs # DeviceProtocol trait abstraction
-│   ├── models/         # Domain types (Filters, Devices, IPC)
-│   ├── ui/             # Iced GUI (Elm architecture)
-│   │   ├── views/      # Pure view components
-│   │   └── update/     # Message handlers
-│   ├── autoeq.rs       # AutoEQ format parser
-│   ├── storage.rs      # Profile persistence
-│   └── main.rs         # Entry point
-├── tests/              # Integration & protocol tests
-├── packaging/          # OS-specific build configs
-└── assets/             # Icons, fonts, screenshots
+src/
+├── hardware/   # HID + protocol layer; worker/ owns USB I/O off the UI thread
+├── models/    # Filters, Devices, IPC
+├── ui/        # Iced (Elm-style); views/ pure, update/ mutates
+├── autoeq.rs  # AutoEQ format parser
+├── storage.rs # Profile + settings persistence
+└── main.rs
 ```
 
-### Request Lifecycle
-
 ```
-UI Interaction → Message Dispatch → MPSC Channel → USB Worker → HID Packets
-                                                         ↓
-                 State Sync ← Operation Result ← Read-back Verification
+UI → Message → MPSC → Worker → HID Packets
+                         ↓
+       State ← Result ← Read-back Verify
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -228,47 +187,43 @@ UI Interaction → Message Dispatch → MPSC Channel → USB Worker → HID Pack
 
 - [x] 10-band parametric EQ editing
 - [x] AutoEQ profile import/export
-- [x] Transactional write verification with rollback
+- [x] Transactional writes with rollback
 - [x] Cross-platform packaging (`.deb`, `.rpm`, `.msi`, PKGBUILD)
-- [ ] Additional device support
-- [ ] Preset library with community profiles
-- [ ] Frequency response graph overlay comparison
+- [ ] Additional devices
+- [ ] Community preset library
+- [ ] Frequency response overlay comparison
 
-See the [open issues](https://github.com/Bukutsu/frost-tune/issues) for a full list of proposed features and known issues.
+See [open issues](https://github.com/Bukutsu/frost-tune/issues) for the full list.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->
 ## Contributing
 
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+PRs welcome. Fork → branch → commit → PR.
 
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also open an issue with the tag "enhancement".
+### Adding a Device
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/amazing-feature`)
-3. Commit your Changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the Branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Adding a New Device
-
-1. Implement `DeviceProtocol` trait in `src/hardware/protocol.rs`
-2. Register the device in `src/models/device.rs` via the `define_devices!` macro
-3. Add integration tests in `tests/protocol.rs`
+1. Implement `DeviceProtocol` in `src/hardware/protocol.rs`
+2. Register via the `define_devices!` macro in `src/models/device.rs`
+3. Add packet tests in `tests/protocol.rs`
 
 ### Before Submitting
 
 ```sh
-cargo fmt --all && cargo clippy --all-targets && cargo test --all-targets
+cargo fmt --all && \
+cargo clippy --all-targets -- -D warnings && \
+cargo test --all-targets --locked
 ```
+
+Mirrors CI. See `AGENTS.md` for the full pre-push checklist.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- LICENSE -->
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT. See `LICENSE`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -276,17 +231,16 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## Contact
 
 Bukutsu — [@Bukutsu](https://github.com/Bukutsu)
-
-Project Link: [https://github.com/Bukutsu/frost-tune](https://github.com/Bukutsu/frost-tune)
+Project: [github.com/Bukutsu/frost-tune](https://github.com/Bukutsu/frost-tune)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-* [Iced](https://iced.rs/) — The native Rust GUI framework
-* [hidapi](https://github.com/libusb/hidapi) — Cross-platform HID communication
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — README structure and layout
+* [Iced](https://iced.rs/) — Native Rust GUI
+* [hidapi](https://github.com/libusb/hidapi) — Cross-platform HID
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — Structure
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
