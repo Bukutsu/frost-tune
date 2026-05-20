@@ -1,29 +1,58 @@
 # Maintainer: Bukutsu <bukutsu@users.noreply.github.com>
-pkgname=frost-tune
-pkgver=0.10.0
+#
+# Local development build. Packages whatever is checked out in the working tree
+# (latest commit + any uncommitted changes). Run from this directory:
+#   makepkg -si
+
+pkgname=frost-tune-git
+pkgver=0.10.0.r1.46b047e
 pkgrel=1
-pkgdesc="Native parametric EQ editor for USB DACs"
+pkgdesc="Native parametric EQ editor for USB DACs (local build)"
 arch=('x86_64')
 url="https://github.com/Bukutsu/frost-tune"
 license=('MIT')
 depends=('polkit')
-makedepends=('rust' 'cargo' 'desktop-file-utils' 'mold')
+makedepends=('git' 'rust' 'cargo' 'mold')
 provides=('frost-tune')
-conflicts=('frost-tune-bin' 'frost-tune-git')
+conflicts=('frost-tune' 'frost-tune-bin')
 install=frost-tune.install
-source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+source=()
+sha256sums=()
+
+_repo_root="$startdir/../.."
+
+pkgver() {
+    cd "$_repo_root"
+    git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-\)g/r\1/;s/-/./g' \
+        || printf "0.10.0.r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+    cd "$_repo_root"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
 
 build() {
-    cd "$pkgname-$pkgver"
+    cd "$_repo_root"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR="$_repo_root/target"
     export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
-    cargo build --release --locked
+    cargo build --frozen --release
+}
+
+check() {
+    cd "$_repo_root"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR="$_repo_root/target"
+    cargo test --frozen
 }
 
 package() {
-    cd "$pkgname-$pkgver"
-    install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
-    install -Dm644 "assets/frost-tune.desktop" "$pkgdir/usr/share/applications/frost-tune.desktop"
-    install -Dm644 "assets/frost-tune.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/frost-tune.svg"
-    install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    cd "$_repo_root"
+    install -Dm755 "target/release/frost-tune" "$pkgdir/usr/bin/frost-tune"
+    install -Dm644 "assets/frost-tune.desktop" -t "$pkgdir/usr/share/applications/"
+    install -Dm644 "assets/frost-tune.svg" \
+        "$pkgdir/usr/share/icons/hicolor/scalable/apps/frost-tune.svg"
+    install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname/"
+    install -Dm644 README.md -t "$pkgdir/usr/share/doc/$pkgname/"
 }
