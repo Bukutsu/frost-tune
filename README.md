@@ -149,7 +149,10 @@ Download the latest pre-built binary for your platform from the [Releases page](
 
 #### Arch Linux (PKGBUILD)
 
+The PKGBUILD lives under `packaging/arch/` to avoid colliding with Cargo's `src/` layout:
+
 ```sh
+cd packaging/arch
 makepkg -si
 ```
 
