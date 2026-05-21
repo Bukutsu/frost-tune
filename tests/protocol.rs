@@ -4,7 +4,7 @@
 use frost_tune::hardware::protocol::{
     DeviceProtocol, TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
 };
-use frost_tune::models::FilterType;
+use frost_tune::models::{Filter, FilterType};
 
 #[test]
 fn test_tp35pro_build_filter_read_request() {
@@ -21,26 +21,32 @@ fn test_tp35pro_build_global_gain_request() {
 }
 
 #[test]
-fn test_tp35pro_parse_filter_packet_invalid() {
+fn test_tp35pro_parse_filter_response_invalid() {
     let proto = TP35ProProtocol;
-    // Too short
-    let data = vec![0x00, 0x01];
-    let filter = proto.parse_filter_packet(&data);
-    assert!(filter.is_none());
+    assert!(proto.parse_filter_response(&[0x00, 0x01]).is_none());
 }
 
 #[test]
 fn test_tp35pro_filter_packet_round_trip() {
-    // We can't perfectly round-trip because dsp::compute_iir_filter creates the biquad array
-    // and dsp::parse_filter_packet reads it back, but let's at least ensure it doesn't panic
     let proto = TP35ProProtocol;
-    let packet =
-        proto.build_filter_write_packet(0, true, 1000.0, 2.5, 1.414, FilterType::Peak.into());
-
-    // In actual device, report ID is prefix, and device sends back packet.
-    // The parse_filter_packet expects the payload.
-    // Let's just make sure it's valid format.
+    let filter = Filter {
+        index: 0,
+        enabled: true,
+        filter_type: FilterType::Peak,
+        freq: 1000,
+        gain: 2.5,
+        q: 1.414,
+    };
+    let packet = proto.build_filter_write_packet(0, &filter);
     assert_eq!(packet.len(), 37);
     assert_eq!(packet[0], WRITE);
     assert_eq!(packet[1], CMD_PEQ_VALUES);
+}
+
+#[test]
+fn test_tp35pro_build_commit_packets_count() {
+    let proto = TP35ProProtocol;
+    let packets = proto.build_commit_packets();
+    // Walkplay requires 4 commit steps: pre-commit A, pre-commit B, temp-write, flash-eq
+    assert_eq!(packets.len(), 4);
 }

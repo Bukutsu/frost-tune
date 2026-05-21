@@ -1,0 +1,75 @@
+// Copyright (c) 2026 Bukutsu
+// SPDX-License-Identifier: MIT
+
+use crate::core::eq::FilterType;
+
+/// Bitmask of filter types a device supports. Used by the UI to hide unsupported
+/// filter type buttons and by the push path to reject invalid payloads early.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterTypeFlags(pub u16);
+
+impl FilterTypeFlags {
+    pub const PEAK: Self = Self(0b0000_0001);
+    pub const LOW_SHELF: Self = Self(0b0000_0010);
+    pub const HIGH_SHELF: Self = Self(0b0000_0100);
+    pub const LOW_PASS: Self = Self(0b0000_1000);
+    pub const HIGH_PASS: Self = Self(0b0001_0000);
+
+    pub fn contains(self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+
+    pub fn supports(self, ft: FilterType) -> bool {
+        match ft {
+            FilterType::Peak => self.contains(Self::PEAK),
+            FilterType::LowShelf => self.contains(Self::LOW_SHELF),
+            FilterType::HighShelf => self.contains(Self::HIGH_SHELF),
+            FilterType::LowPass => self.contains(Self::LOW_PASS),
+            FilterType::HighPass => self.contains(Self::HIGH_PASS),
+        }
+    }
+}
+
+impl std::ops::BitOr for FilterTypeFlags {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+/// Static capability profile for a device — pure data, no protocol behavior.
+///
+/// Queried by the UI (to constrain sliders and show/hide controls) and by the
+/// push path (to validate payloads before sending them to hardware).
+#[derive(Debug, Clone)]
+pub struct DeviceCapabilities {
+    pub num_bands: usize,
+    pub global_gain_range: (i8, i8),
+    pub band_gain_range: (f64, f64),
+    pub freq_range: (u16, u16),
+    pub q_range: (f64, f64),
+    pub supported_filter_types: FilterTypeFlags,
+    pub supports_per_band_enable: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filter_type_flags_contains() {
+        let flags = FilterTypeFlags::PEAK | FilterTypeFlags::LOW_SHELF;
+        assert!(flags.contains(FilterTypeFlags::PEAK));
+        assert!(flags.contains(FilterTypeFlags::LOW_SHELF));
+        assert!(!flags.contains(FilterTypeFlags::HIGH_SHELF));
+    }
+
+    #[test]
+    fn filter_type_flags_supports_filter_type() {
+        let flags = FilterTypeFlags::PEAK | FilterTypeFlags::HIGH_SHELF;
+        assert!(flags.supports(FilterType::Peak));
+        assert!(flags.supports(FilterType::HighShelf));
+        assert!(!flags.supports(FilterType::LowShelf));
+        assert!(!flags.supports(FilterType::LowPass));
+    }
+}

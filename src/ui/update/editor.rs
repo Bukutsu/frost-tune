@@ -256,7 +256,9 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
         }
         Message::GlobalGainChanged(gain) => {
             window.editor_state.push_undo();
-            window.editor_state.data.global_gain = gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN);
+            let gain_range = window.global_gain_range();
+            window.editor_state.data.global_gain =
+                gain.clamp(*gain_range.start(), *gain_range.end());
             window.editor_state.session.is_dirty = true;
             Task::none()
         }

@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::device::DeviceInfo;
+use crate::core::eq::constants::*;
+use crate::core::eq::{Filter, PEQData};
 use crate::error::{AppError, ErrorKind};
-use crate::models::constants::*;
-use crate::models::device::DeviceInfo;
-use crate::models::filter::{Filter, PEQData};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

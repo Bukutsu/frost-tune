@@ -2,19 +2,22 @@
 // SPDX-License-Identifier: MIT
 
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, send_report};
-use crate::hardware::packet_format::{WriteTiming, END, READ};
+use crate::hardware::hid::{delay_ms, send_report, DeviceSession};
+use crate::hardware::packet_format::WriteTiming;
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::Filter;
 use hidapi::HidDevice;
 
-pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Result<()> {
-    crate::hardware::hid::reset_nonce();
-    send_report(
-        device,
-        &[READ, proto.cmd_version(), END][..],
-        proto.report_id(),
-    )?;
+/// Sends the device's init sequence (version ping / wake), drains stale USB frames,
+/// and returns a fresh `DeviceSession` with its nonce counter reset to 1.
+/// Every read and write operation must start here.
+pub fn init_device_session(
+    device: &HidDevice,
+    proto: &dyn DeviceProtocol,
+) -> Result<DeviceSession> {
+    for packet in proto.build_init_packets() {
+        send_report(device, &packet, proto.report_id())?;
+    }
     delay_ms(50);
     let mut drain = [0u8; 64];
     let mut iterations = 0;
@@ -24,7 +27,7 @@ pub fn init_device_session(device: &HidDevice, proto: &dyn DeviceProtocol) -> Re
         }
         iterations += 1;
     }
-    Ok(())
+    Ok(DeviceSession::new())
 }
 
 pub fn write_filters_and_gain(
@@ -46,39 +49,31 @@ pub fn write_filters_and_gain(
     }
 
     for (i, filter) in filters.iter().enumerate() {
-        let packet = proto.build_filter_write_packet(
-            i as u8,
-            filter.enabled,
-            filter.freq as f64,
-            filter.gain,
-            filter.q,
-            filter.filter_type.into(),
-        );
-        send_report(device, &packet[..], proto.report_id())?;
+        let packet = proto.build_filter_write_packet(i as u8, filter);
+        send_report(device, &packet, proto.report_id())?;
         delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
     }
 
     delay_ms(timing.batch_ms);
 
     let gain_packet = proto.build_global_gain_write_packet(global_gain);
-    send_report(device, &gain_packet[..], proto.report_id())?;
+    send_report(device, &gain_packet, proto.report_id())?;
     delay_ms(timing.global_gain_ms);
 
     Ok(())
 }
 
+/// Sends the full commit sequence returned by `proto.build_commit_packets()`,
+/// applying `timing.commit_step_ms` delay after each packet.
 pub fn commit_changes(
     device: &HidDevice,
     proto: &dyn DeviceProtocol,
     timing: &WriteTiming,
 ) -> Result<()> {
-    let temp_packet = proto.build_temp_write_packet();
-    send_report(device, &temp_packet[..], proto.report_id())?;
-    delay_ms(timing.commit_ms);
-
-    let flash_packet = proto.build_flash_eq_packet();
-    send_report(device, &flash_packet[..], proto.report_id())?;
-
+    for packet in proto.build_commit_packets() {
+        send_report(device, &packet, proto.report_id())?;
+        delay_ms(timing.commit_step_ms);
+    }
     Ok(())
 }
 
@@ -91,5 +86,6 @@ mod tests {
         let timing = WriteTiming::default();
         assert!(timing.per_filter_ms > 0);
         assert!(timing.batch_ms > 0);
+        assert!(timing.commit_step_ms > 0);
     }
 }

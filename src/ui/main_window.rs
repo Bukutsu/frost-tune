@@ -291,56 +291,27 @@ impl MainWindow {
     }
 
     pub fn num_bands(&self) -> usize {
-        self.connected_device
-            .as_ref()
-            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
-            .and_then(|d| d.protocol())
-            .map(|p| p.num_bands())
-            .unwrap_or(10)
+        self.active_device().num_bands()
     }
 
     pub fn freq_range(&self) -> (u16, u16) {
-        self.connected_device
-            .as_ref()
-            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
-            .and_then(|d| d.protocol())
-            .map(|p| p.freq_range())
-            .unwrap_or((
-                crate::models::constants::MIN_FREQ,
-                crate::models::constants::MAX_FREQ,
-            ))
+        self.active_device().freq_range()
     }
 
     pub fn gain_range(&self) -> (f64, f64) {
-        self.connected_device
-            .as_ref()
-            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
-            .and_then(|d| d.protocol())
-            .map(|p| p.gain_range())
-            .unwrap_or((
-                crate::models::constants::MIN_BAND_GAIN,
-                crate::models::constants::MAX_BAND_GAIN,
-            ))
+        self.active_device().band_gain_range()
     }
 
     pub fn q_range(&self) -> (f64, f64) {
-        self.connected_device
-            .as_ref()
-            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
-            .and_then(|d| d.protocol())
-            .map(|p| p.q_range())
-            .unwrap_or((
-                crate::models::constants::MIN_Q,
-                crate::models::constants::MAX_Q,
-            ))
+        self.active_device().q_range()
     }
 
     pub fn supports_per_band_enable(&self) -> bool {
-        self.connected_device
-            .as_ref()
-            .map(|d| crate::models::Device::from_vid_pid(d.vendor_id, d.product_id))
-            .map(|d| d.supports_per_band_enable())
-            .unwrap_or(true)
+        self.active_device().supports_per_band_enable()
+    }
+
+    pub fn supported_filter_types(&self) -> crate::models::FilterTypeFlags {
+        self.active_device().supported_filter_types()
     }
 
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {

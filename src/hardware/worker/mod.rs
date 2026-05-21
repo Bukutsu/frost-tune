@@ -70,7 +70,6 @@ impl UsbWorker {
                         let msg = panic_message(&panic_info);
                         log::error!("Worker thread panicked: {}", msg);
                         state.fatal_error = Some(msg);
-                        crate::hardware::hid::reset_nonce();
                         state.backend = None;
                         state.generation = state.generation.saturating_add(1);
                     }

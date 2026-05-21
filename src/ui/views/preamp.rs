@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::models::{MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 use crate::ui::messages::Message;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
@@ -11,6 +10,7 @@ use iced::{Element, Length};
 
 pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
+    let gain_range = state.global_gain_range();
 
     let preamp_section = row![
         container(super::section_header(format!(
@@ -19,7 +19,7 @@ pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
         )))
         .width(Length::Fixed(PREAMP_LABEL_WIDTH)),
         slider(
-            MIN_GLOBAL_GAIN as f64..=MAX_GLOBAL_GAIN as f64,
+            *gain_range.start() as f64..=*gain_range.end() as f64,
             state.editor_state.data.global_gain as f64,
             move |v| {
                 if is_busy {

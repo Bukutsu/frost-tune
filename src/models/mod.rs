@@ -1,18 +1,18 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-pub mod constants;
-pub mod device;
-pub mod filter;
+//! Domain types re-exported from `core/` plus IPC wire types.
+//!
+//! All domain logic lives in `core/`. This module exists so the rest of the codebase
+//! can use short `crate::models::Foo` paths rather than fully qualified `crate::core::…` paths.
+
 pub mod ipc;
 
-// Re-export domain types from core/ for backward compatibility
-pub use crate::core::device::{Device, DeviceInfo};
+pub use crate::core::device::{Device, DeviceCapabilities, DeviceInfo, FilterTypeFlags};
+pub use crate::core::eq::constants::*;
 pub use crate::core::eq::{
     snap_freq_to_iso, snap_gain_step, snap_q_to_iso, Filter, FilterType, PEQData,
 };
-
-pub use constants::*;
 pub use ipc::*;
 
 #[cfg(test)]
@@ -73,7 +73,7 @@ mod tests {
     fn test_global_gain_clamp_min() {
         let mut payload = PushPayload {
             filters: vec![],
-            global_gain: Some(-15),
+            global_gain: Some(-20),
         };
         payload.clamp(
             (MIN_FREQ, MAX_FREQ),

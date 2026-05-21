@@ -306,12 +306,14 @@ fn render_input_field<'a>(
 
 fn render_type_buttons<'a>(
     i: usize,
-    band: &crate::models::filter::Filter,
+    band: &crate::models::Filter,
     is_busy: bool,
     is_active: bool,
+    supported: crate::models::FilterTypeFlags,
 ) -> Element<'a, Message> {
     row(FilterType::ALL
         .iter()
+        .filter(|&&ft| supported.supports(ft))
         .map(|&ft| {
             let is_selected = band.filter_type == ft;
             let label = ft.short_label();
@@ -381,7 +383,7 @@ fn render_type_buttons<'a>(
 
 fn render_freq_cell<'a>(
     i: usize,
-    band: &crate::models::filter::Filter,
+    band: &crate::models::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     freq_error: Option<&'a str>,
@@ -407,7 +409,7 @@ fn render_freq_cell<'a>(
 
 fn render_gain_cell<'a>(
     i: usize,
-    band: &crate::models::filter::Filter,
+    band: &crate::models::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     gain_error: Option<&'a str>,
@@ -421,7 +423,7 @@ fn render_gain_cell<'a>(
             Message::BandGainChanged(i, v)
         }
     })
-    .step(crate::models::constants::GAIN_STEP)
+    .step(crate::models::GAIN_STEP)
     .width(Length::Fill)
     .style(theme::gain_slider_style(band.gain, is_active))
     .on_release(if is_busy {
@@ -471,7 +473,7 @@ fn render_gain_cell<'a>(
 
 fn render_q_cell<'a>(
     i: usize,
-    band: &crate::models::filter::Filter,
+    band: &crate::models::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     q_error: Option<&'a str>,
@@ -497,7 +499,7 @@ fn render_q_cell<'a>(
 
 fn render_band_row<'a>(
     i: usize,
-    band: &'a crate::models::filter::Filter,
+    band: &'a crate::models::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     show_enable: bool,
@@ -543,9 +545,15 @@ fn render_band_row<'a>(
     }
 
     elements.push(
-        container(render_type_buttons(i, band, is_busy, is_active))
-            .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
-            .into(),
+        container(render_type_buttons(
+            i,
+            band,
+            is_busy,
+            is_active,
+            state.supported_filter_types(),
+        ))
+        .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
+        .into(),
     );
     elements.push(render_freq_cell(
         i, band, state, is_busy, freq_error, is_active,

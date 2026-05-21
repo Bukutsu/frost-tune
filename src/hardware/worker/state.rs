@@ -33,6 +33,21 @@ pub(crate) struct WorkerState {
     pub last_elevated_respawn: Option<std::time::Instant>,
 }
 
+fn exponential_backoff_elapsed(
+    attempts: u32,
+    last: Option<std::time::Instant>,
+    max_secs: u64,
+) -> bool {
+    match last {
+        None => true,
+        Some(last) => {
+            let backoff =
+                std::time::Duration::from_secs((2u64.saturating_pow(attempts)).min(max_secs));
+            std::time::Instant::now().duration_since(last) >= backoff
+        }
+    }
+}
+
 impl WorkerState {
     pub fn new() -> Self {
         Self {
@@ -55,19 +70,11 @@ impl WorkerState {
             return;
         }
 
-        let now = std::time::Instant::now();
-        let should_retry = match self.last_api_retry {
-            None => true,
-            Some(last) => {
-                let backoff = std::time::Duration::from_secs(
-                    (2u64.saturating_pow(self.api_retry_count)).min(30),
-                );
-                now.duration_since(last) >= backoff
-            }
-        };
+        let should_retry =
+            exponential_backoff_elapsed(self.api_retry_count, self.last_api_retry, 30);
 
         if should_retry {
-            self.last_api_retry = Some(now);
+            self.last_api_retry = Some(std::time::Instant::now());
             self.api_retry_count += 1;
             match hidapi::HidApi::new() {
                 Ok(a) => {
@@ -120,16 +127,11 @@ impl WorkerState {
                         };
 
                         if elevated_failed {
-                            let should_attempt = match self.last_elevated_respawn {
-                                None => true,
-                                Some(last) => {
-                                    let backoff = std::time::Duration::from_secs(
-                                        (2u64.saturating_pow(self.elevated_respawn_attempts))
-                                            .min(30),
-                                    );
-                                    std::time::Instant::now().duration_since(last) >= backoff
-                                }
-                            };
+                            let should_attempt = exponential_backoff_elapsed(
+                                self.elevated_respawn_attempts,
+                                self.last_elevated_respawn,
+                                30,
+                            );
 
                             if should_attempt && self.elevated_respawn_attempts < 3 {
                                 self.last_elevated_respawn = Some(std::time::Instant::now());

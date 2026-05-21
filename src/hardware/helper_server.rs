@@ -39,7 +39,7 @@ fn push_logic(
         filters,
         global_gain,
     };
-    crate::hardware::pipeline::push_with_verify(device, proto.as_ref(), payload)
+    crate::hardware::pipeline::push_with_verify(device, device_type, proto.as_ref(), payload)
 }
 
 #[cfg(target_os = "linux")]

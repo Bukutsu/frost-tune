@@ -1,20 +1,16 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::hardware::packet_format::{
-    OFFSET_FILTER_TYPE, OFFSET_FREQ_H, OFFSET_FREQ_L, OFFSET_GAIN_H, OFFSET_GAIN_L, OFFSET_INDEX,
-    OFFSET_Q_H, OFFSET_Q_L,
-};
+//! DSP utilities for frequency-response visualization.
+//!
+//! The IIR filter math and packet-parsing routines used to build/parse USB payloads
+//! live in `core/device/tp35pro`. This module contains only the biquad coefficient
+//! and magnitude-response helpers used by the UI graph renderer.
+
 use crate::models::{Filter, FilterType};
 use std::f64::consts::TAU;
 
 const DSP_SAMPLE_RATE: f64 = 96000.0;
-const QUANTIZER_SCALE: f64 = 1073741824.0;
-const Q_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-const GAIN_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-const U16_WRAP_AROUND: i32 = 65536;
-const GAIN_I16_THRESHOLD: i32 = 32767;
-const BYTE_BIT_SHIFT: i32 = 8;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PrecomputedFreq {
@@ -34,113 +30,6 @@ impl PrecomputedFreq {
             sin_2w: (2.0 * w).sin(),
         }
     }
-}
-
-pub fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
-    let i_arr = [
-        (d_arr[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[2] * QUANTIZER_SCALE).round() as i32,
-    ];
-    let i_arr2 = [
-        (d_arr2[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[2] * QUANTIZER_SCALE).round() as i32,
-    ];
-    [
-        i_arr2[0],
-        i_arr2[1],
-        i_arr2[2],
-        i_arr[1].wrapping_neg(),
-        i_arr[2].wrapping_neg(),
-    ]
-}
-
-pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> [u8; 20] {
-    let mut b_arr = [0u8; 20];
-    let sqrt = (10_f64.powf(gain / 20.0)).sqrt();
-    let omega = (freq * TAU) / DSP_SAMPLE_RATE;
-    let sin_omega_over_2q = omega.sin() / (2.0 * q);
-    let omega_correction = sin_omega_over_2q * sqrt;
-    let denom = (sin_omega_over_2q / sqrt) + 1.0;
-
-    let quantizer_data = quantizer(
-        &[
-            1.0,
-            (omega.cos() * -2.0) / denom,
-            (1.0 - sin_omega_over_2q / sqrt) / denom,
-        ],
-        &[
-            (omega_correction + 1.0) / denom,
-            omega.cos() * -2.0 / denom,
-            (1.0 - omega_correction) / denom,
-        ],
-    );
-
-    for (i, &value) in quantizer_data.iter().enumerate() {
-        b_arr[i * 4] = (value & 0xFF) as u8;
-        b_arr[i * 4 + 1] = ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8;
-        b_arr[i * 4 + 2] = ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8;
-        b_arr[i * 4 + 3] = ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8;
-    }
-
-    b_arr
-}
-
-pub fn convert_to_byte_array(value: i32, length: usize) -> Vec<u8> {
-    let mut arr = Vec::with_capacity(length);
-    for i in 0..length {
-        arr.push(((value >> (BYTE_BIT_SHIFT * i as i32)) & 0xFF) as u8);
-    }
-    arr
-}
-
-pub fn convert_to_4byte_array(value: i32) -> [u8; 4] {
-    [
-        (value & 0xFF) as u8,
-        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
-        ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8,
-        ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8,
-    ]
-}
-
-pub fn convert_to_2byte_array(value: i32) -> [u8; 2] {
-    [
-        (value & 0xFF) as u8,
-        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
-    ]
-}
-
-pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
-    if packet.len() < 34 {
-        return None;
-    }
-
-    let filter_index = packet[OFFSET_INDEX];
-    let freq = (packet[OFFSET_FREQ_L] as u16) | ((packet[OFFSET_FREQ_H] as u16) << BYTE_BIT_SHIFT);
-    let q_raw = (packet[OFFSET_Q_L] as u16) | ((packet[OFFSET_Q_H] as u16) << BYTE_BIT_SHIFT);
-    let gain_raw =
-        (packet[OFFSET_GAIN_L] as u16) | ((packet[OFFSET_GAIN_H] as u16) << BYTE_BIT_SHIFT);
-
-    let gain_from_device = if gain_raw > GAIN_I16_THRESHOLD as u16 {
-        (gain_raw as i32 - U16_WRAP_AROUND) as i16
-    } else {
-        gain_raw as i16
-    };
-
-    let q = (((q_raw as f64) / Q_FLOAT_TO_U16_DIVISOR * 100.0).round() / 100.0).max(0.01);
-    let gain = ((gain_from_device as f64) / GAIN_FLOAT_TO_U16_DIVISOR * 100.0).round() / 100.0;
-    let filter_type = FilterType::from(packet[OFFSET_FILTER_TYPE]);
-    let enabled = !(freq == 0 && gain_from_device == 0);
-
-    Some(Filter {
-        index: filter_index,
-        enabled,
-        freq,
-        gain,
-        q,
-        filter_type,
-    })
 }
 
 pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64) {
@@ -164,7 +53,6 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
             (b0, b1, b2, a0, a1, a2)
         }
         FilterType::LowShelf => {
-            // Standard RBJ Shelf with Q
             let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
             let a_minus_1 = a - 1.0;
             let a_plus_1 = a + 1.0;
@@ -178,7 +66,6 @@ pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64
             (b0, b1, b2, a0, a1, a2)
         }
         FilterType::HighShelf => {
-            // Standard RBJ Shelf with Q
             let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
             let a_minus_1 = a - 1.0;
             let a_plus_1 = a + 1.0;
@@ -289,6 +176,7 @@ pub fn calculate_total_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::Filter;
 
     #[test]
     fn test_peak_filter_magnitude_response() {
@@ -350,43 +238,5 @@ mod tests {
 
         let total_with_preamp = calculate_total_response(&filters, -3, &freqs);
         assert!((total_with_preamp[0] - 1.0).abs() < 0.1);
-    }
-
-    #[test]
-    fn test_compute_iir_filter_produces_20_bytes() {
-        let result = compute_iir_filter(1000.0, 5.0, 1.0);
-        assert_eq!(result.len(), 20);
-    }
-
-    #[test]
-    fn test_compute_iir_filter_with_zero_gain() {
-        let result = compute_iir_filter(1000.0, 0.0, 1.0);
-        assert_eq!(result.len(), 20);
-    }
-
-    #[test]
-    fn test_compute_iir_filter_with_max_gain() {
-        let result = compute_iir_filter(1000.0, 10.0, 1.0);
-        assert_eq!(result.len(), 20);
-    }
-
-    #[test]
-    fn test_convert_to_byte_array_length() {
-        let result = convert_to_byte_array(0x12345678, 4);
-        assert_eq!(result.len(), 4);
-    }
-
-    #[test]
-    fn test_parse_filter_packet_short() {
-        let result = parse_filter_packet(&[0u8; 10][..]);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_quantizer_no_overflow() {
-        let d_arr: [f64; 3] = [1.0, -10.0, 10.0];
-        let d_arr2: [f64; 3] = [1.0, 2.0, 3.0];
-        let result = quantizer(&d_arr, &d_arr2);
-        assert_eq!(result.len(), 5);
     }
 }

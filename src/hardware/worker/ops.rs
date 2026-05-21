@@ -90,7 +90,7 @@ pub fn worker_push_peq(
             info: _,
         }) => {
             if let Some(proto) = device_type.protocol() {
-                worker_push_peq_local(device, proto.as_ref(), payload)
+                worker_push_peq_local(device, *device_type, proto.as_ref(), payload)
             } else {
                 OperationResult {
                     success: false,
@@ -176,10 +176,11 @@ fn worker_pull_peq_local(
 
 fn worker_push_peq_local(
     device: &hidapi::HidDevice,
+    device_type: crate::models::Device,
     proto: &dyn crate::hardware::protocol::DeviceProtocol,
     payload: PushPayload,
 ) -> OperationResult {
-    match crate::hardware::pipeline::push_with_verify(device, proto, payload) {
+    match crate::hardware::pipeline::push_with_verify(device, device_type, proto, payload) {
         Ok(peq) => OperationResult {
             success: true,
             data: Some(peq),

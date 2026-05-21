@@ -1,101 +1,92 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-//! Device protocol trait defining the interface for hardware-specific packet handling.
+//! `DeviceProtocol` trait — the only interface a new device implementation must satisfy.
 //!
-//! Each supported USB DAC device implements this trait to handle its specific binary protocol,
-//! command bytes, and packet formats. This allows new devices to be added without modifying
-//! the core communication logic.
+//! See `CONTRIBUTING_DEVICES.md` for a step-by-step guide and annotated skeleton.
 
+use crate::core::device::timing::{ReadTiming, WriteTiming};
 use crate::core::eq::Filter;
-use crate::hardware::packet_format::{ReadTiming, WriteTiming};
 
-/// Trait defining hardware-specific packet layouts and constants.
+/// Hardware-specific packet building and response matching for a USB DAC.
 ///
-/// **Contributor Guide: Implementing a New Protocol**
-/// To support a new USB DAC, you must create a new struct (e.g., `MyNewDeviceProtocol`)
-/// and implement this trait for it.
+/// Each supported device has exactly one struct implementing this trait, living in
+/// `src/core/device/<vendor>/mod.rs`. The hardware layer (`hid.rs`, `packet_builder.rs`)
+/// calls these methods and knows nothing about any specific wire format.
 ///
-/// Hardware devices often have unique binary payloads and command bytes for reading
-/// and writing EQ filters and global gains. Use USB packet capture tools (like Wireshark or USBPcap)
-/// on the official device software to reverse-engineer these payloads.
+/// ## Contract
 ///
-/// Note: Ensure your protocol implementation handles the required endianness and
-/// offset indexing accurately as expected by the target hardware.
+/// * `data` parameters passed to `matches_*` and `parse_*` are **offset-adjusted** —
+///   the HID report-ID prefix byte has already been stripped when `buf[0] == report_id()`.
+/// * `matches_*` must return `false` rather than panic on short or malformed packets.
+/// * `parse_*` returning `None` is treated as a transient read failure and may be retried.
 pub trait DeviceProtocol: Send + Sync {
+    /// USB HID report ID byte prepended to every outgoing write buffer.
     fn report_id(&self) -> u8;
-    fn cmd_version(&self) -> u8;
-    fn cmd_peq_values(&self) -> u8;
-    fn cmd_global_gain(&self) -> u8;
-    fn cmd_temp_write(&self) -> u8;
-    fn cmd_flash_eq(&self) -> u8;
 
-    /// Dynamic limits exposed by the device protocol
-    fn num_bands(&self) -> usize {
-        10
-    }
-    fn freq_range(&self) -> (u16, u16) {
-        (20, 20000)
-    }
-    fn gain_range(&self) -> (f64, f64) {
-        (-10.0, 10.0)
-    }
-    fn q_range(&self) -> (f64, f64) {
-        (0.1, 10.0)
-    }
-
-    /// Whether the device supports enabling/disabling individual filter bands.
-    fn supports_per_band_enable(&self) -> bool {
-        true
-    }
-
-    /// Default timings for reading from this device.
+    /// Device-specific read timing. Defaults are conservative and safe for most devices.
     fn read_timing(&self) -> ReadTiming {
         ReadTiming::default()
     }
 
-    /// Default timings for writing to this device.
+    /// Device-specific write timing.
     fn write_timing(&self) -> WriteTiming {
         WriteTiming::default()
     }
 
-    /// Build a request payload to read a single filter at the specified index.
-    /// The `nonce` is typically used to correlate the request with the response.
+    /// Number of EQ bands this device has. Drives the filter read/write loop bounds.
+    fn num_bands(&self) -> usize {
+        10
+    }
+
+    // ── Session init ─────────────────────────────────────────────────────────
+
+    /// Ordered packets to send once at the start of every read or write operation
+    /// (typically a version ping to wake the device and flush stale USB frames).
+    /// Return an empty `Vec` if the device needs no init sequence.
+    fn build_init_packets(&self) -> Vec<Vec<u8>>;
+
+    // ── Filter read ──────────────────────────────────────────────────────────
+
+    /// Packet payload asking the device to send back filter at `index`.
+    /// `nonce` must appear in the response so the caller can correlate request → reply.
     fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8>;
 
-    /// Build a request payload to read the global gain value from the device.
+    /// Return `true` if `data` is the device's response to a filter read for `index` /
+    /// `nonce`. Called for every incoming packet; must be cheap and non-panicking.
+    fn matches_filter_response(&self, data: &[u8], index: u8, nonce: u8) -> bool;
+
+    /// Extract a `Filter` from a matched filter response packet.
+    /// `data` is the same slice that passed `matches_filter_response`.
+    fn parse_filter_response(&self, data: &[u8]) -> Option<Filter>;
+
+    // ── Filter write ─────────────────────────────────────────────────────────
+
+    /// Packet payload to write `filter` into band slot `index` in the device's
+    /// volatile memory (not yet persisted to flash).
+    fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8>;
+
+    // ── Global gain read ─────────────────────────────────────────────────────
+
+    /// Packet payload asking the device to send back its global gain value.
     fn build_global_gain_request(&self, nonce: u8) -> Vec<u8>;
 
-    /// Build a packet to write a single filter to the device's volatile memory.
-    /// * `index` - The 0-based index of the filter band.
-    /// * `enabled` - Whether the filter band is active.
-    /// * `freq` - The center frequency of the filter.
-    /// * `gain` - The gain value of the filter in dB.
-    /// * `q` - The Q-factor (bandwidth) of the filter.
-    /// * `filter_type` - The specific filter type byte (e.g., Peaking, Low Shelf, High Shelf).
-    fn build_filter_write_packet(
-        &self,
-        index: u8,
-        enabled: bool,
-        freq: f64,
-        gain: f64,
-        q: f64,
-        filter_type: u8,
-    ) -> Vec<u8>;
+    /// Return `true` if `data` is the device's response to a global gain read.
+    fn matches_global_gain_response(&self, data: &[u8], nonce: u8) -> bool;
 
-    /// Build a packet to write the global gain value to the device's volatile memory.
+    /// Extract the global gain in dB from a matched global gain response packet.
+    fn parse_global_gain_response(&self, data: &[u8]) -> Option<i8>;
+
+    // ── Global gain write ────────────────────────────────────────────────────
+
+    /// Packet payload to write `gain` dB as the device's global preamp value.
     fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8>;
 
-    /// Build a packet that commits the current volatile EQ configuration
-    /// into a temporary active state on the hardware.
-    fn build_temp_write_packet(&self) -> Vec<u8>;
+    // ── Commit ───────────────────────────────────────────────────────────────
 
-    /// Build a packet that commits the current EQ configuration to the
-    /// hardware's persistent flash memory so it survives a power cycle.
-    fn build_flash_eq_packet(&self) -> Vec<u8>;
-
-    /// Parse a raw byte payload (excluding the report ID, if present) returned
-    /// by the device in response to a filter read request, extracting it into a `Filter` struct.
-    /// Return `None` if the packet is invalid or unparseable.
-    fn parse_filter_packet(&self, data: &[u8]) -> Option<Filter>;
+    /// Ordered sequence of packets that persist the current volatile EQ state to
+    /// the device's flash memory. Each `Vec<u8>` is one HID report payload.
+    /// `packet_builder::commit_changes` sends them with `WriteTiming::commit_step_ms`
+    /// delay between each.
+    fn build_commit_packets(&self) -> Vec<Vec<u8>>;
 }

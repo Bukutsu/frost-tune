@@ -3,28 +3,41 @@
 
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
-use crate::hardware::packet_format::{ReadTiming, READ, REPORT_ID};
+use crate::hardware::packet_format::ReadTiming;
 use crate::hardware::protocol::DeviceProtocol;
 use crate::models::{Device, DeviceInfo, Filter, PEQData};
-use std::sync::atomic::{AtomicU8, Ordering};
 
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
 pub const MAX_GLOBAL_GAIN_ATTEMPTS: u8 = 20;
 pub const MAX_WRITE_RETRIES: u8 = 3;
 pub const DEFAULT_RETRY_DELAY_MS: u64 = 20;
 
-static GLOBAL_NONCE: AtomicU8 = AtomicU8::new(1);
-
-pub fn reset_nonce() {
-    GLOBAL_NONCE.store(1, Ordering::SeqCst);
+/// Per-operation nonce counter. Created fresh by `init_device_session` so there
+/// is no shared mutable state between concurrent (or sequential) operations.
+pub struct DeviceSession {
+    nonce: u8,
 }
 
-fn get_next_nonce() -> u8 {
-    let mut next = GLOBAL_NONCE.fetch_add(1, Ordering::SeqCst);
-    if next == 0 {
-        next = GLOBAL_NONCE.fetch_add(1, Ordering::SeqCst);
+impl Default for DeviceSession {
+    fn default() -> Self {
+        Self::new()
     }
-    next
+}
+
+impl DeviceSession {
+    pub fn new() -> Self {
+        Self { nonce: 1 }
+    }
+
+    pub fn next_nonce(&mut self) -> u8 {
+        loop {
+            let n = self.nonce;
+            self.nonce = self.nonce.wrapping_add(1);
+            if n != 0 {
+                return n;
+            }
+        }
+    }
 }
 
 pub fn delay_ms(ms: u64) {
@@ -95,52 +108,53 @@ pub fn pull_peq_internal(
     strict: bool,
 ) -> Result<PEQData> {
     let cfg = proto.read_timing();
-    init_device_session(device, proto)?;
+    let mut session = init_device_session(device, proto)?;
 
     let num_bands = proto.num_bands();
-    let mut filter_responses = vec![None; num_bands];
-
+    let mut filter_results: Vec<Option<Filter>> = Vec::with_capacity(num_bands);
     let mut had_mismatch = false;
 
     for i in 0u8..num_bands as u8 {
-        let filter_nonce = get_next_nonce();
-        let request = proto.build_filter_read_request(i, filter_nonce);
-        send_report(device, &request[..], proto.report_id())?;
+        let nonce = session.next_nonce();
+        let request = proto.build_filter_read_request(i, nonce);
+        send_report(device, &request, proto.report_id())?;
 
-        let response = read_single_filter_with_nonce(device, proto, &cfg, i, filter_nonce);
-        if strict && response.is_none() {
+        let result = read_single_filter(device, proto, &cfg, i, nonce);
+        if strict && result.is_none() {
             return Err(AppError::new(
                 ErrorKind::ReadTimeout,
-                format!("Failed to read filter {} (nonce: {})", i, filter_nonce),
+                format!("Failed to read filter {} (nonce: {})", i, nonce),
             ));
         }
-        if response.is_none() {
+        if result.is_none() {
             had_mismatch = true;
         }
-        filter_responses[i as usize] = response;
+        filter_results.push(result);
 
         delay_ms(cfg.inter_filter_ms);
     }
 
     validate_filter_reads(strict, had_mismatch)?;
 
-    let global_nonce = get_next_nonce();
+    let global_nonce = session.next_nonce();
     let global_gain = read_global_gain(device, proto, &cfg, global_nonce)?;
-    let filters = assemble_filters(num_bands, proto, filter_responses);
+    let filters = assemble_filters(num_bands, filter_results);
 
     Ok(PEQData {
         filters,
-        global_gain: global_gain as i8,
+        global_gain,
     })
 }
 
-fn read_single_filter_with_nonce(
+/// Read a single filter response from the device, matching by `index` and `nonce`.
+/// The protocol decides whether an incoming packet is the response we expect.
+fn read_single_filter(
     device: &hidapi::HidDevice,
     proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     expected_index: u8,
     nonce: u8,
-) -> Option<Vec<u8>> {
+) -> Option<Filter> {
     let mut attempts = 0;
     let mut mismatches = 0;
     // Worst-case per filter: MAX_FILTER_READ_ATTEMPTS(60) × read_timeout_ms(60ms) ×
@@ -150,26 +164,17 @@ fn read_single_filter_with_nonce(
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
             Ok(count) if count > 0 => {
-                let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
-                // Using proto.cmd_peq_values()
-                if count >= 30 + offset
-                    && buf[offset] == READ
-                    && buf[offset + 1] == proto.cmd_peq_values()
-                {
-                    // For now keeping TP35Pro specific nonce/index offsets,
-                    // but they could also be part of the trait if they differ.
-                    let r_nonce = buf[offset + 2];
-                    let r_idx = buf[offset + 4];
+                let offset = if buf[0] == proto.report_id() { 1 } else { 0 };
+                let data = &buf[offset..count];
 
-                    if r_nonce == nonce && r_idx == expected_index {
-                        return Some(buf[offset..offset + 34].to_vec());
-                    } else {
-                        mismatches += 1;
-                        if mismatches > 8 {
-                            return None;
-                        }
-                        continue;
+                if proto.matches_filter_response(data, expected_index, nonce) {
+                    return proto.parse_filter_response(data);
+                } else if count > offset {
+                    mismatches += 1;
+                    if mismatches > 8 {
+                        return None;
                     }
+                    continue;
                 }
             }
             Ok(_) => {}
@@ -185,10 +190,10 @@ fn read_global_gain(
     proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     nonce: u8,
-) -> Result<u8> {
+) -> Result<i8> {
     delay_ms(cfg.post_filter_read_ms);
     let request = proto.build_global_gain_request(nonce);
-    send_report(device, &request[..], proto.report_id())?;
+    send_report(device, &request, proto.report_id())?;
     delay_ms(cfg.post_global_gain_ms);
 
     let mut attempts = 0;
@@ -196,13 +201,12 @@ fn read_global_gain(
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
             Ok(count) if count > 0 => {
-                let offset = if buf[0] == REPORT_ID { 1 } else { 0 };
-                if count >= 6 + offset
-                    && buf[offset] == READ
-                    && buf[offset + 1] == proto.cmd_global_gain()
-                {
-                    // Constant offset 4 for gain value
-                    return Ok(buf[offset + 4]);
+                let offset = if buf[0] == proto.report_id() { 1 } else { 0 };
+                let data = &buf[offset..count];
+                if proto.matches_global_gain_response(data, nonce) {
+                    if let Some(gain) = proto.parse_global_gain_response(data) {
+                        return Ok(gain);
+                    }
                 }
             }
             _ => {}
@@ -215,28 +219,18 @@ fn read_global_gain(
     ))
 }
 
-fn assemble_filters(
-    num_bands: usize,
-    proto: &dyn DeviceProtocol,
-    responses: Vec<Option<Vec<u8>>>,
-) -> Vec<Filter> {
-    let mut filters = Vec::new();
-    for (i, resp) in responses.into_iter().enumerate() {
-        match resp {
-            Some(r) => {
-                if let Some(f) = proto.parse_filter_packet(&r) {
-                    filters.push(f);
-                } else {
-                    log::warn!("Filter {} parse failed, using default", i);
-                    filters.push(Filter::enabled(i as u8, false));
-                }
-            }
+fn assemble_filters(num_bands: usize, results: Vec<Option<Filter>>) -> Vec<Filter> {
+    let mut filters: Vec<Filter> = results
+        .into_iter()
+        .enumerate()
+        .map(|(i, opt)| match opt {
+            Some(f) => f,
             None => {
                 log::warn!("Filter {} read returned None, using default", i);
-                filters.push(Filter::enabled(i as u8, false));
+                Filter::enabled(i as u8, false)
             }
-        }
-    }
+        })
+        .collect();
 
     while filters.len() < num_bands {
         let idx = filters.len() as u8;
@@ -253,7 +247,6 @@ fn validate_filter_reads(strict: bool, had_mismatch: bool) -> Result<()> {
             "One or more filters failed to read",
         ));
     }
-
     Ok(())
 }
 
@@ -266,70 +259,34 @@ mod tests {
     };
     use crate::models::FilterType;
 
+    #[allow(dead_code)]
     struct TestProtocol;
 
     impl DeviceProtocol for TestProtocol {
         fn report_id(&self) -> u8 {
-            REPORT_ID
+            0x4B
         }
 
-        fn cmd_version(&self) -> u8 {
-            CMD_VERSION
-        }
-
-        fn cmd_peq_values(&self) -> u8 {
-            CMD_PEQ_VALUES
-        }
-
-        fn cmd_global_gain(&self) -> u8 {
-            CMD_GLOBAL_GAIN
-        }
-
-        fn cmd_temp_write(&self) -> u8 {
-            CMD_TEMP_WRITE
-        }
-
-        fn cmd_flash_eq(&self) -> u8 {
-            CMD_FLASH_EQ
+        fn build_init_packets(&self) -> Vec<Vec<u8>> {
+            vec![vec![READ, CMD_VERSION, END]]
         }
 
         fn build_filter_read_request(&self, index: u8, nonce: u8) -> Vec<u8> {
             vec![READ, CMD_PEQ_VALUES, nonce, 0x00, index, END]
         }
 
-        fn build_global_gain_request(&self, nonce: u8) -> Vec<u8> {
-            vec![READ, CMD_GLOBAL_GAIN, nonce, END]
+        fn matches_filter_response(&self, data: &[u8], index: u8, nonce: u8) -> bool {
+            data.len() >= 34
+                && data[0] == READ
+                && data[1] == CMD_PEQ_VALUES
+                && data[2] == nonce
+                && data[4] == index
         }
 
-        fn build_filter_write_packet(
-            &self,
-            index: u8,
-            _enabled: bool,
-            _freq: f64,
-            _gain: f64,
-            _q: f64,
-            _filter_type: u8,
-        ) -> Vec<u8> {
-            vec![WRITE, CMD_PEQ_VALUES, 0x00, 0x00, index, END]
-        }
-
-        fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8> {
-            vec![WRITE, CMD_GLOBAL_GAIN, 0x02, 0x00, gain as u8, END]
-        }
-
-        fn build_temp_write_packet(&self) -> Vec<u8> {
-            vec![WRITE, CMD_TEMP_WRITE, 0x04, 0x00, 0x00, 0xFF, 0xFF, END]
-        }
-
-        fn build_flash_eq_packet(&self) -> Vec<u8> {
-            vec![WRITE, CMD_FLASH_EQ, 0x01, 0x65, END]
-        }
-
-        fn parse_filter_packet(&self, data: &[u8]) -> Option<Filter> {
+        fn parse_filter_response(&self, data: &[u8]) -> Option<Filter> {
             if data.len() < 34 {
                 return None;
             }
-
             Some(Filter {
                 index: data[4],
                 enabled: true,
@@ -339,12 +296,61 @@ mod tests {
                 q: 1.0,
             })
         }
+
+        fn build_filter_write_packet(&self, index: u8, _filter: &Filter) -> Vec<u8> {
+            vec![WRITE, CMD_PEQ_VALUES, 0x00, 0x00, index, END]
+        }
+
+        fn build_global_gain_request(&self, nonce: u8) -> Vec<u8> {
+            vec![READ, CMD_GLOBAL_GAIN, nonce, END]
+        }
+
+        fn matches_global_gain_response(&self, data: &[u8], _nonce: u8) -> bool {
+            data.len() >= 6 && data[0] == READ && data[1] == CMD_GLOBAL_GAIN
+        }
+
+        fn parse_global_gain_response(&self, data: &[u8]) -> Option<i8> {
+            if data.len() > 4 {
+                Some(data[4] as i8)
+            } else {
+                None
+            }
+        }
+
+        fn build_global_gain_write_packet(&self, gain: i8) -> Vec<u8> {
+            vec![WRITE, CMD_GLOBAL_GAIN, 0x02, 0x00, gain as u8, END]
+        }
+
+        fn build_commit_packets(&self) -> Vec<Vec<u8>> {
+            vec![
+                vec![WRITE, CMD_TEMP_WRITE, 0x04, 0x00, 0x00, 0xFF, 0xFF, END],
+                vec![WRITE, CMD_FLASH_EQ, 0x01, 0x65, END],
+            ]
+        }
     }
 
     #[test]
     fn non_strict_reads_allow_missing_filters() {
-        let responses = vec![Some(vec![0; 34]), None, Some(vec![0; 34])];
-        let filters = assemble_filters(3, &TestProtocol, responses);
+        let results: Vec<Option<Filter>> = vec![
+            Some(Filter {
+                index: 0,
+                enabled: true,
+                filter_type: FilterType::Peak,
+                freq: 1000,
+                gain: 0.0,
+                q: 1.0,
+            }),
+            None,
+            Some(Filter {
+                index: 2,
+                enabled: true,
+                filter_type: FilterType::Peak,
+                freq: 1000,
+                gain: 0.0,
+                q: 1.0,
+            }),
+        ];
+        let filters = assemble_filters(3, results);
 
         assert_eq!(filters.len(), 3);
         assert!(filters[0].enabled);

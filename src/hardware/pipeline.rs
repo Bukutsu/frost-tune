@@ -8,7 +8,7 @@ use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
 };
 use crate::hardware::protocol::DeviceProtocol;
-use crate::models::{PEQData, PushPayload};
+use crate::models::{Device, PEQData, PushPayload};
 
 pub fn pull_with_retry(
     device: &hidapi::HidDevice,
@@ -49,16 +49,21 @@ pub fn pull_with_retry(
 
 pub fn push_with_verify(
     device: &hidapi::HidDevice,
+    device_type: Device,
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
 ) -> Result<PEQData> {
-    payload.clamp(proto.freq_range(), proto.gain_range(), proto.q_range());
+    payload.clamp(
+        device_type.freq_range(),
+        device_type.band_gain_range(),
+        device_type.q_range(),
+    );
     payload
         .is_valid(
-            proto.num_bands(),
-            proto.freq_range(),
-            proto.gain_range(),
-            proto.q_range(),
+            device_type.num_bands(),
+            device_type.freq_range(),
+            device_type.band_gain_range(),
+            device_type.q_range(),
         )
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
@@ -69,7 +74,7 @@ pub fn push_with_verify(
 
     let timing = proto.write_timing();
     let write_res = (|| -> Result<()> {
-        init_device_session(device, proto)?;
+        init_device_session(device, proto)?; // wake + drain; session used by write path only
         write_filters_and_gain(
             device,
             proto,
