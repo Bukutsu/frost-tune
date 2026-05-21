@@ -47,6 +47,6 @@ fn test_tp35pro_filter_packet_round_trip() {
 fn test_tp35pro_build_commit_packets_count() {
     let proto = TP35ProProtocol;
     let packets = proto.build_commit_packets();
-    // Walkplay requires 4 commit steps: pre-commit A, pre-commit B, temp-write, flash-eq
-    assert_eq!(packets.len(), 4);
+    // TP35 Pro uses 2 commit steps: temp-write, flash-eq
+    assert_eq!(packets.len(), 2);
 }

@@ -7,6 +7,7 @@
 //! packet_format module, so each future device can define its own wire format independently.
 
 use crate::core::device::protocol::DeviceProtocol;
+use crate::core::device::timing::WriteTiming;
 use crate::core::eq::{Filter, FilterType};
 use std::f64::consts::TAU;
 
@@ -19,10 +20,6 @@ pub const CMD_GLOBAL_GAIN: u8 = 0x03;
 pub const CMD_PEQ_VALUES: u8 = 0x09;
 pub const CMD_TEMP_WRITE: u8 = 0x0A;
 pub const CMD_VERSION: u8 = 0x0C;
-
-// Two pre-commit packets required before temp-write; observed in Walkplay firmware.
-const CMD_PRE_COMMIT_A: u8 = 0x05;
-const CMD_PRE_COMMIT_B: u8 = 0x17;
 
 pub const READ: u8 = 0x80;
 pub const WRITE: u8 = 0x01;
@@ -167,6 +164,13 @@ impl DeviceProtocol for TP35ProProtocol {
         REPORT_ID
     }
 
+    fn write_timing(&self) -> WriteTiming {
+        WriteTiming {
+            commit_step_ms: 500,
+            ..WriteTiming::default()
+        }
+    }
+
     fn build_init_packets(&self) -> Vec<Vec<u8>> {
         vec![vec![READ, CMD_VERSION, END]]
     }
@@ -241,11 +245,9 @@ impl DeviceProtocol for TP35ProProtocol {
     }
 
     fn build_commit_packets(&self) -> Vec<Vec<u8>> {
-        // Full Walkplay commit sequence (4 steps). The two pre-commit packets
-        // were missing from earlier versions and caused occasional write failures.
+        // TP35 Pro commit sequence: temp-write then flash-eq with 500 ms
+        // between them (configured via write_timing().commit_step_ms).
         vec![
-            vec![WRITE, CMD_PRE_COMMIT_A, END],
-            vec![WRITE, CMD_PRE_COMMIT_B, END],
             vec![
                 WRITE,
                 CMD_TEMP_WRITE,
@@ -305,14 +307,19 @@ mod tests {
     }
 
     #[test]
-    fn build_commit_packets_has_four_steps() {
+    fn build_commit_packets_has_two_steps() {
         let proto = TP35ProProtocol;
         let packets = proto.build_commit_packets();
-        assert_eq!(packets.len(), 4);
-        assert_eq!(packets[0], vec![WRITE, CMD_PRE_COMMIT_A, END]);
-        assert_eq!(packets[1], vec![WRITE, CMD_PRE_COMMIT_B, END]);
-        assert_eq!(packets[2][1], CMD_TEMP_WRITE);
-        assert_eq!(packets[3][1], CMD_FLASH_EQ);
+        assert_eq!(packets.len(), 2);
+        assert_eq!(packets[0][1], CMD_TEMP_WRITE);
+        assert_eq!(packets[1][1], CMD_FLASH_EQ);
+    }
+
+    #[test]
+    fn write_timing_uses_500ms_commit_step() {
+        let proto = TP35ProProtocol;
+        let timing = proto.write_timing();
+        assert_eq!(timing.commit_step_ms, 500);
     }
 
     #[test]
