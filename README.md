@@ -1,123 +1,68 @@
 <a id="readme-top"></a>
 
-<!-- PROJECT SHIELDS -->
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 
-<!-- PROJECT LOGO -->
 <br />
 <div align="center">
   <a href="https://github.com/Bukutsu/frost-tune">
-    <img src="assets/frost-tune.svg" alt="Logo" width="80" height="80">
+    <img src="assets/frost-tune.svg" alt="Frost-Tune" width="80" height="80">
   </a>
 
-<h3 align="center">Frost-Tune</h3>
+## Frost-Tune
 
-  <p align="center">
-    Native parametric EQ editor for USB DACs. Offline, transactional, zero-latency.
-    <br />
-    <br />
-    <a href="https://github.com/Bukutsu/frost-tune/releases/latest"><strong>Download »</strong></a>
-    <br />
-    <br />
-    <a href="#usage">Usage</a>
-    ·
-    <a href="https://github.com/Bukutsu/frost-tune/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
-    ·
-    <a href="https://github.com/Bukutsu/frost-tune/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
-  </p>
+Native parametric EQ editor for USB DACs. Offline, transactional, zero-latency.
+
+[Download](https://github.com/Bukutsu/frost-tune/releases/latest) · [Usage](#usage) · [Report Bug](https://github.com/Bukutsu/frost-tune/issues/new?labels=bug) · [Request Feature](https://github.com/Bukutsu/frost-tune/issues/new?labels=enhancement)
 </div>
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About</a>
-      <ul>
-        <li><a href="#key-features">Key Features</a></li>
-        <li><a href="#supported-devices">Supported Devices</a></li>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#architecture">Architecture</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
-  </ol>
-</details>
+## Table of Contents
 
-<!-- ABOUT THE PROJECT -->
+- [About The Project](#about-the-project)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Architecture](#architecture)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+- [Acknowledgments](#acknowledgments)
+
 ## About The Project
 
 ![Frost-Tune Screenshot][product-screenshot]
 
-Talks HID directly to USB DACs. Runs offline, stores AutoEQ-compatible profiles. Every write is read back and verified; mismatches roll back automatically.
-
-Industrial Utilitarian UI — blocky geometry, no decorative motion.
+Frost-Tune talks to compatible USB DACs over HID, edits 10-band parametric EQ settings, and verifies every write before it sticks.
 
 ### Key Features
 
-* Direct USB HID — no driver shim
-* 10-band parametric EQ (frequency, gain, Q, type per band)
-* AutoEQ import/export
-* Transactional writes with automatic rollback
-* Offline, no account, no cloud
-* ±10 dB hard cap on gain and preamp
-
-### Supported Devices
-
-| Device | VID | PID | Status |
-|---|---|---|---|
-| EPZ TP35 Pro | `0x3302` | `0x43E6` | ✓ |
-
-> Add devices by implementing the `DeviceProtocol` trait — see [Contributing](#contributing).
+- Direct USB HID control
+- 10-band parametric EQ
+- AutoEQ import/export
+- Read-back verification with rollback
+- Offline, no account, no cloud
+- ±10 dB cap on gain and preamp
 
 ### Built With
 
-* [![Rust][Rust-badge]][Rust-url]
-* [![Iced][Iced-badge]][Iced-url]
-* [![Tokio][Tokio-badge]][Tokio-url]
+- Rust
+- Iced
+- Tokio
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- GETTING STARTED -->
 ## Getting Started
 
 ### Prerequisites
 
-| Platform | Needs |
-|---|---|
-| Linux | Rust ≥ 1.75, `libhidapi-dev`, `pkg-config`, polkit (or udev rule) |
-| Windows | Rust ≥ 1.75, Visual C++ Build Tools |
-
-```sh
-# Debian/Ubuntu
-sudo apt install libhidapi-dev pkg-config
-# Arch
-sudo pacman -S hidapi pkgconf
-# Fedora
-sudo dnf install hidapi-devel pkgconfig
-```
+- Linux: Rust 1.75+, `libhidapi-dev`, `pkg-config`, and polkit or a udev rule
+- Windows: Rust 1.75+ and Visual C++ Build Tools
 
 ### Installation
 
-**Pre-built:** grab a `.deb`, `.rpm`, `.msi`, or raw Linux binary from [Releases](https://github.com/Bukutsu/frost-tune/releases/latest).
-
-**From source:**
+- Prebuilt releases: `.deb`, `.rpm`, `.msi`, or raw Linux binary
+- From source:
 
 ```sh
 git clone https://github.com/Bukutsu/frost-tune.git
@@ -125,126 +70,90 @@ cd frost-tune
 cargo run --release
 ```
 
-**Arch (PKGBUILD lives under `packaging/arch/` to avoid colliding with Cargo's `src/`):**
+- Linux helper server:
+
+```sh
+cargo run --release -- --hid-helper
+```
+
+- Arch Linux:
 
 ```sh
 cd packaging/arch && makepkg -si
 ```
 
-**Skip the polkit prompt** with a udev rule:
-
-```sh
-echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", MODE="0666"' \
-  | sudo tee /etc/udev/rules.d/99-frosttune.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-```
-
-> Adjust `idVendor` / `idProduct` for other devices — find them in the app header or via `lsusb`.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- USAGE -->
 ## Usage
 
-1. Connect the DAC
-2. Launch — device is detected automatically
-3. **Read** state from hardware
-4. **Adjust** bands (frequency / gain / Q)
-5. **Write** — verified automatically
-6. **Save/Load** profiles in AutoEQ format
+1. Connect the DAC.
+2. Launch Frost-Tune.
+3. Read the current hardware state.
+4. Adjust bands, frequency, gain, Q, and filter type.
+5. Write changes and let the app verify them.
+6. Save or load AutoEQ profiles.
 
-| Command | What it does |
+Common commands:
+
+| Command | Purpose |
 |---|---|
-| `cargo run --release` | Launch |
-| `cargo test --all-targets` | Tests |
+| `cargo run --release` | Launch the app |
 | `cargo fmt --all` | Format |
+| `cargo clippy --all-targets -- -D warnings` | Lint |
+| `cargo build --all-targets --locked` | Build |
+| `cargo test --all-targets --locked` | Test |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ARCHITECTURE -->
 ## Architecture
 
-```
+```text
 src/
-├── hardware/   # HID + protocol layer; worker/ owns USB I/O off the UI thread
-├── models/    # Filters, Devices, IPC
-├── ui/        # Iced (Elm-style); views/ pure, update/ mutates
-├── autoeq.rs  # AutoEQ format parser
-├── storage.rs # Profile + settings persistence
-└── main.rs
+├── hardware/    HID, protocol, worker, Linux helper
+├── models/      Devices, filters, IPC
+├── ui/          Iced views and update logic
+├── storage.rs   Profiles, diagnostics, settings
+└── main.rs      App entry point
 ```
 
-```
-UI → Message → MPSC → Worker → HID Packets
-                         ↓
-       State ← Result ← Read-back Verify
+```text
+UI -> Message -> Worker -> HID packets -> Device
+                 |-> read-back verify -> state
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+On Linux, `--hid-helper` starts the helper server used for elevated HID access.
 
-<!-- ROADMAP -->
 ## Roadmap
 
-- [x] 10-band parametric EQ editing
-- [x] AutoEQ profile import/export
-- [x] Transactional writes with rollback
-- [x] Cross-platform packaging (`.deb`, `.rpm`, `.msi`, PKGBUILD)
-- [ ] Additional devices
-- [ ] Community preset library
-- [ ] Frequency response overlay comparison
+- More devices
+- Frequency response overlay
+- Community presets
 
-See [open issues](https://github.com/Bukutsu/frost-tune/issues) for the full list.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTRIBUTING -->
 ## Contributing
 
-PRs welcome. Fork → branch → commit → PR.
+Add a device by implementing `DeviceProtocol`, registering it in `Device`, and adding packet tests.
 
-### Adding a Device
-
-1. Implement `DeviceProtocol` in `src/hardware/protocol.rs`
-2. Register via the `define_devices!` macro in `src/models/device.rs`
-3. Add packet tests in `tests/protocol.rs`
-
-### Before Submitting
+Before submitting:
 
 ```sh
-cargo fmt --all && \
-cargo clippy --all-targets -- -D warnings && \
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo build --all-targets --locked
 cargo test --all-targets --locked
 ```
 
-Mirrors CI. See `AGENTS.md` for the full pre-push checklist.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- LICENSE -->
 ## License
 
 MIT. See `LICENSE`.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- CONTACT -->
 ## Contact
 
 Bukutsu — [@Bukutsu](https://github.com/Bukutsu)
-Project: [github.com/Bukutsu/frost-tune](https://github.com/Bukutsu/frost-tune)
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+Project: https://github.com/Bukutsu/frost-tune
 
-<!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-* [Iced](https://iced.rs/) — Native Rust GUI
-* [hidapi](https://github.com/libusb/hidapi) — Cross-platform HID
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — Structure
+- [Iced](https://iced.rs/)
+- [hidapi](https://github.com/libusb/hidapi)
+- [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- MARKDOWN LINKS & IMAGES -->
 [contributors-shield]: https://img.shields.io/github/contributors/Bukutsu/frost-tune.svg?style=for-the-badge
 [contributors-url]: https://github.com/Bukutsu/frost-tune/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/Bukutsu/frost-tune.svg?style=for-the-badge
@@ -256,9 +165,3 @@ Project: [github.com/Bukutsu/frost-tune](https://github.com/Bukutsu/frost-tune)
 [license-shield]: https://img.shields.io/github/license/Bukutsu/frost-tune.svg?style=for-the-badge
 [license-url]: https://github.com/Bukutsu/frost-tune/blob/main/LICENSE
 [product-screenshot]: assets/screenshot.png
-[Rust-badge]: https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white
-[Rust-url]: https://www.rust-lang.org/
-[Iced-badge]: https://img.shields.io/badge/Iced_0.14-2B2D42?style=for-the-badge
-[Iced-url]: https://iced.rs/
-[Tokio-badge]: https://img.shields.io/badge/Tokio-1E1E2E?style=for-the-badge
-[Tokio-url]: https://tokio.rs/
