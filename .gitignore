@@ -25,6 +25,3 @@ rustc-ice-*.txt
 *.wixpdb
 *.msi
 
-# --- Graphify (Project Tooling) ---
-/graphify-out/*
-!/graphify-out/GRAPH_REPORT.md

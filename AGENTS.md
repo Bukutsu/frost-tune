@@ -98,6 +98,4 @@ If the user says "do release" with no version, default to patch bump and confirm
 
 ## Local Tooling
 
-- `graphify query "<question>"` — codebase context.
-- `graphify update .` — refresh AST graph after structural changes (no API cost).
 - Commit style: Conventional Commits (`feat:`, `fix:`, `chore:`, scope when useful).
