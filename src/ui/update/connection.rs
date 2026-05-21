@@ -152,23 +152,31 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
                     filters: window.editor_state.data.filters.clone(),
                     global_gain: window.editor_state.data.global_gain,
                 };
-                match crate::storage::save_profile(&name, &peq_data) {
-                    Ok(()) => {
-                        window.editor_state.session.is_dirty = false;
-                        window.editor_state.session.pending_confirm = ConfirmAction::None;
-                        return iced::window::close(id);
-                    }
-                    Err(e) => {
-                        window.editor_state.session.pending_confirm = ConfirmAction::None;
-                        return window
-                            .set_status(format!("Save failed: {}", e), StatusSeverity::Error);
-                    }
-                }
+                let name_clone = name.clone();
+                let peq_data_clone = peq_data.clone();
+
+                Task::perform(
+                    async move {
+                        crate::storage::save_profile(&name_clone, &peq_data_clone).map_err(|e| {
+                            crate::error::AppError::new(
+                                crate::error::ErrorKind::StorageError,
+                                e.to_string(),
+                            )
+                        })
+                    },
+                    move |result| Message::ProfileSaved {
+                        name: name.clone(),
+                        data: peq_data.clone(),
+                        result,
+                        context: crate::ui::messages::SaveContext::Exit(id),
+                    },
+                )
+            } else {
+                window.set_status(
+                    "Enter a profile name first, then try Save & Exit again.",
+                    StatusSeverity::Warning,
+                )
             }
-            window.set_status(
-                "Enter a profile name first, then try Save & Exit again.",
-                StatusSeverity::Warning,
-            )
         }
         Message::ConnectPressed(device) => {
             if window.worker.is_none() {

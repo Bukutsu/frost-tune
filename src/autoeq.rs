@@ -1,14 +1,19 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::models::{
-    Filter, FilterType, PEQData, MAX_BAND_GAIN, MAX_FREQ, MAX_GLOBAL_GAIN, MAX_Q, MIN_BAND_GAIN,
-    MIN_FREQ, MIN_GLOBAL_GAIN, MIN_Q,
-};
+use crate::models::{Filter, FilterType, PEQData, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 
-pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
+pub fn parse_autoeq_text(
+    text: &str,
+    num_bands: usize,
+    freq_range: (u16, u16),
+    gain_range: (f64, f64),
+    q_range: (f64, f64),
+) -> Result<(PEQData, Vec<String>), String> {
     let lines: Vec<&str> = text.lines().collect();
-    let mut filters: Vec<Filter> = (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
+    let mut filters: Vec<Filter> = (0..num_bands)
+        .map(|i| Filter::enabled(i as u8, false))
+        .collect();
     let mut preamp: i8 = 0;
     let mut parsed_count: usize = 0;
     let mut warnings: Vec<String> = Vec::new();
@@ -32,12 +37,13 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
 
         if line.to_lowercase().contains("filter") {
             if let Some((idx, enabled, filter_type, freq, gain, q)) = parse_filter_line(line) {
-                if idx < 10 {
+                if idx < num_bands {
                     filters[idx].enabled = enabled;
                     filters[idx].filter_type = filter_type;
-                    filters[idx].freq = (freq.min(MAX_FREQ as f64).max(MIN_FREQ as f64)) as u16;
-                    filters[idx].gain = gain.clamp(MIN_BAND_GAIN, MAX_BAND_GAIN);
-                    filters[idx].q = q.clamp(MIN_Q, MAX_Q);
+                    filters[idx].freq =
+                        (freq.min(freq_range.1 as f64).max(freq_range.0 as f64)) as u16;
+                    filters[idx].gain = gain.clamp(gain_range.0, gain_range.1);
+                    filters[idx].q = q.clamp(q_range.0, q_range.1);
                     parsed_count += 1;
                 } else {
                     warnings.push(format!(
@@ -203,11 +209,21 @@ pub fn peq_to_autoeq(peq: &PEQData) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{
+        MAX_BAND_GAIN, MAX_FREQ, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_Q, NUM_BANDS,
+    };
 
     #[test]
     fn test_parse_autoeq_with_preamp() {
         let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.global_gain, -3);
         assert!(result.filters[0].enabled);
         assert!(warnings.is_empty());
@@ -216,7 +232,14 @@ mod tests {
     #[test]
     fn test_parse_autoeq_multiple_filters() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert!(result.filters[0].enabled);
         assert!(!result.filters[1].enabled);
         assert!(warnings.is_empty());
@@ -236,7 +259,14 @@ mod tests {
     #[test]
     fn test_parse_autoeq_clamp_gain() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 20.0 dB Q 1.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.filters[0].gain, MAX_BAND_GAIN);
         assert!(warnings.is_empty());
     }
@@ -244,7 +274,14 @@ mod tests {
     #[test]
     fn test_parse_real_file_format() {
         let text = "Preamp: -6.3 dB\nFilter 1: ON LSC Fc 36 Hz Gain -2.22 dB Q 0.857\nFilter 2: ON PK Fc 166 Hz Gain -0.79 dB Q 1.669";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.global_gain, -6);
         assert_eq!(result.filters[0].freq, 36);
         assert!((result.filters[0].gain - (-2.22)).abs() < 0.1);
@@ -259,7 +296,14 @@ mod tests {
 Filter 1: ON PK Fc 22 Hz Gain -0.86 dB Q 1.717
 Filter 2: ON LSC Fc 43 Hz Gain -1.38 dB Q 1.004
 Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.filters[0].filter_type, FilterType::Peak);
         assert_eq!(result.filters[1].filter_type, FilterType::LowShelf);
         assert_eq!(result.filters[7].filter_type, FilterType::HighShelf);
@@ -289,7 +333,14 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
             global_gain: 0,
         };
         let text = peq_to_autoeq(&original);
-        let (parsed, _) = parse_autoeq_text(&text).unwrap();
+        let (parsed, _) = parse_autoeq_text(
+            &text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(parsed.filters[0].filter_type, FilterType::LowShelf);
         assert_eq!(parsed.filters[1].filter_type, FilterType::HighShelf);
     }
@@ -298,7 +349,14 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     fn test_parse_legacy_ls_hs_tokens() {
         let text = "Filter 1: ON LS Fc 80 Hz Gain -2 dB Q 0.7
 Filter 2: ON HS Fc 8000 Hz Gain 1 dB Q 0.7";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.filters[0].filter_type, FilterType::LowShelf);
         assert_eq!(result.filters[1].filter_type, FilterType::HighShelf);
     }
@@ -306,7 +364,14 @@ Filter 2: ON HS Fc 8000 Hz Gain 1 dB Q 0.7";
     #[test]
     fn test_parse_autoeq_lenient_with_bad_lines() {
         let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: BAD FORMAT\nFilter 3: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, warnings) = parse_autoeq_text(
+            text,
+            NUM_BANDS,
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        )
+        .unwrap();
         assert_eq!(result.filters[0].freq, 100);
         assert_eq!(result.filters[2].freq, 1000);
         assert_eq!(warnings.len(), 1);

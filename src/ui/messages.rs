@@ -105,4 +105,36 @@ pub enum Message {
     ProfileSearchInput(String),
     ToolsTabSelected(crate::ui::state::ToolsTab),
     ToggleAutoPullOnConnect(bool),
+    ProfileSaved {
+        name: String,
+        data: crate::models::PEQData,
+        result: Result<(), AppError>,
+        context: SaveContext,
+    },
+    ProfileDeleted {
+        name: String,
+        result: Result<(), AppError>,
+    },
+    ProfileImported {
+        result: Result<Profile, AppError>,
+    },
+    ProfileExported {
+        result: Result<(), AppError>,
+    },
+    SettingsSaved {
+        result: Result<(), AppError>,
+    },
+    DiagnosticsExportedToFile {
+        path: String,
+        result: Result<(), AppError>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SaveContext {
+    Standard,
+    ImportOverwrite,
+    ImportWithName,
+    Overwrite,
+    Exit(iced::window::Id),
 }

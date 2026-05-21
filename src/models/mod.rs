@@ -61,7 +61,11 @@ mod tests {
             filters: vec![],
             global_gain: Some(15),
         };
-        payload.clamp();
+        payload.clamp(
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        );
         assert_eq!(payload.global_gain, Some(MAX_GLOBAL_GAIN));
     }
 
@@ -71,7 +75,11 @@ mod tests {
             filters: vec![],
             global_gain: Some(-15),
         };
-        payload.clamp();
+        payload.clamp(
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        );
         assert_eq!(payload.global_gain, Some(MIN_GLOBAL_GAIN));
     }
 
@@ -82,7 +90,14 @@ mod tests {
             filters: filters.clone(),
             global_gain: Some(5),
         };
-        assert!(payload.is_valid().is_ok());
+        assert!(payload
+            .is_valid(
+                10,
+                (MIN_FREQ, MAX_FREQ),
+                (MIN_BAND_GAIN, MAX_BAND_GAIN),
+                (MIN_Q, MAX_Q)
+            )
+            .is_ok());
     }
 
     #[test]
@@ -92,7 +107,14 @@ mod tests {
             filters,
             global_gain: Some(0),
         };
-        assert!(payload.is_valid().is_err());
+        assert!(payload
+            .is_valid(
+                10,
+                (MIN_FREQ, MAX_FREQ),
+                (MIN_BAND_GAIN, MAX_BAND_GAIN),
+                (MIN_Q, MAX_Q)
+            )
+            .is_err());
     }
 
     #[test]
@@ -103,7 +125,14 @@ mod tests {
             filters,
             global_gain: Some(0),
         };
-        assert!(payload.is_valid().is_ok());
+        assert!(payload
+            .is_valid(
+                10,
+                (MIN_FREQ, MAX_FREQ),
+                (MIN_BAND_GAIN, MAX_BAND_GAIN),
+                (MIN_Q, MAX_Q)
+            )
+            .is_ok());
     }
 
     #[test]
@@ -114,7 +143,11 @@ mod tests {
             filters: std::mem::take(&mut filters),
             global_gain: Some(0),
         };
-        payload.clamp();
+        payload.clamp(
+            (MIN_FREQ, MAX_FREQ),
+            (MIN_BAND_GAIN, MAX_BAND_GAIN),
+            (MIN_Q, MAX_Q),
+        );
         assert!(payload.filters[0].enabled);
         assert!(!payload.filters[1].enabled);
     }
@@ -127,7 +160,14 @@ mod tests {
             filters,
             global_gain: Some(0),
         };
-        assert!(payload.is_valid().is_err());
+        assert!(payload
+            .is_valid(
+                10,
+                (MIN_FREQ, MAX_FREQ),
+                (MIN_BAND_GAIN, MAX_BAND_GAIN),
+                (MIN_Q, MAX_Q)
+            )
+            .is_err());
     }
 
     #[test]
@@ -138,7 +178,14 @@ mod tests {
             filters,
             global_gain: Some(0),
         };
-        assert!(payload.is_valid().is_err());
+        assert!(payload
+            .is_valid(
+                10,
+                (MIN_FREQ, MAX_FREQ),
+                (MIN_BAND_GAIN, MAX_BAND_GAIN),
+                (MIN_Q, MAX_Q)
+            )
+            .is_err());
     }
 
     #[test]

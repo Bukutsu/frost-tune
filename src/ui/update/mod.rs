@@ -69,7 +69,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::Undo
         | Message::Redo
         | Message::ToggleSnapToIso(_)
-        | Message::ToggleAutoPullOnConnect(..) => handle_editor(window, message),
+        | Message::ToggleAutoPullOnConnect(..)
+        | Message::SettingsSaved { .. } => handle_editor(window, message),
 
         // handle_autoeq
         Message::ImportFromClipboard
@@ -81,7 +82,8 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::CopyDiagnostics
         | Message::ClearDiagnostics
         | Message::ExportDiagnosticsToFile
-        | Message::DiagnosticsExported(..) => handle_autoeq(window, message),
+        | Message::DiagnosticsExported(..)
+        | Message::DiagnosticsExportedToFile { .. } => handle_autoeq(window, message),
 
         // handle_profiles
         Message::ReloadProfilesPressed
@@ -105,7 +107,11 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ImportProfileSelected(..)
         | Message::ImportTemporaryToggled(..)
         | Message::ProfileSearchInput(..)
-        | Message::ToolsTabSelected(..) => handle_profiles(window, message),
+        | Message::ToolsTabSelected(..)
+        | Message::ProfileSaved { .. }
+        | Message::ProfileDeleted { .. }
+        | Message::ProfileImported { .. }
+        | Message::ProfileExported { .. } => handle_profiles(window, message),
     };
     if window.editor_state.data.generation != before_generation {
         let (combined, bands) = crate::ui::graph::EqGraph::compute_responses(

@@ -33,7 +33,13 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                 None => Message::ImportClipboardFailed("Clipboard empty or not text".into()),
             })
         }
-        Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(&text) {
+        Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(
+            &text,
+            window.num_bands(),
+            window.freq_range(),
+            window.gain_range(),
+            window.q_range(),
+        ) {
             Ok((peq, warnings)) => {
                 if !warnings.is_empty() {
                     for w in &warnings {
@@ -106,14 +112,27 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                 .or_else(dirs::data_dir)
                 .unwrap_or_else(std::env::temp_dir)
                 .join(&filename);
-            match std::fs::write(&path, output) {
-                Ok(_) => Task::done(Message::DiagnosticsExported(path.display().to_string())),
-                Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
-            }
+            let path_str = path.display().to_string();
+
+            Task::perform(
+                async move {
+                    std::fs::write(&path, output).map_err(|e| {
+                        crate::error::AppError::new(
+                            crate::error::ErrorKind::StorageError,
+                            e.to_string(),
+                        )
+                    })
+                },
+                move |result| Message::DiagnosticsExportedToFile {
+                    path: path_str.clone(),
+                    result,
+                },
+            )
         }
-        Message::DiagnosticsExported(name) => {
-            window.set_status(format!("Saved to {}", name), StatusSeverity::Success)
-        }
+        Message::DiagnosticsExportedToFile { path, result } => match result {
+            Ok(_) => window.set_status(format!("Saved to {}", path), StatusSeverity::Success),
+            Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
+        },
         _ => Task::none(),
     }
 }

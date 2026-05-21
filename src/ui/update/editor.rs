@@ -339,9 +339,31 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
         Message::ToggleAutoPullOnConnect(enabled) => {
             window.editor_state.ui.auto_pull_on_connect = enabled;
             // Persist immediately; ignore I/O errors so the toggle still flips in-memory.
-            let _ = crate::storage::save_settings(crate::storage::Settings {
-                auto_pull_on_connect: enabled,
-            });
+            Task::perform(
+                async move {
+                    crate::storage::save_settings(crate::storage::Settings {
+                        auto_pull_on_connect: enabled,
+                    })
+                    .map_err(|e| {
+                        crate::error::AppError::new(
+                            crate::error::ErrorKind::StorageError,
+                            e.to_string(),
+                        )
+                    })
+                },
+                |result| Message::SettingsSaved { result },
+            )
+        }
+        Message::SettingsSaved { result } => {
+            if let Err(e) = result {
+                window
+                    .diagnostics
+                    .push(crate::diagnostics::DiagnosticEvent::new(
+                        crate::diagnostics::LogLevel::Error,
+                        crate::diagnostics::Source::UI,
+                        format!("Failed to save settings: {}", e),
+                    ));
+            }
             Task::none()
         }
         _ => Task::none(),

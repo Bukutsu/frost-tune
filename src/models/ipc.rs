@@ -53,24 +53,26 @@ pub struct PushPayload {
 }
 
 impl PushPayload {
-    pub fn clamp(&mut self) {
+    pub fn clamp(&mut self, freq_range: (u16, u16), gain_range: (f64, f64), q_range: (f64, f64)) {
         for filter in &mut self.filters {
-            filter.clamp(
-                (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
-                (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
-                (crate::models::MIN_Q, crate::models::MAX_Q),
-            );
+            filter.clamp(freq_range, gain_range, q_range);
         }
         if let Some(gain) = self.global_gain {
             self.global_gain = Some(gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN));
         }
     }
 
-    pub fn is_valid(&self) -> Result<(), String> {
-        if self.filters.len() != NUM_BANDS {
+    pub fn is_valid(
+        &self,
+        num_bands: usize,
+        freq_range: (u16, u16),
+        gain_range: (f64, f64),
+        q_range: (f64, f64),
+    ) -> Result<(), String> {
+        if self.filters.len() != num_bands {
             return Err(format!(
                 "Expected {} filters, got {}",
-                NUM_BANDS,
+                num_bands,
                 self.filters.len()
             ));
         }
@@ -81,13 +83,13 @@ impl PushPayload {
             if !f.q.is_finite() {
                 return Err(format!("Band {} Q is not a finite number", f.index));
             }
-            if f.freq < MIN_FREQ || f.freq > MAX_FREQ {
+            if f.freq < freq_range.0 || f.freq > freq_range.1 {
                 return Err(format!("Band {} freq out of range: {}", f.index, f.freq));
             }
-            if f.gain < MIN_BAND_GAIN || f.gain > MAX_BAND_GAIN {
+            if f.gain < gain_range.0 || f.gain > gain_range.1 {
                 return Err(format!("Band {} gain out of range: {}", f.index, f.gain));
             }
-            if f.q < MIN_Q || f.q > MAX_Q {
+            if f.q < q_range.0 || f.q > q_range.1 {
                 return Err(format!("Band {} Q out of range: {}", f.index, f.q));
             }
         }

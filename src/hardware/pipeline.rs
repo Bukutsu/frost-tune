@@ -52,9 +52,14 @@ pub fn push_with_verify(
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
 ) -> Result<PEQData> {
-    payload.clamp();
+    payload.clamp(proto.freq_range(), proto.gain_range(), proto.q_range());
     payload
-        .is_valid()
+        .is_valid(
+            proto.num_bands(),
+            proto.freq_range(),
+            proto.gain_range(),
+            proto.q_range(),
+        )
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     let wake_request = proto.build_global_gain_request(0x01);

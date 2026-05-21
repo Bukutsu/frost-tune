@@ -48,7 +48,13 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
                         continue;
                     }
                 };
-                match autoeq::parse_autoeq_text(&content) {
+                match autoeq::parse_autoeq_text(
+                    &content,
+                    crate::models::NUM_BANDS,
+                    (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
+                    (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
+                    (crate::models::MIN_Q, crate::models::MAX_Q),
+                ) {
                     Ok((data, warnings)) => {
                         if !warnings.is_empty() {
                             for w in &warnings {
@@ -162,7 +168,14 @@ pub fn import_profile(path: &Path) -> Result<Profile> {
             format!("Failed to read profile file: {}", e),
         )
     })?;
-    let (data, warnings) = autoeq::parse_autoeq_text(&content).map_err(|e| {
+    let (data, warnings) = autoeq::parse_autoeq_text(
+        &content,
+        crate::models::NUM_BANDS,
+        (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
+        (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
+        (crate::models::MIN_Q, crate::models::MAX_Q),
+    )
+    .map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to parse profile: {}", e),
@@ -302,7 +315,14 @@ mod tests {
     #[test]
     fn test_import_profile() {
         let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
-        let (data, warnings) = autoeq::parse_autoeq_text(content).unwrap();
+        let (data, warnings) = autoeq::parse_autoeq_text(
+            content,
+            crate::models::NUM_BANDS,
+            (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
+            (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
+            (crate::models::MIN_Q, crate::models::MAX_Q),
+        )
+        .unwrap();
 
         assert_eq!(data.global_gain, -3);
         assert!(data.filters[0].enabled);
