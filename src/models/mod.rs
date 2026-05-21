@@ -6,9 +6,13 @@ pub mod device;
 pub mod filter;
 pub mod ipc;
 
+// Re-export domain types from core/ for backward compatibility
+pub use crate::core::device::{Device, DeviceInfo};
+pub use crate::core::eq::{
+    snap_freq_to_iso, snap_gain_step, snap_q_to_iso, Filter, FilterType, PEQData,
+};
+
 pub use constants::*;
-pub use device::*;
-pub use filter::*;
 pub use ipc::*;
 
 #[cfg(test)]
