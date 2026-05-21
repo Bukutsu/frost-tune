@@ -450,7 +450,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
         Message::ImportFromFilePressed => Task::perform(
             async {
                 rfd::AsyncFileDialog::new()
-                    .add_filter("Frost-Tune Profile", &["json", "txt"])
+                    .add_filter("AutoEQ Profile", &["txt"])
                     .pick_file()
                     .await
             },
@@ -458,6 +458,17 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
         ),
         Message::FileImported(path_opt) => {
             if let Some(path) = path_opt {
+                let ext = path.extension().and_then(|e| e.to_str());
+                if ext != Some("txt") {
+                    let _ = window.set_status(
+                        "Unsupported file type. Only .txt AutoEQ files are supported.",
+                        StatusSeverity::Error,
+                    );
+                    return Task::none();
+                }
+                if window.editor_state.session.pending_confirm != ConfirmAction::None {
+                    return Task::none();
+                }
                 Task::perform(
                     async move {
                         crate::storage::import_profile(&path).map_err(|e| {
@@ -484,7 +495,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             Task::perform(
                 async move {
                     rfd::AsyncFileDialog::new()
-                        .add_filter("Frost-Tune Profile", &["json", "txt"])
+                        .add_filter("AutoEQ Profile", &["txt"])
                         .set_file_name(format!("{}.txt", name))
                         .save_file()
                         .await

@@ -691,13 +691,17 @@ impl MainWindow {
             }
             None
         });
-        let file_drop_sub = iced::event::listen_with(|event, _status, _id| {
-            if let iced::Event::Window(iced::window::Event::FileDropped(path)) = event {
-                Some(Message::FileImported(Some(path)))
-            } else {
-                None
-            }
-        });
+        let file_drop_sub = if std::env::var("WAYLAND_DISPLAY").is_ok() {
+            Subscription::none()
+        } else {
+            iced::event::listen_with(|event, _status, _id| {
+                if let iced::Event::Window(iced::window::Event::FileDropped(path)) = event {
+                    Some(Message::FileImported(Some(path)))
+                } else {
+                    None
+                }
+            })
+        };
         Subscription::batch(vec![tick_sub, close_sub, keyboard_sub, file_drop_sub])
     }
 }
