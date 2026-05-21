@@ -5,7 +5,8 @@ use crate::ui::messages::Message;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, DIALOG_WIDTH,
-    DIALOG_WIDTH_SMALL, SPACE_0, SPACE_12, SPACE_16, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TITLE,
+    DIALOG_WIDTH_SMALL, SPACE_0, SPACE_12, SPACE_16, SPACE_4, SPACE_8, TYPE_CAPTION, TYPE_LABEL,
+    TYPE_TITLE,
 };
 use crate::ui::views::action_button;
 use iced::widget::{button, column, container, pick_list, row, text, text_input};
@@ -194,7 +195,7 @@ pub fn view_import_dialog<'a>(
             .style(theme::m3_filled_input)
             .width(Length::Fill);
 
-        let input_row = if !profiles.is_empty() {
+        let inner_fields = if !profiles.is_empty() {
             let profile_names: Vec<String> = profiles.iter().map(|p| p.name.clone()).collect();
             let selected_name = profile_names
                 .iter()
@@ -202,28 +203,42 @@ pub fn view_import_dialog<'a>(
                 .cloned();
 
             let dropdown = pick_list(profile_names, selected_name, Message::ImportProfileSelected)
-                .placeholder("Overwrite...")
+                .placeholder("Choose existing profile to overwrite...")
                 .style(theme::m3_input_pick_list)
-                .width(Length::Fixed(130.0));
+                .width(Length::Fill);
 
-            row![input, dropdown,].spacing(SPACE_8).width(Length::Fill)
+            column![
+                column![
+                    text("Profile Name")
+                        .size(TYPE_LABEL)
+                        .color(COLOR_ON_SURFACE),
+                    input,
+                ]
+                .spacing(SPACE_8),
+                column![
+                    text("Or Overwrite Existing:")
+                        .size(TYPE_CAPTION)
+                        .color(COLOR_ON_SURFACE_VARIANT),
+                    dropdown,
+                ]
+                .spacing(SPACE_4),
+            ]
+            .spacing(SPACE_12)
         } else {
-            row![input].width(Length::Fill)
-        };
-
-        container(
             column![
                 text("Profile Name")
                     .size(TYPE_LABEL)
                     .color(COLOR_ON_SURFACE),
-                input_row,
+                input,
             ]
-            .spacing(SPACE_8),
-        )
-        .padding(SPACE_12)
-        .style(theme::card_style)
-        .width(Length::Fill)
-        .into()
+            .spacing(SPACE_8)
+        };
+
+        container(inner_fields)
+            .padding(SPACE_12)
+            .style(theme::card_style)
+            .width(Length::Fill)
+            .into()
     };
 
     let confirm_btn = if import_temporary {
