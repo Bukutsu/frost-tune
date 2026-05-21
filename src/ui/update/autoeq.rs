@@ -44,49 +44,22 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         ));
                     }
                 }
-
-                // If there are unsaved changes, route through the existing
-                // name-and-save modal so the user can't lose work silently.
-                // Otherwise apply directly — the paste-and-go path.
-                if window.editor_state.session.is_dirty {
-                    window.editor_state.session.pending_confirm =
-                        crate::ui::state::ConfirmAction::ImportAutoEQ {
-                            data: peq,
-                            default_name: "Imported Profile".to_string(),
-                        };
-                    return if !warnings.is_empty() {
-                        window.set_status(
-                            format!("Import parsed with warnings: {}", warnings.join("; ")),
-                            StatusSeverity::Warning,
-                        )
-                    } else {
-                        Task::none()
+                window.editor_state.session.pending_confirm =
+                    crate::ui::state::ConfirmAction::ImportAutoEQ {
+                        data: peq,
+                        default_name: format!(
+                            "Imported {}",
+                            chrono::Local::now().format("%Y-%m-%d %H:%M")
+                        ),
                     };
+                if !warnings.is_empty() {
+                    window.set_status(
+                        format!("Import parsed with warnings: {}", warnings.join("; ")),
+                        StatusSeverity::Warning,
+                    )
+                } else {
+                    Task::none()
                 }
-
-                window.editor_state.push_undo();
-                let (was_truncated, count) =
-                    crate::ui::update::profiles::apply_peq_to_editor(window, peq);
-                window.editor_state.session.is_dirty = true;
-                window.editor_state.ui.selected_profile_name = None;
-                window.editor_state.ui.eq_source = crate::ui::state::EqSource::Imported;
-                window.editor_state.session.new_profile_name =
-                    format!("Imported {}", chrono::Local::now().format("%Y-%m-%d %H:%M"));
-
-                let suffix = if was_truncated {
-                    format!(" (truncated to {})", window.num_bands())
-                } else {
-                    String::new()
-                };
-                let severity = if was_truncated || !warnings.is_empty() {
-                    StatusSeverity::Warning
-                } else {
-                    StatusSeverity::Success
-                };
-                window.set_status(
-                    format!("Imported {} bands{} · Save to keep", count, suffix),
-                    severity,
-                )
             }
             Err(e) => {
                 window.diagnostics.push(DiagnosticEvent::new(
