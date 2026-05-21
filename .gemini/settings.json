@@ -1,0 +1,33 @@
+{
+  "experimental": {
+    "gemmaModelRouter": {
+      "enabled": true,
+      "classifier": {
+        "host": "http://localhost:9379",
+        "model": "gemma3-1b-gpu-custom"
+      }
+    }
+  },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ln -snf \"$(pwd)\" /home/bukutsu/.gemini/antigravity/current_workspace"
+          }
+        ]
+      },
+      {
+        "matcher": "read_file|list_directory",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,pathlib,json;e=pathlib.Path('graphify-out/graph.json').exists();d={'decision':'allow'};e and d.update({'additionalContext':'graphify: knowledge graph at graphify-out/. For focused questions, run `graphify query \"<question>\"` (scoped subgraph, usually much smaller than GRAPH_REPORT.md) instead of grepping raw files. Read GRAPH_REPORT.md only for broad architecture context.'});sys.stdout.write(json.dumps(d))\""
+          }
+        ]
+      }
+    ]
+  }
+}
