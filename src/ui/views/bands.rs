@@ -6,17 +6,16 @@ use crate::ui::messages::Message;
 use crate::ui::state::{EqSource, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
-    BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
-    BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, CHECKBOX_SIZE, COLOR_ERROR, COLOR_ON_PRIMARY,
-    COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_0, SPACE_1, SPACE_12,
-    SPACE_16, SPACE_2, SPACE_24, SPACE_4, SPACE_8, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL,
-    TYPE_SUBTITLE, TYPE_TINY,
+    BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FREQ_INPUT_WIDTH,
+    BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH, BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH,
+    CHECKBOX_SIZE, COLOR_ERROR, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_0,
+    SPACE_1, SPACE_12, SPACE_16, SPACE_2, SPACE_24, SPACE_4, SPACE_8,
+    STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_SUBTITLE, TYPE_TINY,
 };
 use iced::widget::{
-    button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
+    checkbox, column, container, pick_list, responsive, row, slider, text, text_input, tooltip,
 };
-use iced::{Background, Color, Element, Length, Padding};
+use iced::{Color, Element, Length, Padding};
 
 fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
     let title = text("No EQ loaded")
@@ -303,78 +302,38 @@ fn render_input_field<'a>(
     column![input, error_row].spacing(SPACE_2).into()
 }
 
-fn render_type_buttons<'a>(
+fn render_type_picker<'a>(
     i: usize,
     band: &crate::models::filter::Filter,
     is_busy: bool,
     is_active: bool,
 ) -> Element<'a, Message> {
-    row(FilterType::ALL
-        .iter()
-        .map(|&ft| {
-            let is_selected = band.filter_type == ft;
-            let label = ft.short_label();
-            let btn = button(
-                container(
-                    text(label)
-                        .size(TYPE_TINY)
-                        .color(if is_selected {
-                            if is_active {
-                                COLOR_ON_PRIMARY
-                            } else {
-                                Color {
-                                    a: STATE_DISABLED_CONTENT_OPACITY,
-                                    ..COLOR_ON_PRIMARY
-                                }
-                            }
-                        } else if is_active {
-                            COLOR_ON_SURFACE
-                        } else {
-                            Color {
-                                a: STATE_DISABLED_CONTENT_OPACITY,
-                                ..COLOR_ON_SURFACE
-                            }
-                        })
-                        .align_x(iced::Alignment::Center),
-                )
-                .center_x(Length::Fill)
-                .center_y(Length::Fill),
-            )
-            .width(Length::Fixed(BAND_FILTER_BUTTON_WIDTH))
-            .height(Length::Fixed(BAND_FILTER_BUTTON_HEIGHT))
-            .padding(SPACE_0)
-            .style(move |theme, status| {
-                let mut style = theme::m3_text_button(theme, status);
-                style.border.width = 0.0;
-
-                if is_selected {
-                    style.background = Some(COLOR_PRIMARY.into());
-                    style.text_color = COLOR_ON_PRIMARY;
-                } else {
-                    let base_bg = match status {
-                        iced::widget::button::Status::Hovered => crate::ui::tokens::COLOR_OUTLINE,
-                        _ => crate::ui::tokens::COLOR_SURFACE,
-                    };
-                    style.background = Some(base_bg.into());
-                }
-
-                if !is_active {
-                    if let Some(Background::Color(c)) = &mut style.background {
-                        c.a *= STATE_DISABLED_CONTENT_OPACITY;
-                    }
-                    style.text_color.a *= STATE_DISABLED_CONTENT_OPACITY;
-                }
-                style
-            });
-
-            if is_busy {
-                btn.into()
-            } else {
-                btn.on_press(Message::BandTypeChanged(i, ft)).into()
+    if is_busy {
+        let dim_color = if is_active {
+            COLOR_ON_SURFACE_VARIANT
+        } else {
+            Color {
+                a: STATE_DISABLED_CONTENT_OPACITY,
+                ..COLOR_ON_SURFACE_VARIANT
             }
-        })
-        .collect::<Vec<Element<Message>>>())
-    .spacing(crate::ui::tokens::SPACE_1)
+        };
+        return container(
+            text(band.filter_type.to_string())
+                .size(TYPE_LABEL)
+                .color(dim_color),
+        )
+        .padding([SPACE_4, SPACE_8])
+        .width(Length::Fill)
+        .into();
+    }
+
+    pick_list(FilterType::ALL, Some(band.filter_type), move |ft| {
+        Message::BandTypeChanged(i, ft)
+    })
+    .style(theme::m3_input_pick_list)
+    .text_size(TYPE_LABEL)
+    .padding([SPACE_4, SPACE_8])
+    .width(Length::Fill)
     .into()
 }
 
@@ -542,7 +501,7 @@ fn render_band_row<'a>(
     }
 
     elements.push(
-        container(render_type_buttons(i, band, is_busy, is_active))
+        container(render_type_picker(i, band, is_busy, is_active))
             .width(Length::Fixed(BAND_TYPE_PICKER_WIDTH))
             .into(),
     );
