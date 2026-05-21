@@ -484,17 +484,18 @@ impl MainWindow {
             ConfirmAction::ImportAutoEQ { ref data, ref default_name } => {
                 let count = data.filters.iter().filter(|f| f.enabled).count();
                 let message = format!(
-                    "This will import {} filters and set global gain to {:.1}dB.\n\nCurrent unsaved settings will be replaced.\n\nEnter a name for this profile:",
+                    "This will import {} filters and set global gain to {:.1}dB.\n\nCurrent unsaved settings will be replaced.",
                     count, data.global_gain,
                 );
-                Some(views::confirm_dialog::view_name_input_dialog(
+                Some(views::confirm_dialog::view_import_dialog(
                     "Import Profile".to_string(),
                     message,
                     self.editor_state.session.import_name_input.as_str(),
                     default_name.as_str(),
+                    &self.editor_state.ui.profiles,
+                    self.editor_state.ui.selected_profile_name.as_deref(),
                     "Import",
                     Message::ConfirmImportWithName,
-                    true,
                 ))
             },
             ConfirmAction::OverwriteProfile { ref name, .. } => Some(views::confirm_dialog::view_confirm_dialog(

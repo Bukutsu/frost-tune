@@ -100,6 +100,9 @@ pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
         | Message::ImportNameInput(..)
         | Message::ConfirmImportWithName
         | Message::ConfirmOverwriteProfile
+        | Message::ImportDirectlyToEditor
+        | Message::ImportOverwriteActive
+        | Message::ImportProfileSelected(..)
         | Message::ProfileSearchInput(..)
         | Message::ToolsTabSelected(..) => handle_profiles(window, message),
     };

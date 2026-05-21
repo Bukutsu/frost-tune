@@ -241,6 +241,131 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             window.editor_state.session.import_name_input = name;
             Task::none()
         }
+        Message::ImportProfileSelected(name) => {
+            window.editor_state.session.import_name_input = name;
+            Task::none()
+        }
+        Message::ImportDirectlyToEditor => {
+            if let ConfirmAction::ImportAutoEQ { data, .. } =
+                window.editor_state.session.pending_confirm.clone()
+            {
+                window.editor_state.push_undo();
+                let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                window.editor_state.session.import_name_input = String::new();
+                window.editor_state.session.pending_confirm = ConfirmAction::None;
+                window.editor_state.session.is_dirty = true;
+                window.editor_state.ui.selected_profile_name = None;
+                window.editor_state.ui.eq_source = crate::ui::state::EqSource::Imported;
+
+                let mut tasks = vec![];
+
+                if was_truncated {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Warn,
+                        Source::UI,
+                        format!("Import truncated to {} bands", window.num_bands()),
+                    ));
+                    tasks.push(window.set_status(
+                        format!(
+                            "Imported {} filters to current EQ (truncated to {})",
+                            enabled_count,
+                            window.num_bands()
+                        ),
+                        StatusSeverity::Warning,
+                    ));
+                } else {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::UI,
+                        format!("Applied {} filters directly to editor", enabled_count),
+                    ));
+                    tasks.push(window.set_status(
+                        format!(
+                            "Applied {} filters directly to current EQ (unsaved)",
+                            enabled_count
+                        ),
+                        StatusSeverity::Success,
+                    ));
+                }
+                Task::batch(tasks)
+            } else {
+                Task::none()
+            }
+        }
+        Message::ImportOverwriteActive => {
+            if let ConfirmAction::ImportAutoEQ { data, .. } =
+                window.editor_state.session.pending_confirm.clone()
+            {
+                if let Some(name) = window.editor_state.ui.selected_profile_name.clone() {
+                    match crate::storage::save_profile(&name, &data) {
+                        Ok(_) => {
+                            window.editor_state.push_undo();
+                            let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                            window.editor_state.session.import_name_input = String::new();
+                            window.editor_state.session.pending_confirm = ConfirmAction::None;
+                            window.editor_state.session.is_dirty = false;
+                            window.editor_state.session.new_profile_name = name.clone();
+                            window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
+
+                            let mut tasks = vec![reload_profiles_task()];
+
+                            if was_truncated {
+                                window.diagnostics.push(DiagnosticEvent::new(
+                                    LogLevel::Warn,
+                                    Source::UI,
+                                    format!(
+                                        "Profile '{}' updated but truncated to {} bands",
+                                        name,
+                                        window.num_bands()
+                                    ),
+                                ));
+                                tasks.push(window.set_status(
+                                    format!(
+                                        "Updated '{}' with {} filters (truncated to {})",
+                                        name,
+                                        enabled_count,
+                                        window.num_bands()
+                                    ),
+                                    StatusSeverity::Warning,
+                                ));
+                            } else {
+                                window.diagnostics.push(DiagnosticEvent::new(
+                                    LogLevel::Info,
+                                    Source::UI,
+                                    format!(
+                                        "Profile '{}' updated with {} filters",
+                                        name, enabled_count
+                                    ),
+                                ));
+                                tasks.push(window.set_status(
+                                    format!(
+                                        "Overwrote profile '{}' with {} filters",
+                                        name, enabled_count
+                                    ),
+                                    StatusSeverity::Success,
+                                ));
+                            }
+                            Task::batch(tasks)
+                        }
+                        Err(e) => {
+                            window.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Error,
+                                Source::UI,
+                                format!("Failed to overwrite profile: {}", e),
+                            ));
+                            window.set_status(
+                                format!("Failed to save profile: {}", e),
+                                StatusSeverity::Error,
+                            )
+                        }
+                    }
+                } else {
+                    Task::none()
+                }
+            } else {
+                Task::none()
+            }
+        }
         Message::SaveProfilePressed => {
             let name = window
                 .editor_state
@@ -258,15 +383,15 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             check_overwrite_and_save(window, name, data, true)
         }
         Message::ConfirmImportWithName => {
-            if let ConfirmAction::ImportAutoEQ { data, .. } =
+            if let ConfirmAction::ImportAutoEQ { data, default_name } =
                 window.editor_state.session.pending_confirm.clone()
             {
-                let name = window
-                    .editor_state
-                    .session
-                    .import_name_input
-                    .trim()
-                    .to_string();
+                let typed = window.editor_state.session.import_name_input.trim();
+                let name = if typed.is_empty() {
+                    default_name.trim().to_string()
+                } else {
+                    typed.to_string()
+                };
 
                 if name.is_empty() {
                     return window
