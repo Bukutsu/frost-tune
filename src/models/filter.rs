@@ -125,6 +125,36 @@ pub struct PEQData {
     pub global_gain: i8,
 }
 
+impl PEQData {
+    /// Audibly-equivalent comparison with tolerance for float fields.
+    /// Disabled bands match regardless of params (no audible effect).
+    pub fn matches_within(&self, other: &Self, gain_tol: f64, q_tol: f64) -> bool {
+        if self.global_gain != other.global_gain {
+            return false;
+        }
+        if self.filters.len() != other.filters.len() {
+            return false;
+        }
+        self.filters
+            .iter()
+            .zip(other.filters.iter())
+            .all(|(a, b)| filter_matches_within(a, b, gain_tol, q_tol))
+    }
+}
+
+fn filter_matches_within(a: &Filter, b: &Filter, gain_tol: f64, q_tol: f64) -> bool {
+    if a.enabled != b.enabled {
+        return false;
+    }
+    if !a.enabled {
+        return true;
+    }
+    a.filter_type == b.filter_type
+        && a.freq == b.freq
+        && (a.gain - b.gain).abs() <= gain_tol
+        && (a.q - b.q).abs() <= q_tol
+}
+
 pub fn snap_freq_to_iso(freq: u16) -> u16 {
     ISO_FREQUENCIES
         .iter()

@@ -91,6 +91,8 @@ fn do_save_profile(
                 format!("Saved profile: {}", name),
             ));
             window.editor_state.session.new_profile_name = name.clone();
+            window.editor_state.ui.selected_profile_name = Some(name.clone());
+            window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
             let mut tasks = Vec::new();
             if reload_on_save {
                 tasks.push(reload_profiles_task());
@@ -192,6 +194,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     let profile_name = profile.name.clone();
                     let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
                     window.editor_state.ui.selected_profile_name = Some(name);
+                    window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
                     window.editor_state.session.new_profile_name = profile_name.clone();
                     window.editor_state.ui.profile_search.clear();
                     window.editor_state.session.is_autoeq_active = false;
@@ -289,6 +292,8 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
                         window.editor_state.session.import_name_input = String::new();
                         window.editor_state.session.pending_confirm = ConfirmAction::None;
+                        window.editor_state.ui.selected_profile_name = Some(name.clone());
+                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
 
                         let mut tasks = vec![reload_profiles_task()];
 
@@ -342,6 +347,8 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         apply_peq_to_editor(window, data);
                         window.editor_state.session.pending_confirm = ConfirmAction::None;
                         window.editor_state.session.new_profile_name = name.clone();
+                        window.editor_state.ui.selected_profile_name = Some(name.clone());
+                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
                         window.diagnostics.push(DiagnosticEvent::new(
                             LogLevel::Info,
                             Source::UI,
@@ -386,6 +393,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     Ok(_) => {
                         window.editor_state.session.is_dirty = false;
                         window.editor_state.ui.selected_profile_name = None;
+                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Default;
                         window.editor_state.session.new_profile_name.clear();
                         return window.set_status(
                             format!("Deleted profile: {}", name),
@@ -422,6 +430,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     let profile_name = profile.name.clone();
                     let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
                     window.editor_state.ui.selected_profile_name = Some(name.clone());
+                    window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
                     window.editor_state.session.new_profile_name = profile_name.clone();
                     window.editor_state.ui.profile_search.clear();
                     window.editor_state.session.is_autoeq_active = false;

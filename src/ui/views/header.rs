@@ -3,16 +3,15 @@
 
 use crate::models::Device;
 use crate::ui::messages::Message;
-use crate::ui::state::{ConnectionStatus, MainWindow};
+use crate::ui::state::{ConnectionStatus, EqSource, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
-    COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING,
-    LAYOUT_HEADER_BUSY_WIDTH, SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION,
-    TYPE_TINY, TYPE_TITLE,
+    COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING,
+    SPACE_12, SPACE_16, SPACE_2, SPACE_8, TYPE_BODY, TYPE_CAPTION, TYPE_TINY, TYPE_TITLE,
 };
 use crate::ui::views::toolbar_button;
 use iced::font::Weight;
-use iced::widget::{column, container, row, text, tooltip};
+use iced::widget::{button, column, container, row, text, tooltip};
 use iced::{Element, Font, Length};
 
 fn sync_toolbar_button<'a>(
@@ -58,7 +57,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let mut sync_buttons = row![
         sync_toolbar_button(
-            "Read",
+            "Pull",
             Message::PullPressed,
             "read",
             state,
@@ -67,19 +66,19 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             "Ctrl+R"
         ),
         if !is_busy && is_connected && !state.editor_state.session.input_buffer.has_errors() {
-            let btn = toolbar_button("Write")
+            let btn = toolbar_button("Push")
                 .on_press(Message::PushPressed)
                 .style(theme::m3_filled_button);
             Element::from(
                 tooltip(
                     btn,
-                    text("Write to device (Enter)").size(TYPE_TINY),
+                    text("Push to device (Enter)").size(TYPE_TINY),
                     tooltip::Position::Bottom,
                 )
                 .style(theme::tooltip_style),
             )
         } else {
-            let btn = toolbar_button("Write").style(theme::m3_filled_button);
+            let btn = toolbar_button("Push").style(theme::m3_filled_button);
             if let Some(reason) = state.disabled_reason_for_action("write") {
                 Element::from(
                     tooltip(btn, text(reason), tooltip::Position::Bottom)
@@ -104,24 +103,65 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         ));
     }
 
-    let status_indicator: Element<'_, Message> = match &state.connection_status {
-        ConnectionStatus::Connected => text("• SYNCED").size(TYPE_TINY).color(COLOR_SUCCESS).into(),
-        ConnectionStatus::Connecting => text("• CONNECTING")
-            .size(TYPE_TINY)
-            .color(COLOR_WARNING)
-            .into(),
-        _ => text("• OFFLINE")
-            .size(TYPE_TINY)
-            .color(COLOR_ON_SURFACE_VARIANT)
-            .into(),
+    let (chip_label, chip_color) = if state.operation_lock.is_pulling {
+        ("Pulling…", COLOR_INFO)
+    } else if state.operation_lock.is_pushing {
+        ("Pushing…", COLOR_INFO)
+    } else if state.operation_lock.is_disconnecting {
+        ("Disconnecting…", COLOR_WARNING)
+    } else {
+        match &state.connection_status {
+            ConnectionStatus::Connected => ("Synced", COLOR_SUCCESS),
+            ConnectionStatus::Connecting => ("Connecting…", COLOR_WARNING),
+            ConnectionStatus::Disconnected => ("Offline", COLOR_ON_SURFACE_VARIANT),
+            ConnectionStatus::Error(_) => ("Error", COLOR_ERROR),
+        }
     };
 
-    let profile_name = state
-        .editor_state
-        .ui
-        .selected_profile_name
-        .as_deref()
-        .unwrap_or("Default EQ");
+    let status_indicator: Element<'_, Message> = text(format!("● {}", chip_label))
+        .size(TYPE_TINY)
+        .color(chip_color)
+        .into();
+
+    let error_count = state.diagnostics.errors().count();
+    let diag_pill: Option<Element<'_, Message>> =
+        if error_count > 0 && !state.editor_state.ui.show_diagnostics {
+            let pill_btn = button(
+                text(format!(
+                    "⚠ {} error{}",
+                    error_count,
+                    if error_count == 1 { "" } else { "s" }
+                ))
+                .size(TYPE_TINY)
+                .color(COLOR_ERROR),
+            )
+            .padding([SPACE_2, SPACE_8])
+            .on_press(Message::ToggleDiagnostics)
+            .style(theme::m3_text_button);
+            Some(
+                tooltip(
+                    pill_btn,
+                    text("Open diagnostics").size(TYPE_TINY),
+                    tooltip::Position::Bottom,
+                )
+                .style(theme::tooltip_style)
+                .into(),
+            )
+        } else {
+            None
+        };
+
+    let profile_name = match state.editor_state.ui.eq_source {
+        EqSource::Profile => state
+            .editor_state
+            .ui
+            .selected_profile_name
+            .as_deref()
+            .unwrap_or("Profile"),
+        EqSource::Pulled => "Pulled from device",
+        EqSource::Imported => "Imported",
+        EqSource::Default => "Default EQ",
+    };
 
     let mut display_row = row![text(format!("— {}", profile_name))
         .size(TYPE_BODY)
@@ -184,33 +224,28 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         row![].into()
     };
 
+    let mut status_row = row![
+        text("Frost-Tune")
+            .size(TYPE_TITLE)
+            .color(COLOR_PRIMARY)
+            .font(Font {
+                weight: Weight::Bold,
+                ..Default::default()
+            }),
+        profile_display,
+        status_indicator,
+    ]
+    .spacing(SPACE_12)
+    .align_y(iced::Alignment::Center);
+
+    if let Some(pill) = diag_pill {
+        status_row = status_row.push(pill);
+    }
+
     container(
         row![
-            column![
-                row![
-                    text("Frost-Tune")
-                        .size(TYPE_TITLE)
-                        .color(COLOR_PRIMARY)
-                        .font(Font {
-                            weight: Weight::Bold,
-                            ..Default::default()
-                        }),
-                    profile_display,
-                    status_indicator,
-                ]
-                .spacing(SPACE_12)
-                .align_y(iced::Alignment::Center),
-                device_info,
-            ]
-            .spacing(SPACE_2),
+            column![status_row, device_info,].spacing(SPACE_2),
             container(text("")).width(Length::Fill),
-            container(if is_busy {
-                Element::from(text("Device busy…").size(TYPE_CAPTION).color(COLOR_INFO))
-            } else {
-                Element::from(text(""))
-            })
-            .width(Length::Fixed(LAYOUT_HEADER_BUSY_WIDTH))
-            .align_x(iced::Alignment::End),
             sync_buttons,
         ]
         .padding(SPACE_16)

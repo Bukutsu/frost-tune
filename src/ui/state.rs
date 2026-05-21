@@ -121,6 +121,15 @@ pub enum ToolsTab {
     Settings,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EqSource {
+    #[default]
+    Default,
+    Pulled,
+    Imported,
+    Profile,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ConfirmAction {
     #[default]
@@ -184,6 +193,7 @@ pub struct EditorUI {
     pub active_tools_tab: ToolsTab,
     pub graph_state: GraphState,
     pub auto_pull_on_connect: bool,
+    pub eq_source: EqSource,
 }
 
 #[derive(Debug, Default)]

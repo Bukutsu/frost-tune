@@ -57,15 +57,34 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             if result.success {
                 window.editor_state.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.data.filters = peq.filters;
+                    window.editor_state.data.filters = peq.filters.clone();
                     window.editor_state.data.global_gain = peq.global_gain;
                     window.editor_state.data.generation += 1;
+
+                    let matched = window
+                        .editor_state
+                        .ui
+                        .profiles
+                        .iter()
+                        .find(|p| p.data.matches_within(&peq, 0.05, 0.05))
+                        .map(|p| p.name.clone());
+
+                    let status_msg = if let Some(name) = matched {
+                        window.editor_state.ui.selected_profile_name = Some(name.clone());
+                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
+                        format!("Device matches profile: {}", name)
+                    } else {
+                        window.editor_state.ui.selected_profile_name = None;
+                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Pulled;
+                        "Data pulled from device".to_string()
+                    };
+
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
                         "Pull successful",
                     ));
-                    return window.set_status("Data pulled from device", StatusSeverity::Success);
+                    return window.set_status(status_msg, StatusSeverity::Success);
                 }
                 Task::none()
             } else if let Some(err) = result.error {

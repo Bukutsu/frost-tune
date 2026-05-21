@@ -283,6 +283,8 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor_state.session.is_dirty = true;
                 window.editor_state.session.is_autoeq_active = false;
                 window.editor_state.session.input_buffer.active_draft = None;
+                window.editor_state.ui.selected_profile_name = None;
+                window.editor_state.ui.eq_source = crate::ui::state::EqSource::Default;
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,

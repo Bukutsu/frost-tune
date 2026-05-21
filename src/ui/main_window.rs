@@ -240,9 +240,9 @@ impl MainWindow {
                 {
                     Some("Connecting to device…".to_string())
                 } else if self.operation_lock.is_pulling {
-                    Some("Operation in progress: Reading".to_string())
+                    Some("Pulling…".to_string())
                 } else if self.operation_lock.is_pushing {
-                    Some("Operation in progress: Writing or Connecting".to_string())
+                    Some("Pushing…".to_string())
                 } else {
                     None
                 }
@@ -257,9 +257,9 @@ impl MainWindow {
                 } else if self.editor_state.session.input_buffer.has_errors() {
                     Some("Resolve input errors first".to_string())
                 } else if self.operation_lock.is_pushing {
-                    Some("Operation in progress: Writing".to_string())
+                    Some("Pushing…".to_string())
                 } else if self.operation_lock.is_pulling {
-                    Some("Operation in progress: Reading or Connecting".to_string())
+                    Some("Pulling…".to_string())
                 } else {
                     None
                 }
@@ -505,9 +505,9 @@ impl MainWindow {
                 true,
             )),
             ConfirmAction::PullDevice => Some(views::confirm_dialog::view_confirm_dialog(
-                "Sync from Device?".to_string(),
-                "You have unsaved changes. Reading from the device will replace your current editor settings with the hardware configuration. Continue?".to_string(),
-                "Discard & Read",
+                "Pull from Device?".to_string(),
+                "You have unsaved changes. Pulling from the device will replace your current editor settings with the hardware configuration. Continue?".to_string(),
+                "Discard & Pull",
                 Message::ConfirmPullPressed,
                 false,
             )),
@@ -515,12 +515,12 @@ impl MainWindow {
                 let active = self.editor_state.data.filters.iter().filter(|f| f.enabled).count();
                 let gain = self.editor_state.data.global_gain;
                 Some(views::confirm_dialog::view_confirm_dialog(
-                    "Write to Device?".to_string(),
+                    "Push to Device?".to_string(),
                     format!(
                         "This will push {} active bands (global gain: {} dB) to the hardware.\n\nThis cannot be undone.",
                         active, gain
                     ),
-                    "Write",
+                    "Push",
                     Message::ConfirmPushPressed,
                     false,
                 ))
