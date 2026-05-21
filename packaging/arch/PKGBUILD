@@ -5,7 +5,7 @@
 #   makepkg -si
 
 pkgname=frost-tune-git
-pkgver=0.10.0.r34.166f680
+pkgver=0.10.0.r35.894d7e8
 pkgrel=1
 pkgdesc="Native parametric EQ editor for USB DACs (local build)"
 arch=('x86_64')

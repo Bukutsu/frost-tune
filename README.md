@@ -81,6 +81,29 @@ cargo run --release -- --hid-helper
 ```sh
 cd packaging/arch && makepkg -si
 ```
+### USB Access & Security on Linux
+
+On Linux, raw USB HID access to DACs requires elevated privileges by default.
+
+#### Security & Polkit
+To keep your system secure, **Frost-Tune never runs the GUI or main logic as root**:
+1. The app starts unprivileged.
+2. It uses `pkexec` (Polkit) to request a password *only* to spawn a tiny, non-GUI helper process (`frost-tune --hid-helper`).
+3. The helper handles raw USB communication and talks back to the main unprivileged GUI via secure local pipes (JSON IPC).
+
+#### Passwordless Access (udev Rule)
+If you prefer not to enter your password or run any code elevated, you can grant your user direct permission to write to the DAC:
+
+1. Create `/etc/udev/rules.d/70-frost-tune.rules` (replace `idVendor`/`idProduct` with your DAC's IDs from `lsusb`):
+   ```udev
+   # EPZ TP35 Pro (replace with your DAC's VID/PID in lowercase hex if different)
+   KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", TAG+="uaccess"
+   ```
+2. Reload rules:
+   ```sh
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   ```
+3. Replug your DAC. Frost-Tune will now run without asking for a password.
 
 ## Usage
 
