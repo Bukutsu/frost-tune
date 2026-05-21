@@ -14,7 +14,7 @@ fn reload_profiles_task() -> Task<Message> {
     )
 }
 
-fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
+pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
     let num_bands = window.num_bands();
     let freq_range = window.freq_range();
     let gain_range = window.gain_range();
