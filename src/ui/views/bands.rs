@@ -3,23 +3,81 @@
 
 use crate::models::FilterType;
 use crate::ui::messages::Message;
-use crate::ui::state::MainWindow;
+use crate::ui::state::{EqSource, MainWindow};
 use crate::ui::theme;
 use crate::ui::tokens::{
     BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
     BAND_FILTER_BUTTON_WIDTH, BAND_FREQ_INPUT_WIDTH, BAND_GAIN_INPUT_WIDTH, BAND_GAIN_LABEL_WIDTH,
     BAND_Q_INPUT_WIDTH, BAND_TYPE_PICKER_WIDTH, CHECKBOX_SIZE, COLOR_ERROR, COLOR_ON_PRIMARY,
-    COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_0, SPACE_1, SPACE_12, SPACE_2,
-    SPACE_4, SPACE_8, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL, TYPE_TINY,
+    COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, SPACE_0, SPACE_1, SPACE_12,
+    SPACE_16, SPACE_2, SPACE_24, SPACE_4, SPACE_8, STATE_DISABLED_CONTENT_OPACITY, TYPE_LABEL,
+    TYPE_SUBTITLE, TYPE_TINY,
 };
 use iced::widget::{
     button, checkbox, column, container, responsive, row, slider, text, text_input, tooltip,
 };
 use iced::{Background, Color, Element, Length, Padding};
 
+fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
+    let title = text("No EQ loaded")
+        .size(TYPE_SUBTITLE)
+        .color(COLOR_ON_SURFACE)
+        .font(iced::Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        });
+
+    let hint = text("Paste an EQ from squig.link, peqdb.com, or any AutoEQ source.")
+        .size(TYPE_LABEL)
+        .color(COLOR_ON_SURFACE_VARIANT);
+
+    let paste_btn =
+        super::icon_action_button(crate::ui::tokens::ICON_IMPORT_CLIPBOARD, "Paste (Ctrl+V)")
+            .on_press_maybe(if is_busy {
+                None
+            } else {
+                Some(Message::ImportFromClipboard)
+            })
+            .style(theme::m3_filled_button);
+
+    let file_btn = super::icon_action_button(crate::ui::tokens::ICON_IMPORT_FILE, "Open File…")
+        .on_press_maybe(if is_busy {
+            None
+        } else {
+            Some(Message::ImportFromFilePressed)
+        })
+        .style(theme::m3_tonal_button);
+
+    let preset_hint = text("Or pick a saved preset on the right →")
+        .size(TYPE_TINY)
+        .color(COLOR_ON_SURFACE_VARIANT);
+
+    let body = column![
+        title,
+        hint,
+        row![paste_btn, file_btn].spacing(SPACE_8),
+        preset_hint,
+    ]
+    .spacing(SPACE_16)
+    .align_x(iced::Alignment::Center);
+
+    container(body)
+        .style(theme::card_style)
+        .padding(SPACE_24)
+        .center_x(Length::Fill)
+        .into()
+}
+
 pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
     let show_enable = state.supports_per_band_enable();
+
+    let is_empty = state.editor_state.ui.eq_source == EqSource::Default
+        && state.editor_state.data.filters.iter().all(|f| !f.enabled);
+
+    if is_empty {
+        return render_empty_state(is_busy);
+    }
 
     responsive(move |size| {
         if size.width < BANDS_TWO_COLUMN_BREAK {
