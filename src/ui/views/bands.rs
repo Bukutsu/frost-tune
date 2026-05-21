@@ -125,6 +125,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
             .into()
         }
     })
+    .height(Length::Shrink)
     .into()
 }
 

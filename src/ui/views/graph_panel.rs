@@ -38,6 +38,7 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
         .width(Length::Fill)
         .into()
     })
+    .height(Length::Shrink)
     .into()
 }
 
