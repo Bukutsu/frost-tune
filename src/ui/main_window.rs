@@ -494,6 +494,7 @@ impl MainWindow {
                     default_name.as_str(),
                     &self.editor_state.ui.profiles,
                     self.editor_state.ui.selected_profile_name.as_deref(),
+                    self.editor_state.session.import_temporary,
                     "Import",
                     Message::ConfirmImportWithName,
                 ))
@@ -690,7 +691,14 @@ impl MainWindow {
             }
             None
         });
-        Subscription::batch(vec![tick_sub, close_sub, keyboard_sub])
+        let file_drop_sub = iced::event::listen_with(|event, _status, _id| {
+            if let iced::Event::Window(iced::window::Event::FileDropped(path)) = event {
+                Some(Message::FileImported(Some(path)))
+            } else {
+                None
+            }
+        });
+        Subscription::batch(vec![tick_sub, close_sub, keyboard_sub, file_drop_sub])
     }
 }
 

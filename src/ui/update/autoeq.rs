@@ -44,6 +44,8 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         ));
                     }
                 }
+                window.editor_state.session.import_temporary = false;
+                window.editor_state.session.import_name_input.clear();
                 window.editor_state.session.pending_confirm =
                     crate::ui::state::ConfirmAction::ImportAutoEQ {
                         data: peq,

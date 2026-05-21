@@ -4,8 +4,8 @@
 use crate::ui::messages::Message;
 use crate::ui::theme;
 use crate::ui::tokens::{
-    BUTTON_HEIGHT_LARGE, BUTTON_HORIZONTAL_PADDING, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT,
-    DIALOG_WIDTH, DIALOG_WIDTH_SMALL, SPACE_12, SPACE_16, SPACE_8, TYPE_LABEL, TYPE_TITLE,
+    BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, DIALOG_WIDTH,
+    DIALOG_WIDTH_SMALL, SPACE_0, SPACE_12, SPACE_16, SPACE_4, SPACE_8, TYPE_LABEL, TYPE_TITLE,
 };
 use crate::ui::views::action_button;
 use iced::widget::{button, column, container, pick_list, row, text, text_input};
@@ -125,101 +125,125 @@ pub fn view_name_input_dialog<'a>(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn dialog_tab_button<'a>(label: &'a str, is_active: bool, msg: Message) -> Element<'a, Message> {
+    button(
+        container(
+            text(label)
+                .size(TYPE_LABEL)
+                .align_x(iced::Alignment::Center),
+        )
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill),
+    )
+    .padding(SPACE_0)
+    .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
+    .width(Length::Fill)
+    .on_press(msg)
+    .style(move |t, s| theme::tab_button_style(t, s, is_active))
+    .into()
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn view_import_dialog<'a>(
     title: String,
     message: String,
     input_value: &'a str,
     input_placeholder: &'a str,
     profiles: &'a [crate::storage::Profile],
-    active_profile_name: Option<&'a str>,
+    _active_profile_name: Option<&'a str>,
+    import_temporary: bool,
     confirm_label: &'static str,
     confirm_msg: Message,
 ) -> Element<'a, Message> {
-    let input = text_input(input_placeholder, input_value)
-        .on_input(Message::ImportNameInput)
-        .on_submit(confirm_msg.clone())
-        .style(theme::m3_filled_input)
-        .width(Length::Fill);
-
-    let profile_names: Vec<String> = profiles.iter().map(|p| p.name.clone()).collect();
-    let selected_name = profile_names
-        .iter()
-        .find(|&name| name == input_value)
-        .cloned();
-
-    let dropdown = pick_list(profile_names, selected_name, Message::ImportProfileSelected)
-        .placeholder("Select profile to overwrite...")
-        .style(theme::m3_input_pick_list)
-        .width(Length::Fill);
-
-    let mut inner_col = column![
-        text("Profile Name:")
-            .size(TYPE_LABEL)
-            .color(COLOR_ON_SURFACE),
-        input,
+    let tab_strip = row![
+        dialog_tab_button(
+            "Try EQ (Temporary)",
+            import_temporary,
+            Message::ImportTemporaryToggled(true)
+        ),
+        dialog_tab_button(
+            "Save to Profile",
+            !import_temporary,
+            Message::ImportTemporaryToggled(false)
+        ),
     ]
-    .spacing(SPACE_8)
+    .spacing(SPACE_4)
     .width(Length::Fill);
 
-    if !profiles.is_empty() {
-        inner_col = inner_col.push(
+    let mode_content: Element<'a, Message> = if import_temporary {
+        container(
             column![
-                text("Or Overwrite Existing:")
+                text("Directly apply the preset filters to your active EQ bands.")
                     .size(TYPE_LABEL)
                     .color(COLOR_ON_SURFACE),
-                dropdown,
+                text("This mode is temporary. Changes will not be saved to any profile file until you manually do so.")
+                    .size(TYPE_LABEL)
+                    .color(COLOR_ON_SURFACE_VARIANT),
+            ]
+            .spacing(SPACE_8)
+        )
+        .padding(SPACE_12)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
+    } else {
+        let input = text_input(input_placeholder, input_value)
+            .on_input(Message::ImportNameInput)
+            .on_submit(confirm_msg.clone())
+            .style(theme::m3_filled_input)
+            .width(Length::Fill);
+
+        let input_row = if !profiles.is_empty() {
+            let profile_names: Vec<String> = profiles.iter().map(|p| p.name.clone()).collect();
+            let selected_name = profile_names
+                .iter()
+                .find(|&name| name == input_value)
+                .cloned();
+
+            let dropdown = pick_list(profile_names, selected_name, Message::ImportProfileSelected)
+                .placeholder("Overwrite...")
+                .style(theme::m3_input_pick_list)
+                .width(Length::Fixed(130.0));
+
+            row![input, dropdown,].spacing(SPACE_8).width(Length::Fill)
+        } else {
+            row![input].width(Length::Fill)
+        };
+
+        container(
+            column![
+                text("Profile Name")
+                    .size(TYPE_LABEL)
+                    .color(COLOR_ON_SURFACE),
+                input_row,
             ]
             .spacing(SPACE_8),
-        );
-    }
+        )
+        .padding(SPACE_12)
+        .style(theme::card_style)
+        .width(Length::Fill)
+        .into()
+    };
 
-    let mut quick_actions = column![].spacing(SPACE_8).width(Length::Fill);
-
-    quick_actions = quick_actions.push(
-        action_button("Apply directly to EQ (Unsaved)")
+    let confirm_btn = if import_temporary {
+        action_button("Apply to EQ")
             .on_press(Message::ImportDirectlyToEditor)
-            .style(theme::m3_outlined_button)
-            .width(Length::Fill),
-    );
-
-    if let Some(active_name) = active_profile_name {
-        quick_actions = quick_actions.push(
-            button(
-                container(
-                    text(format!("Overwrite active '{}'", active_name))
-                        .size(TYPE_LABEL)
-                        .align_x(iced::Alignment::Center),
-                )
-                .height(Length::Fill)
-                .center_y(Length::Fill),
-            )
-            .padding([0.0, BUTTON_HORIZONTAL_PADDING])
-            .height(Length::Fixed(BUTTON_HEIGHT_LARGE))
-            .on_press(Message::ImportOverwriteActive)
-            .style(theme::m3_outlined_button_error)
-            .width(Length::Fill),
-        );
-    }
-
-    inner_col = inner_col.push(
-        column![
-            text("Quick Actions:")
-                .size(TYPE_LABEL)
-                .color(COLOR_ON_SURFACE),
-            quick_actions,
-        ]
-        .spacing(SPACE_8),
-    );
+            .style(theme::m3_filled_button)
+            .width(Length::Fill)
+    } else {
+        action_button(confirm_label)
+            .on_press(confirm_msg)
+            .style(theme::m3_filled_button)
+            .width(Length::Fill)
+    };
 
     let actions = row![
         action_button("Cancel")
             .on_press(Message::DismissConfirmDialog)
             .style(theme::m3_tonal_button)
             .width(Length::Fill),
-        action_button(confirm_label)
-            .on_press(confirm_msg)
-            .style(theme::m3_filled_button)
-            .width(Length::Fill),
+        confirm_btn,
     ]
     .spacing(SPACE_12)
     .width(Length::Fill);
@@ -229,7 +253,8 @@ pub fn view_import_dialog<'a>(
         text(message)
             .size(TYPE_LABEL)
             .color(COLOR_ON_SURFACE_VARIANT),
-        inner_col,
+        tab_strip,
+        mode_content,
         actions,
     ]
     .spacing(SPACE_16);

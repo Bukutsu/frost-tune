@@ -63,6 +63,7 @@ pub enum Message {
     ImportDirectlyToEditor,
     ImportOverwriteActive,
     ImportProfileSelected(String),
+    ImportTemporaryToggled(bool),
     ImportFromClipboard,
     ImportClipboardReceived(String),
     ImportClipboardFailed(String),

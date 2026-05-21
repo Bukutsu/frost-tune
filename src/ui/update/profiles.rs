@@ -245,6 +245,10 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             window.editor_state.session.import_name_input = name;
             Task::none()
         }
+        Message::ImportTemporaryToggled(val) => {
+            window.editor_state.session.import_temporary = val;
+            Task::none()
+        }
         Message::ImportDirectlyToEditor => {
             if let ConfirmAction::ImportAutoEQ { data, .. } =
                 window.editor_state.session.pending_confirm.clone()
@@ -607,6 +611,8 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             if let Some(path) = path_opt {
                 match crate::storage::import_profile(&path) {
                     Ok(profile) => {
+                        window.editor_state.session.import_temporary = false;
+                        window.editor_state.session.import_name_input.clear();
                         window.editor_state.session.pending_confirm = ConfirmAction::ImportAutoEQ {
                             data: profile.data,
                             default_name: profile.name,

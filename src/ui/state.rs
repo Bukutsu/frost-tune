@@ -179,6 +179,7 @@ pub struct EditorSession {
     pub status_message: Option<StatusMessage>,
     pub import_name_input: String,
     pub new_profile_name: String,
+    pub import_temporary: bool,
 }
 
 #[derive(Debug, Default)]
