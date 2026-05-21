@@ -44,6 +44,38 @@ fn test_tp35pro_filter_packet_round_trip() {
 }
 
 #[test]
+fn test_tp35pro_filter_packet_round_trip_lowpass_highpass() {
+    let proto = TP35ProProtocol;
+    let lp_filter = Filter {
+        index: 0,
+        enabled: true,
+        filter_type: FilterType::LowPass,
+        freq: 1000,
+        gain: 0.0,
+        q: 0.707,
+    };
+    let lp_packet = proto.build_filter_write_packet(0, &lp_filter);
+    assert_eq!(lp_packet.len(), 37);
+    assert_eq!(lp_packet[0], WRITE);
+    assert_eq!(lp_packet[1], CMD_PEQ_VALUES);
+    assert_eq!(lp_packet[33], 5); // FilterType::LowPass is 5
+
+    let hp_filter = Filter {
+        index: 1,
+        enabled: true,
+        filter_type: FilterType::HighPass,
+        freq: 1000,
+        gain: 0.0,
+        q: 0.707,
+    };
+    let hp_packet = proto.build_filter_write_packet(1, &hp_filter);
+    assert_eq!(hp_packet.len(), 37);
+    assert_eq!(hp_packet[0], WRITE);
+    assert_eq!(hp_packet[1], CMD_PEQ_VALUES);
+    assert_eq!(hp_packet[33], 4); // FilterType::HighPass is 4
+}
+
+#[test]
 fn test_tp35pro_build_commit_packets_count() {
     let proto = TP35ProProtocol;
     let packets = proto.build_commit_packets();

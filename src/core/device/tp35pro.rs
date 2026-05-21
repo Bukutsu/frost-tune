@@ -84,26 +84,78 @@ fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
     ]
 }
 
-pub fn compute_iir_filter(freq: f64, gain: f64, q: f64) -> [u8; 20] {
+pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64) -> [u8; 20] {
     let mut b_arr = [0u8; 20];
-    let sqrt = (10_f64.powf(gain / 20.0)).sqrt();
+    let a = 10_f64.powf(gain / 40.0);
     let omega = (freq * TAU) / DSP_SAMPLE_RATE;
-    let sin_omega_over_2q = omega.sin() / (2.0 * q);
-    let omega_correction = sin_omega_over_2q * sqrt;
-    let denom = (sin_omega_over_2q / sqrt) + 1.0;
+    let sin_w = omega.sin();
+    let cos_w = omega.cos();
 
-    let quantizer_data = quantizer(
-        &[
-            1.0,
-            (omega.cos() * -2.0) / denom,
-            (1.0 - sin_omega_over_2q / sqrt) / denom,
-        ],
-        &[
-            (omega_correction + 1.0) / denom,
-            omega.cos() * -2.0 / denom,
-            (1.0 - omega_correction) / denom,
-        ],
-    );
+    let (b0, b1, b2, a0, a1, a2) = match filter_type {
+        FilterType::Peak => {
+            let alpha = sin_w / (2.0 * q);
+            (
+                1.0 + alpha * a,
+                -2.0 * cos_w,
+                1.0 - alpha * a,
+                1.0 + alpha / a,
+                -2.0 * cos_w,
+                1.0 - alpha / a,
+            )
+        }
+        FilterType::LowShelf => {
+            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
+            let a_minus_1 = a - 1.0;
+            let a_plus_1 = a + 1.0;
+            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+            (
+                a * (a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha),
+                2.0 * a * (a_minus_1 - a_plus_1 * cos_w),
+                a * (a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha),
+                a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha,
+                -2.0 * (a_minus_1 + a_plus_1 * cos_w),
+                a_plus_1 + a_minus_1 * cos_w - sqrt_a_alpha,
+            )
+        }
+        FilterType::HighShelf => {
+            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
+            let a_minus_1 = a - 1.0;
+            let a_plus_1 = a + 1.0;
+            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
+            (
+                a * (a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha),
+                -2.0 * a * (a_minus_1 + a_plus_1 * cos_w),
+                a * (a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha),
+                a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha,
+                2.0 * (a_minus_1 - a_plus_1 * cos_w),
+                a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha,
+            )
+        }
+        FilterType::HighPass => {
+            let alpha = sin_w / (2.0 * q);
+            (
+                (1.0 + cos_w) / 2.0,
+                -(1.0 + cos_w),
+                (1.0 + cos_w) / 2.0,
+                1.0 + alpha,
+                -2.0 * cos_w,
+                1.0 - alpha,
+            )
+        }
+        FilterType::LowPass => {
+            let alpha = sin_w / (2.0 * q);
+            (
+                (1.0 - cos_w) / 2.0,
+                1.0 - cos_w,
+                (1.0 - cos_w) / 2.0,
+                1.0 + alpha,
+                -2.0 * cos_w,
+                1.0 - alpha,
+            )
+        }
+    };
+
+    let quantizer_data = quantizer(&[1.0, a1 / a0, a2 / a0], &[b0 / a0, b1 / a0, b2 / a0]);
 
     for (i, &value) in quantizer_data.iter().enumerate() {
         b_arr[i * 4] = (value & 0xFF) as u8;
@@ -192,7 +244,12 @@ impl DeviceProtocol for TP35ProProtocol {
     }
 
     fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
-        let b_arr = compute_iir_filter(filter.freq as f64, filter.gain, filter.q);
+        let b_arr = compute_iir_filter(
+            filter.filter_type,
+            filter.freq as f64,
+            filter.gain,
+            filter.q,
+        );
         let filter_type_byte: u8 = filter.filter_type.into();
 
         let mut packet = Vec::with_capacity(37);
@@ -369,7 +426,18 @@ mod tests {
 
     #[test]
     fn compute_iir_filter_produces_20_bytes() {
-        assert_eq!(compute_iir_filter(1000.0, 5.0, 1.0).len(), 20);
+        assert_eq!(
+            compute_iir_filter(FilterType::Peak, 1000.0, 5.0, 1.0).len(),
+            20
+        );
+    }
+
+    #[test]
+    fn compute_iir_filter_lowpass_highpass_valid() {
+        let lp_arr = compute_iir_filter(FilterType::LowPass, 1000.0, 0.0, 0.707);
+        assert_eq!(lp_arr.len(), 20);
+        let hp_arr = compute_iir_filter(FilterType::HighPass, 1000.0, 0.0, 0.707);
+        assert_eq!(hp_arr.len(), 20);
     }
 
     #[test]

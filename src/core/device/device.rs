@@ -176,7 +176,9 @@ define_devices! {
         protocol: TP35ProProtocol,
         supported_filter_types: FilterTypeFlags::PEAK
             | FilterTypeFlags::LOW_SHELF
-            | FilterTypeFlags::HIGH_SHELF,
+            | FilterTypeFlags::HIGH_SHELF
+            | FilterTypeFlags::LOW_PASS
+            | FilterTypeFlags::HIGH_PASS,
         supports_per_band_enable: false,
         min_global_gain: -16,
         max_global_gain: 6,

@@ -56,8 +56,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -84,8 +82,9 @@ jobs:
 
       - name: Install cargo-wix
         if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: cargo install cargo-wix --locked --version "^0.3"
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-wix@0.3
 
       - name: Build MSI installer
         if: matrix.os == 'windows-latest'
@@ -95,17 +94,21 @@ jobs:
             --target ${{ matrix.target }} `
             --output "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-x86_64.msi"
 
+      - name: Install Linux packaging tools
+        if: matrix.os == 'ubuntu-latest'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+
       - name: Build Debian package
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cargo install cargo-deb --locked
           cargo deb --target ${{ matrix.target }}
           cp target/${{ matrix.target }}/debian/*.deb "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-amd64.deb"
 
       - name: Build RPM package
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cargo install cargo-generate-rpm --locked
           cargo generate-rpm --target ${{ matrix.target }}
           cp target/${{ matrix.target }}/generate-rpm/*.rpm "frost-tune-${{ needs.sync-versions.outputs.release_tag }}-x86_64.rpm"
 
@@ -133,7 +136,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/download-artifact@v4
