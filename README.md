@@ -240,7 +240,6 @@ Project: [github.com/Bukutsu/frost-tune](https://github.com/Bukutsu/frost-tune)
 
 * [Iced](https://iced.rs/) — Native Rust GUI
 * [hidapi](https://github.com/libusb/hidapi) — Cross-platform HID
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — Structure
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
