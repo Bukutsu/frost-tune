@@ -679,6 +679,9 @@ impl MainWindow {
                     if key == keyboard::Key::Named(keyboard::key::Named::Enter) {
                         return Some(Message::PushPressed);
                     }
+                    if key == keyboard::Key::Character("v".into()) {
+                        return Some(Message::ImportFromClipboard);
+                    }
                 }
                 if key == keyboard::Key::Named(keyboard::key::Named::Escape) {
                     return Some(Message::DismissConfirmDialog);

@@ -361,8 +361,8 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     let active_tab = state.editor_state.ui.active_tools_tab;
     let tab_strip = row![
         tab_button("Preset", ToolsTab::Preset, active_tab),
-        tab_button("AUTO-EQ", ToolsTab::AutoEq, active_tab),
-        tab_button("SETTINGS", ToolsTab::Settings, active_tab),
+        tab_button("Import", ToolsTab::AutoEq, active_tab),
+        tab_button("Settings", ToolsTab::Settings, active_tab),
     ];
 
     let settings_body = container(

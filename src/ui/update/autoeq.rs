@@ -60,20 +60,20 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
             }
             Err(e) => {
                 window.diagnostics.push(DiagnosticEvent::new(
-                    LogLevel::Error,
+                    LogLevel::Warn,
                     Source::AutoEQ,
-                    format!("Import failed: {}", e),
+                    format!("Clipboard parse failed: {}", e),
                 ));
-                window.set_status(format!("Import failed: {}", e), StatusSeverity::Error)
+                window.set_status("Clipboard doesn't contain an EQ", StatusSeverity::Warning)
             }
         },
         Message::ImportClipboardFailed(msg) => {
             window.diagnostics.push(DiagnosticEvent::new(
-                LogLevel::Error,
+                LogLevel::Warn,
                 Source::AutoEQ,
                 msg.clone(),
             ));
-            window.set_status(msg, StatusSeverity::Error)
+            window.set_status(msg, StatusSeverity::Warning)
         }
         Message::CopyDiagnostics => {
             let conn_str = format!("{:?}", window.connection_status);
