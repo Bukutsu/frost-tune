@@ -53,12 +53,7 @@ impl UsbWorker {
 
             rt.block_on(async {
                 let mut state = state::WorkerState::new();
-                loop {
-                    match state.run_iteration(&mut rx).await {
-                        state::IterationResult::Continue => {}
-                        state::IterationResult::Stop => break,
-                    }
-                }
+                while let state::IterationResult::Continue = state.run_iteration(&mut rx).await {}
             });
         });
 

@@ -6,11 +6,11 @@ use frost_tune::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSIO
 use frost_tune::hardware::worker::{UsbWorker, WorkerStatus};
 use frost_tune::models::DeviceInfo;
 
-#[test]
-fn test_worker_new_and_status() {
+#[tokio::test]
+async fn test_worker_new_and_status() {
     let worker = UsbWorker::new();
     let rx = worker.status();
-    let status = rx.blocking_recv();
+    let status = rx.await;
     assert!(status.is_ok(), "Worker should respond to status request");
     let status = status.unwrap();
     assert!(!status.connected, "Worker should start disconnected");
@@ -129,18 +129,17 @@ fn test_ipc_response_serialization() {
     }
 }
 
-#[test]
-fn test_worker_connect_disconnect_cycle() {
+#[tokio::test]
+async fn test_worker_connect_disconnect_cycle() {
     let worker = UsbWorker::new();
     let rx = worker.status();
-    let initial_status = rx.blocking_recv().expect("Should get initial status");
+    let initial_status = rx.await.expect("Should get initial status");
     assert!(!initial_status.connected);
-    let _rx = worker.disconnect();
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    let rx = worker.disconnect();
+    let _ = rx.await;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     let rx = worker.status();
-    let status = rx
-        .blocking_recv()
-        .expect("Should get status after disconnect");
+    let status = rx.await.expect("Should get status after disconnect");
     assert!(
         !status.connected,
         "Should be disconnected after disconnect call"
