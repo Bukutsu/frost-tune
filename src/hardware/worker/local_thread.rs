@@ -232,14 +232,21 @@ impl LocalWorkerState {
                     error: None,
                 }
             }
-            Err(e) => ConnectionResult {
-                success: false,
-                device: target_device,
-                error: Some(AppError::new(
-                    ErrorKind::HardwareError,
-                    format!("Failed to open HID device: {}", e),
-                )),
-            },
+            Err(e) => {
+                let msg = format!("Failed to open HID device: {}", e);
+                let kind = if msg.to_lowercase().contains("permission denied")
+                    || msg.to_lowercase().contains("access denied")
+                {
+                    ErrorKind::PermissionDenied
+                } else {
+                    ErrorKind::HardwareError
+                };
+                ConnectionResult {
+                    success: false,
+                    device: target_device,
+                    error: Some(AppError::new(kind, msg)),
+                }
+            }
         }
     }
 

@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::device::protocol::DeviceProtocol;
 use crate::core::{Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
-use crate::hardware::protocol::DeviceProtocol;
 
 pub fn pull_peq_data(
     d: &hidapi::HidDevice,

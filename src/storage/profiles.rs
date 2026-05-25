@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::autoeq;
+use crate::core::autoeq;
 use crate::core::PEQData;
 use crate::error::{AppError, ErrorKind, Result};
 use std::path::Path;
@@ -254,7 +254,7 @@ pub fn open_profiles_dir() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::autoeq;
+    use crate::core::autoeq;
     use crate::core::{Filter, FilterType, PEQData};
 
     #[test]

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::device::protocol::DeviceProtocol;
 use crate::core::{PEQData, PushPayload};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::delay_ms;
@@ -8,7 +9,6 @@ use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verif
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
 };
-use crate::hardware::protocol::DeviceProtocol;
 use crate::hardware::DeviceProfile;
 
 pub fn pull_with_retry(

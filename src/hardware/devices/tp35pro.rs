@@ -7,6 +7,7 @@
 //! packet_format module, so each future device can define its own wire format independently.
 
 use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
+use crate::core::device::profile::DeviceProfile;
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
 pub use crate::core::eq::iir_math::{
@@ -14,7 +15,6 @@ pub use crate::core::eq::iir_math::{
     GAIN_I16_THRESHOLD, Q_FLOAT_TO_U16_DIVISOR, U16_WRAP_AROUND,
 };
 use crate::core::eq::{Filter, FilterType};
-use crate::hardware::registry::DeviceProfile;
 
 // ─── Wire constants ───────────────────────────────────────────────────────────
 

@@ -123,325 +123,344 @@ impl Default for UsbWorker {
     }
 }
 
+// ─── Active backend ───────────────────────────────────────────────────────────
+
+enum ActiveBackend {
+    Local,
+    #[cfg(target_os = "linux")]
+    Elevated {
+        transport: Box<ElevatedTransport>,
+        device_info: Option<DeviceInfo>,
+    },
+}
+
+// ─── Worker state ─────────────────────────────────────────────────────────────
+
 struct UsbWorkerState {
     local_tx: std_mpsc::Sender<LocalCommand>,
-    backend_kind: Option<BackendKind>,
+    backend: Option<ActiveBackend>,
     preferred_backend: BackendKind,
-
-    #[cfg(target_os = "linux")]
-    elevated_transport: Option<ElevatedTransport>,
-    #[cfg(target_os = "linux")]
-    elevated_info: Option<DeviceInfo>,
 }
 
 impl UsbWorkerState {
     fn new(local_tx: std_mpsc::Sender<LocalCommand>) -> Self {
         Self {
             local_tx,
-            backend_kind: None,
+            backend: None,
             preferred_backend: BackendKind::Local,
-            #[cfg(target_os = "linux")]
-            elevated_transport: None,
-            #[cfg(target_os = "linux")]
-            elevated_info: None,
         }
     }
 
     async fn process_command(&mut self, cmd: UsbCommand) {
         match cmd {
-            UsbCommand::Connect(target_device, target_backend, resp) => {
-                let target = target_backend.unwrap_or(self.preferred_backend);
-
-                #[cfg(target_os = "linux")]
-                if target == BackendKind::Elevated {
-                    if let Ok(transport) = ElevatedTransport::spawn().await {
-                        if let Ok(HelperResponse::Connected { device: Some(info) }) =
-                            transport.round_trip(&HelperRequest::Connect).await
-                        {
-                            self.elevated_transport = Some(transport);
-                            self.elevated_info = Some(info.clone());
-                            self.backend_kind = Some(BackendKind::Elevated);
-                            self.preferred_backend = BackendKind::Elevated;
-
-                            let (ltx, _) = oneshot::channel();
-                            let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
-
-                            let _ = resp.send(ConnectionResult {
-                                success: true,
-                                device: Some(info),
-                                error: None,
-                            });
-                            return;
-                        }
-                    }
-                }
-
-                // Fallback to local
-                let (ltx, lrx) = oneshot::channel();
-                if self
-                    .local_tx
-                    .send(LocalCommand::Connect(target_device.clone(), ltx))
-                    .is_ok()
-                {
-                    if let Ok(res) = lrx.await {
-                        if res.success {
-                            self.backend_kind = Some(BackendKind::Local);
-                            self.preferred_backend = BackendKind::Local;
-                            #[cfg(target_os = "linux")]
-                            {
-                                self.elevated_transport = None;
-                                self.elevated_info = None;
-                            }
-                        } else {
-                            #[cfg(target_os = "linux")]
-                            if res
-                                .error
-                                .as_ref()
-                                .is_some_and(|e| e.kind == ErrorKind::PermissionDenied)
-                            {
-                                if let Ok(transport) = ElevatedTransport::spawn().await {
-                                    if let Ok(HelperResponse::Connected { device: Some(info) }) =
-                                        transport.round_trip(&HelperRequest::Connect).await
-                                    {
-                                        self.elevated_transport = Some(transport);
-                                        self.elevated_info = Some(info.clone());
-                                        self.backend_kind = Some(BackendKind::Elevated);
-                                        self.preferred_backend = BackendKind::Elevated;
-                                        let _ = resp.send(ConnectionResult {
-                                            success: true,
-                                            device: Some(info),
-                                            error: None,
-                                        });
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                        let _ = resp.send(res);
-                        return;
-                    }
-                }
-                let _ = resp.send(ConnectionResult {
-                    success: false,
-                    device: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-                });
+            UsbCommand::Connect(device, backend, resp) => {
+                let _ = resp.send(self.handle_connect(device, backend).await);
             }
             UsbCommand::Disconnect(resp) => {
-                #[cfg(target_os = "linux")]
-                if self.backend_kind == Some(BackendKind::Elevated) {
-                    if let Some(transport) = &mut self.elevated_transport {
-                        let _ = transport.round_trip(&HelperRequest::Disconnect).await;
-                        transport.shutdown();
-                    }
-                    self.elevated_transport = None;
-                    self.elevated_info = None;
-                    self.backend_kind = None;
-                    let _ = resp.send(OperationResult {
-                        success: true,
-                        data: None,
-                        error: None,
-                    });
-                    return;
-                }
-
-                self.backend_kind = None;
-                let (ltx, lrx) = oneshot::channel();
-                let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
-                let _ = resp.send(lrx.await.unwrap_or(OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-                }));
+                let _ = resp.send(self.handle_disconnect().await);
             }
             UsbCommand::Status(resp) => {
-                let (ltx, lrx) = oneshot::channel();
-                let _ = self.local_tx.send(LocalCommand::Status(ltx));
-                let local_status = lrx.await.unwrap_or(LocalStatus {
-                    connected: false,
-                    physically_present: false,
-                    device: None,
-                    available_devices: vec![],
-                    backend_reset: false,
-                    generation: 0,
-                    fatal_error: Some("Local worker thread died".to_string()),
-                });
-
-                let mut final_status = WorkerStatus {
-                    connected: local_status.connected,
-                    physically_present: local_status.physically_present,
-                    device: local_status.device.clone(),
-                    available_devices: local_status.available_devices.clone(),
-                    backend_reset: local_status.backend_reset,
-                    generation: local_status.generation,
-                    fatal_error: local_status.fatal_error.clone(),
-                };
-
-                #[cfg(target_os = "linux")]
-                if self.backend_kind == Some(BackendKind::Elevated) {
-                    if let Some(transport) = &mut self.elevated_transport {
-                        match transport.round_trip(&HelperRequest::Status).await {
-                            Ok(HelperResponse::Status {
-                                connected,
-                                physically_present,
-                                device,
-                            }) => {
-                                if !connected {
-                                    self.backend_kind = None;
-                                    self.elevated_transport = None;
-                                }
-                                final_status.connected = connected;
-                                final_status.physically_present = physically_present;
-                                final_status.device = device.or(self.elevated_info.clone());
-                            }
-                            _ => {
-                                self.backend_kind = None;
-                                self.elevated_transport = None;
-                                final_status.connected = false;
-                                final_status.backend_reset = true;
-                            }
-                        }
-                    } else {
-                        self.backend_kind = None;
-                        final_status.connected = false;
-                    }
-                } else if self.backend_kind == Some(BackendKind::Local) && !local_status.connected {
-                    self.backend_kind = None;
-                }
-
-                let _ = resp.send(final_status);
+                let _ = resp.send(self.handle_status().await);
             }
             UsbCommand::PullPEQ(resp) => {
+                let _ = resp.send(self.handle_pull().await);
+            }
+            UsbCommand::PushPEQ(payload, resp) => {
+                let _ = resp.send(self.handle_push(payload).await);
+            }
+        }
+    }
+
+    async fn handle_connect(
+        &mut self,
+        target_device: Option<DeviceInfo>,
+        target_backend: Option<BackendKind>,
+    ) -> ConnectionResult {
+        let target = target_backend.unwrap_or(self.preferred_backend);
+
+        #[cfg(target_os = "linux")]
+        if target == BackendKind::Elevated {
+            return self.connect_elevated().await;
+        }
+
+        self.connect_local(target_device).await
+    }
+
+    async fn connect_local(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
+        let (ltx, lrx) = oneshot::channel();
+        if self
+            .local_tx
+            .send(LocalCommand::Connect(target_device, ltx))
+            .is_ok()
+        {
+            if let Ok(res) = lrx.await {
+                if res.success {
+                    self.backend = Some(ActiveBackend::Local);
+                    self.preferred_backend = BackendKind::Local;
+                    return res;
+                }
+
                 #[cfg(target_os = "linux")]
-                if self.backend_kind == Some(BackendKind::Elevated) {
-                    if let Some(transport) = &mut self.elevated_transport {
-                        match transport
-                            .round_trip(&HelperRequest::PullPeq { strict: false })
-                            .await
-                        {
-                            Ok(HelperResponse::Pulled { data }) => {
-                                match serde_json::from_value(data) {
-                                    Ok(peq) => {
-                                        let _ = resp.send(OperationResult {
-                                            success: true,
-                                            data: Some(peq),
-                                            error: None,
-                                        });
-                                        return;
-                                    }
-                                    Err(e) => {
-                                        let _ = resp.send(OperationResult {
-                                            success: false,
-                                            data: None,
-                                            error: Some(AppError::new(
-                                                ErrorKind::ParseError,
-                                                e.to_string(),
-                                            )),
-                                        });
-                                        return;
-                                    }
-                                }
-                            }
-                            Ok(HelperResponse::Error { error, .. }) => {
-                                let _ = resp.send(OperationResult {
-                                    success: false,
-                                    data: None,
-                                    error: Some(error),
-                                });
-                                return;
-                            }
-                            _ => {
-                                self.backend_kind = None;
-                                self.elevated_transport = None;
-                                let _ = resp.send(OperationResult {
-                                    success: false,
-                                    data: None,
-                                    error: Some(AppError::new(
-                                        ErrorKind::IpcError,
-                                        "Elevated helper died",
-                                    )),
-                                });
-                                return;
-                            }
-                        }
+                if res
+                    .error
+                    .as_ref()
+                    .is_some_and(|e| e.kind == ErrorKind::PermissionDenied)
+                {
+                    let elevated = self.connect_elevated().await;
+                    if elevated.success {
+                        return elevated;
                     }
                 }
 
-                let (ltx, lrx) = oneshot::channel();
-                let _ = self.local_tx.send(LocalCommand::PullPEQ(ltx));
-                let _ = resp.send(lrx.await.unwrap_or(OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-                }));
+                return res;
             }
-            UsbCommand::PushPEQ(payload, resp) => {
-                #[cfg(target_os = "linux")]
-                if self.backend_kind == Some(BackendKind::Elevated) {
-                    if let Some(transport) = &mut self.elevated_transport {
-                        match transport
+        }
+        ConnectionResult {
+            success: false,
+            device: None,
+            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn connect_elevated(&mut self) -> ConnectionResult {
+        if let Ok(transport) = ElevatedTransport::spawn().await {
+            if let Ok(HelperResponse::Connected { device: Some(info) }) =
+                transport.round_trip(&HelperRequest::Connect).await
+            {
+                let (ltx, _) = oneshot::channel();
+                let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
+                self.backend = Some(ActiveBackend::Elevated {
+                    transport: Box::new(transport),
+                    device_info: Some(info.clone()),
+                });
+                self.preferred_backend = BackendKind::Elevated;
+                return ConnectionResult {
+                    success: true,
+                    device: Some(info),
+                    error: None,
+                };
+            }
+        }
+        ConnectionResult {
+            success: false,
+            device: None,
+            error: Some(AppError::new(
+                ErrorKind::PermissionDenied,
+                "Elevated transport failed to connect",
+            )),
+        }
+    }
+
+    async fn handle_disconnect(&mut self) -> OperationResult {
+        #[cfg(target_os = "linux")]
+        if let Some(ActiveBackend::Elevated { .. }) = &self.backend {
+            if let Some(ActiveBackend::Elevated {
+                transport: mut t, ..
+            }) = self.backend.take()
+            {
+                let _ = t.round_trip(&HelperRequest::Disconnect).await;
+                t.shutdown();
+            }
+            return OperationResult {
+                success: true,
+                data: None,
+                error: None,
+            };
+        }
+
+        self.backend = None;
+        let (ltx, lrx) = oneshot::channel();
+        let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
+        lrx.await.unwrap_or(OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
+        })
+    }
+
+    async fn handle_status(&mut self) -> WorkerStatus {
+        let (ltx, lrx) = oneshot::channel();
+        let _ = self.local_tx.send(LocalCommand::Status(ltx));
+        let local_status = lrx.await.unwrap_or(LocalStatus {
+            connected: false,
+            physically_present: false,
+            device: None,
+            available_devices: vec![],
+            backend_reset: false,
+            generation: 0,
+            fatal_error: Some("Local worker thread died".to_string()),
+        });
+
+        let mut status = WorkerStatus {
+            connected: local_status.connected,
+            physically_present: local_status.physically_present,
+            device: local_status.device.clone(),
+            available_devices: local_status.available_devices.clone(),
+            backend_reset: local_status.backend_reset,
+            generation: local_status.generation,
+            fatal_error: local_status.fatal_error.clone(),
+        };
+
+        #[cfg(target_os = "linux")]
+        {
+            // Immutable borrow ends before any self.backend mutation below.
+            let elevated_result =
+                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
+                    Some(transport.round_trip(&HelperRequest::Status).await)
+                } else {
+                    None
+                };
+
+            match elevated_result {
+                Some(Ok(HelperResponse::Status {
+                    connected,
+                    physically_present,
+                    device,
+                })) => {
+                    let fallback =
+                        if let Some(ActiveBackend::Elevated { device_info, .. }) = &self.backend {
+                            device_info.clone()
+                        } else {
+                            None
+                        };
+                    status.connected = connected;
+                    status.physically_present = physically_present;
+                    status.device = device.or(fallback);
+                    if !connected {
+                        self.backend = None;
+                    }
+                }
+                Some(_) => {
+                    self.backend = None;
+                    status.connected = false;
+                    status.backend_reset = true;
+                }
+                None => {
+                    if matches!(self.backend, Some(ActiveBackend::Local)) && !local_status.connected
+                    {
+                        self.backend = None;
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        if matches!(self.backend, Some(ActiveBackend::Local)) && !local_status.connected {
+            self.backend = None;
+        }
+
+        status
+    }
+
+    async fn handle_pull(&mut self) -> OperationResult {
+        #[cfg(target_os = "linux")]
+        {
+            let elevated_result =
+                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
+                    Some(
+                        transport
+                            .round_trip(&HelperRequest::PullPeq { strict: false })
+                            .await,
+                    )
+                } else {
+                    None
+                };
+
+            if let Some(response) = elevated_result {
+                return match response {
+                    Ok(HelperResponse::Pulled { data }) => match serde_json::from_value(data) {
+                        Ok(peq) => OperationResult {
+                            success: true,
+                            data: Some(peq),
+                            error: None,
+                        },
+                        Err(e) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::ParseError, e.to_string())),
+                        },
+                    },
+                    Ok(HelperResponse::Error { error, .. }) => OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(error),
+                    },
+                    _ => {
+                        self.backend = None;
+                        OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::IpcError, "Elevated helper died")),
+                        }
+                    }
+                };
+            }
+        }
+
+        let (ltx, lrx) = oneshot::channel();
+        let _ = self.local_tx.send(LocalCommand::PullPEQ(ltx));
+        lrx.await.unwrap_or(OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
+        })
+    }
+
+    async fn handle_push(&mut self, payload: PushPayload) -> OperationResult {
+        #[cfg(target_os = "linux")]
+        {
+            let elevated_result =
+                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
+                    Some(
+                        transport
                             .round_trip(&HelperRequest::PushPeq {
                                 filters: payload.filters.clone(),
                                 global_gain: payload.global_gain,
                             })
-                            .await
-                        {
-                            Ok(HelperResponse::Pushed { data }) => {
-                                match serde_json::from_value(data) {
-                                    Ok(peq) => {
-                                        let _ = resp.send(OperationResult {
-                                            success: true,
-                                            data: Some(peq),
-                                            error: None,
-                                        });
-                                        return;
-                                    }
-                                    Err(e) => {
-                                        let _ = resp.send(OperationResult {
-                                            success: false,
-                                            data: None,
-                                            error: Some(AppError::new(
-                                                ErrorKind::ParseError,
-                                                e.to_string(),
-                                            )),
-                                        });
-                                        return;
-                                    }
-                                }
-                            }
-                            Ok(HelperResponse::Error { error, .. }) => {
-                                let _ = resp.send(OperationResult {
-                                    success: false,
-                                    data: None,
-                                    error: Some(error),
-                                });
-                                return;
-                            }
-                            _ => {
-                                self.backend_kind = None;
-                                self.elevated_transport = None;
-                                let _ = resp.send(OperationResult {
-                                    success: false,
-                                    data: None,
-                                    error: Some(AppError::new(
-                                        ErrorKind::IpcError,
-                                        "Elevated helper died",
-                                    )),
-                                });
-                                return;
-                            }
+                            .await,
+                    )
+                } else {
+                    None
+                };
+
+            if let Some(response) = elevated_result {
+                return match response {
+                    Ok(HelperResponse::Pushed { data }) => match serde_json::from_value(data) {
+                        Ok(peq) => OperationResult {
+                            success: true,
+                            data: Some(peq),
+                            error: None,
+                        },
+                        Err(e) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::ParseError, e.to_string())),
+                        },
+                    },
+                    Ok(HelperResponse::Error { error, .. }) => OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(error),
+                    },
+                    _ => {
+                        self.backend = None;
+                        OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::IpcError, "Elevated helper died")),
                         }
                     }
-                }
-
-                let (ltx, lrx) = oneshot::channel();
-                let _ = self.local_tx.send(LocalCommand::PushPEQ(payload, ltx));
-                let _ = resp.send(lrx.await.unwrap_or(OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-                }));
+                };
             }
         }
+
+        let (ltx, lrx) = oneshot::channel();
+        let _ = self.local_tx.send(LocalCommand::PushPEQ(payload, ltx));
+        lrx.await.unwrap_or(OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
+        })
     }
 }

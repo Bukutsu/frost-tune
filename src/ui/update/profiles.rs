@@ -194,7 +194,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         window.num_bands()
                     ),
                 ));
-                window.set_status(
+                window.set_status_silent(
                     format!(
                         "Loaded profile: {} (truncated to {})",
                         profile_name,
@@ -208,7 +208,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     Source::UI,
                     format!("Loaded profile: {}", profile_name),
                 ));
-                window.set_status(
+                window.set_status_silent(
                     format!("Loaded profile: {}", profile_name),
                     StatusSeverity::Info,
                 )
@@ -250,7 +250,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         Source::UI,
                         format!("Import truncated to {} bands", window.num_bands()),
                     ));
-                    tasks.push(window.set_status(
+                    tasks.push(window.set_status_silent(
                         format!(
                             "Imported {} filters to current EQ (truncated to {})",
                             enabled_count,
@@ -264,7 +264,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         Source::UI,
                         format!("Applied {} filters directly to editor", enabled_count),
                     ));
-                    tasks.push(window.set_status(
+                    tasks.push(window.set_status_silent(
                         format!(
                             "Applied {} filters directly to current EQ (unsaved)",
                             enabled_count
@@ -411,7 +411,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         window.num_bands()
                     ),
                 ));
-                window.set_status(
+                window.set_status_silent(
                     format!(
                         "Loaded profile: {} (truncated to {})",
                         profile_name,
@@ -425,7 +425,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     Source::UI,
                     format!("Loaded profile: {}", profile_name),
                 ));
-                window.set_status(
+                window.set_status_silent(
                     format!("Loaded profile: {}", profile_name),
                     StatusSeverity::Info,
                 )
@@ -539,7 +539,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.editor.session.is_dirty = false;
                     Task::batch(vec![
                         reload_profiles_task(),
-                        window.set_status(
+                        window.set_status_silent(
                             format!("Saved profile: {}", name),
                             StatusSeverity::Success,
                         ),
@@ -566,7 +566,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                                 window.num_bands()
                             ),
                         ));
-                        tasks.push(window.set_status(
+                        tasks.push(window.set_status_silent(
                             format!(
                                 "Updated '{}' with {} filters (truncated to {})",
                                 name,
@@ -581,7 +581,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             Source::UI,
                             format!("Profile '{}' updated with {} filters", name, enabled_count),
                         ));
-                        tasks.push(window.set_status(
+                        tasks.push(window.set_status_silent(
                             format!(
                                 "Overwrote profile '{}' with {} filters",
                                 name, enabled_count
@@ -607,7 +607,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             Source::UI,
                             format!("Import truncated to {} bands", window.num_bands()),
                         ));
-                        tasks.push(window.set_status(
+                        tasks.push(window.set_status_silent(
                             format!(
                                 "Imported {} filters (truncated to {})",
                                 enabled_count,
@@ -621,7 +621,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                             Source::UI,
                             format!("Import successful: {} filters", enabled_count),
                         ));
-                        tasks.push(window.set_status(
+                        tasks.push(window.set_status_silent(
                             format!("Imported {} filters", enabled_count),
                             StatusSeverity::Success,
                         ));
@@ -641,7 +641,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         format!("Overwritten profile: {}", name),
                     ));
                     let reload_task = reload_profiles_task();
-                    let status_task = window.set_status(
+                    let status_task = window.set_status_silent(
                         format!("Overwritten profile: {}", name),
                         StatusSeverity::Success,
                     );
@@ -686,9 +686,14 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 window.editor.ui.selected_profile_name = None;
                 window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Default;
                 window.editor.session.new_profile_name.clear();
+                window.diagnostics.push(DiagnosticEvent::new(
+                    LogLevel::Info,
+                    Source::UI,
+                    format!("Deleted profile: {}", name),
+                ));
                 Task::batch(vec![
                     reload_profiles_task(),
-                    window.set_status(
+                    window.set_status_silent(
                         format!("Deleted profile: {}", name),
                         StatusSeverity::Success,
                     ),

@@ -1,33 +1,17 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-//! Dynamic Device Registry system replacing the hardcoded Device enum.
+//! Static registry of compiled-in USB DAC profiles.
+//!
+//! The `DeviceProfile` trait lives in `crate::core::device::profile`. This module
+//! owns the concrete registry array and the VID/PID lookup helpers.
 
-use crate::core::device::capabilities::DeviceCapabilities;
-use crate::core::device::protocol::DeviceProtocol;
+pub use crate::core::device::profile::DeviceProfile;
 
-/// Interface representing a supported USB DAC model profile.
-pub trait DeviceProfile: Send + Sync {
-    /// The friendly name of the DAC model.
-    fn name(&self) -> &'static str;
-
-    /// The USB Vendor ID.
-    fn vendor_id(&self) -> u16;
-
-    /// The USB Product ID.
-    fn product_id(&self) -> u16;
-
-    /// The capability boundaries for EQ frequency, gain, and Q.
-    fn capabilities(&self) -> DeviceCapabilities;
-
-    /// Factory method instantiating the communication protocol for this DAC.
-    fn protocol(&self) -> Box<dyn DeviceProtocol>;
-}
-
-/// The static registry containing all compiled-in USB DAC profiles.
+/// All supported USB DAC profiles compiled into the binary.
 ///
-/// Under the Open-Closed Principle, adding a new device only requires implementing
-/// `DeviceProfile` and adding its static reference to this array.
+/// To add a new device: implement `DeviceProfile` in `hardware/devices/<vendor>/mod.rs`
+/// and add a `&<YourProfile>` entry here.
 pub const REGISTRY: &[&dyn DeviceProfile] = &[&crate::hardware::devices::tp35pro::TP35ProProfile];
 
 /// Resolves a `DeviceProfile` from a USB Vendor ID and Product ID.

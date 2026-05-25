@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::device::protocol::DeviceProtocol;
+use crate::core::device::timing::WriteTiming;
 use crate::core::Filter;
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, send_report, DeviceSession};
-use crate::hardware::packet_format::WriteTiming;
-use crate::hardware::protocol::DeviceProtocol;
 use hidapi::HidDevice;
 
 /// Sends the device's init sequence (version ping / wake), drains stale USB frames,

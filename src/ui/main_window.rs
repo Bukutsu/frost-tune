@@ -137,19 +137,33 @@ impl MainWindow {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         crate::ui::update::update(self, message)
     }
+    /// Sets the status banner and echoes the message to the diagnostics log.
     pub fn set_status(
         &mut self,
         content: impl Into<String>,
         severity: StatusSeverity,
     ) -> Task<Message> {
-        let content = content.into();
-        let skip_diag_echo = content.starts_with("Loaded profile:")
-            || content.starts_with("Saved profile:")
-            || content.starts_with("Deleted profile:")
-            || content.starts_with("Imported ")
-            || content.starts_with("Exported ");
+        self.set_status_impl(content, severity, true)
+    }
 
-        if !skip_diag_echo {
+    /// Sets the status banner without echoing to the diagnostics log.
+    /// Use this for profile operations that push their own diagnostics events.
+    pub fn set_status_silent(
+        &mut self,
+        content: impl Into<String>,
+        severity: StatusSeverity,
+    ) -> Task<Message> {
+        self.set_status_impl(content, severity, false)
+    }
+
+    fn set_status_impl(
+        &mut self,
+        content: impl Into<String>,
+        severity: StatusSeverity,
+        echo_diagnostics: bool,
+    ) -> Task<Message> {
+        let content = content.into();
+        if echo_diagnostics {
             self.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,

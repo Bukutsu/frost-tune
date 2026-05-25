@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::device::protocol::DeviceProtocol;
+use crate::core::device::timing::ReadTiming;
 use crate::core::{DeviceInfo, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
-use crate::hardware::packet_format::ReadTiming;
-use crate::hardware::protocol::DeviceProtocol;
 
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
 pub const MAX_GLOBAL_GAIN_ATTEMPTS: u8 = 20;
@@ -252,7 +252,7 @@ fn validate_filter_reads(strict: bool, had_mismatch: bool) -> Result<()> {
 mod tests {
     use super::*;
     use crate::core::FilterType;
-    use crate::hardware::packet_format::{
+    use crate::hardware::devices::tp35pro::{
         CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, READ,
         WRITE,
     };

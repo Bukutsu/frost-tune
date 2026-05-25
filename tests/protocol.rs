@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 use frost_tune::core::{Filter, FilterType};
-use frost_tune::hardware::protocol::{
-    DeviceProtocol, TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
+use frost_tune::core::device::protocol::DeviceProtocol;
+use frost_tune::hardware::devices::tp35pro::{
+    CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, TP35ProProtocol, WRITE,
 };
 
 #[test]
