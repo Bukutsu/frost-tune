@@ -60,10 +60,6 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
             if result.success {
                 window.editor.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor.data.filters = peq.filters.clone();
-                    window.editor.data.global_gain = peq.global_gain;
-                    window.editor.data.generation += 1;
-
                     let matched = window
                         .editor
                         .ui
@@ -71,6 +67,10 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         .iter()
                         .find(|p| p.data.matches_within(&peq, 0.05, 0.05))
                         .map(|p| p.name.clone());
+
+                    window.editor.data.filters = peq.filters;
+                    window.editor.data.global_gain = peq.global_gain;
+                    window.editor.data.generation += 1;
 
                     let status_msg = if let Some(name) = matched {
                         window.editor.ui.selected_profile_name = Some(name.clone());

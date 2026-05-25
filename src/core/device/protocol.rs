@@ -43,8 +43,10 @@ pub trait DeviceProtocol: Send + Sync {
 
     /// Ordered packets to send once at the start of every read or write operation
     /// (typically a version ping to wake the device and flush stale USB frames).
-    /// Return an empty `Vec` if the device needs no init sequence.
-    fn build_init_packets(&self) -> Vec<Vec<u8>>;
+    /// Defaults to an empty sequence — override if the device needs init packets.
+    fn build_init_packets(&self) -> Vec<Vec<u8>> {
+        Vec::new()
+    }
 
     // ── Filter read ──────────────────────────────────────────────────────────
 
@@ -87,6 +89,9 @@ pub trait DeviceProtocol: Send + Sync {
     /// Ordered sequence of packets that persist the current volatile EQ state to
     /// the device's flash memory. Each `Vec<u8>` is one HID report payload.
     /// `packet_builder::commit_changes` sends them with `WriteTiming::commit_step_ms`
-    /// delay between each.
-    fn build_commit_packets(&self) -> Vec<Vec<u8>>;
+    /// delay between each. Defaults to an empty sequence — override if the device
+    /// needs commit packets.
+    fn build_commit_packets(&self) -> Vec<Vec<u8>> {
+        Vec::new()
+    }
 }

@@ -14,17 +14,22 @@ pub const U16_WRAP_AROUND: i32 = 65536;
 pub const GAIN_I16_THRESHOLD: i32 = 32767;
 pub const BYTE_BIT_SHIFT: i32 = 8;
 
+/// Clamp a rounded f64 value to i32 range to avoid undefined behavior from overflow.
+fn clamp_i32(v: f64) -> i32 {
+    (v.round() as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
 /// Quantizes filter parameters using a standard scale.
 pub fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
     let i_arr = [
-        (d_arr[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[2] * QUANTIZER_SCALE).round() as i32,
+        clamp_i32(d_arr[0] * QUANTIZER_SCALE),
+        clamp_i32(d_arr[1] * QUANTIZER_SCALE),
+        clamp_i32(d_arr[2] * QUANTIZER_SCALE),
     ];
     let i_arr2 = [
-        (d_arr2[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[2] * QUANTIZER_SCALE).round() as i32,
+        clamp_i32(d_arr2[0] * QUANTIZER_SCALE),
+        clamp_i32(d_arr2[1] * QUANTIZER_SCALE),
+        clamp_i32(d_arr2[2] * QUANTIZER_SCALE),
     ];
     [
         i_arr2[0],
