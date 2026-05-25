@@ -10,7 +10,7 @@ pub mod preamp;
 pub mod status_banner;
 pub mod tools_panel;
 
-use crate::ui::messages::Message;
+use crate::ui::messages::*;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_COMPACT, BUTTON_HEIGHT_LARGE, BUTTON_HEIGHT_SMALL, BUTTON_HORIZONTAL_PADDING,
     COLOR_ON_SURFACE, ICON_BUTTON_SIZE, ICON_SIZE_MEDIUM, ICON_SIZE_SMALL, SPACE_4, SPACE_8,
@@ -77,7 +77,7 @@ pub fn toolbar_button<'a>(label: &'a str) -> iced::widget::Button<'a, Message> {
     .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
 }
 
-pub fn section_header<'a>(label: String) -> Element<'a, Message> {
+pub fn section_header<'a, M: 'a>(label: String) -> Element<'a, M> {
     text(label)
         .size(TYPE_CAPTION)
         .color(COLOR_ON_SURFACE)

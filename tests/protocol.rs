@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use frost_tune::core::{Filter, FilterType};
 use frost_tune::hardware::protocol::{
     DeviceProtocol, TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
 };
-use frost_tune::models::{Filter, FilterType};
 
 #[test]
 fn test_tp35pro_build_filter_read_request() {

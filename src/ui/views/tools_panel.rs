@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::ui::messages::Message;
-use crate::ui::state::{MainWindow, ToolsTab};
+use crate::ui::components::editor::ToolsTab;
+use crate::ui::messages::*;
+use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_SMALL, CHECKBOX_SIZE, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE,
@@ -39,7 +40,8 @@ fn tab_button<'a>(
 }
 
 pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
-    let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
+    let is_busy =
+        state.connection.operation_lock.is_pulling || state.connection.operation_lock.is_pushing;
 
     // --- AUTOEQ ACTIONS ---
     let autoeq_section = column![
@@ -48,7 +50,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::ImportFromFilePressed)
+                    Some(Message::Profiles(ProfilesMessage::ImportFromFilePressed))
                 })
                 .style(theme::m3_outlined_button)
                 .width(Length::Fill),
@@ -56,7 +58,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::ImportFromClipboard)
+                    Some(Message::AutoEq(AutoEqMessage::ImportFromClipboard))
                 })
                 .style(theme::m3_outlined_button)
                 .width(Length::Fill),
@@ -67,7 +69,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::ExportToFilePressed)
+                    Some(Message::Profiles(ProfilesMessage::ExportToFilePressed))
                 })
                 .style(theme::m3_tonal_button)
                 .width(Length::Fill),
@@ -75,7 +77,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::ExportAutoEQPressed)
+                    Some(Message::AutoEq(AutoEqMessage::ExportAutoEQPressed))
                 })
                 .style(theme::m3_tonal_button)
                 .width(Length::Fill),
@@ -85,10 +87,10 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     .spacing(SPACE_8);
 
     // --- PRESETS ---
-    let search_query = state.editor_state.ui.profile_search.to_lowercase();
-    let selected_name = state.editor_state.ui.selected_profile_name.as_deref();
+    let search_query = state.editor.ui.profile_search.to_lowercase();
+    let selected_name = state.editor.ui.selected_profile_name.as_deref();
     let filtered_profiles: Vec<&crate::storage::Profile> = state
-        .editor_state
+        .editor
         .ui
         .profiles
         .iter()
@@ -99,28 +101,29 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         })
         .collect();
 
-    let selected_profile_modified = state
-        .editor_state
-        .ui
-        .selected_profile_name
-        .as_ref()
-        .and_then(|name| {
-            state
-                .editor_state
-                .ui
-                .profiles
-                .iter()
-                .find(|p| &p.name == name)
-                .and_then(|p| p.modified.as_deref())
-        });
+    let selected_profile_modified =
+        state
+            .editor
+            .ui
+            .selected_profile_name
+            .as_ref()
+            .and_then(|name| {
+                state
+                    .editor
+                    .ui
+                    .profiles
+                    .iter()
+                    .find(|p| &p.name == name)
+                    .and_then(|p| p.modified.as_deref())
+            });
 
     let search_input = {
-        let input = text_input("Search profiles…", &state.editor_state.ui.profile_search)
+        let input = text_input("Search profiles…", &state.editor.ui.profile_search)
             .style(theme::m3_filled_input);
         if is_busy {
             input
         } else {
-            input.on_input(Message::ProfileSearchInput)
+            input.on_input(|val| Message::Profiles(ProfilesMessage::ProfileSearchInput(val)))
         }
     };
 
@@ -130,7 +133,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             .on_press_maybe(if is_busy {
                 None
             } else {
-                Some(Message::ReloadProfilesPressed)
+                Some(Message::Profiles(ProfilesMessage::ReloadProfilesPressed))
             })
             .style(theme::m3_text_button)
             .width(Length::Fixed(ICON_BUTTON_SIZE)),
@@ -138,7 +141,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             .on_press_maybe(if is_busy {
                 None
             } else {
-                Some(Message::OpenProfilesDirPressed)
+                Some(Message::Profiles(ProfilesMessage::OpenProfilesDirPressed))
             })
             .style(theme::m3_text_button)
             .width(Length::Fixed(ICON_BUTTON_SIZE)),
@@ -199,7 +202,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .height(Length::Fixed(BUTTON_HEIGHT_SMALL))
                 .width(Length::Fill)
                 .style(move |theme, status| theme::profile_row_style(theme, status, is_selected))
-                .on_press(Message::ProfileSelected(p.name.clone()))
+                .on_press(Message::Profiles(ProfilesMessage::ProfileSelected(
+                    p.name.clone(),
+                )))
                 .into()
             })
             .collect();
@@ -225,26 +230,24 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     };
 
     let profile_name_input = {
-        let input = text_input("New Name…", &state.editor_state.session.new_profile_name)
+        let input = text_input("New Name…", &state.editor.session.new_profile_name)
             .style(theme::m3_filled_input);
 
         if is_busy {
             input
         } else {
-            input.on_input(Message::ProfileNameInput)
+            input.on_input(|val| Message::Profiles(ProfilesMessage::ProfileNameInput(val)))
         }
     };
 
     let undo_redo_row = row![
         {
             let btn = action_button("Undo")
-                .on_press_maybe(
-                    if is_busy || state.editor_state.session.undo_stack.is_empty() {
-                        None
-                    } else {
-                        Some(Message::Undo)
-                    },
-                )
+                .on_press_maybe(if is_busy || state.editor.session.undo_stack.is_empty() {
+                    None
+                } else {
+                    Some(Message::Editor(EditorMessage::Undo))
+                })
                 .style(theme::m3_tonal_button);
             Element::from(
                 tooltip(
@@ -257,13 +260,11 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
         },
         {
             let btn = action_button("Redo")
-                .on_press_maybe(
-                    if is_busy || state.editor_state.session.redo_stack.is_empty() {
-                        None
-                    } else {
-                        Some(Message::Redo)
-                    },
-                )
+                .on_press_maybe(if is_busy || state.editor.session.redo_stack.is_empty() {
+                    None
+                } else {
+                    Some(Message::Editor(EditorMessage::Redo))
+                })
                 .style(theme::m3_tonal_button);
             Element::from(
                 tooltip(
@@ -284,7 +285,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::ResetFiltersPressed)
+                    Some(Message::Editor(EditorMessage::ResetFiltersPressed))
                 })
                 .style(theme::m3_tonal_button);
             Element::from(
@@ -301,7 +302,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
                 .on_press_maybe(if is_busy {
                     None
                 } else {
-                    Some(Message::SaveProfilePressed)
+                    Some(Message::Profiles(ProfilesMessage::SaveProfilePressed))
                 })
                 .style(theme::m3_filled_button);
             Element::from(
@@ -314,9 +315,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             )
         },
         {
-            let btn = if !is_busy && state.editor_state.ui.selected_profile_name.is_some() {
+            let btn = if !is_busy && state.editor.ui.selected_profile_name.is_some() {
                 action_button("Delete")
-                    .on_press(Message::DeleteProfilePressed)
+                    .on_press(Message::Profiles(ProfilesMessage::DeleteProfilePressed))
                     .style(theme::m3_outlined_button_error)
             } else {
                 action_button("Delete").style(theme::m3_outlined_button_error)
@@ -348,9 +349,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
             };
             date_widget
         },
-        checkbox(state.editor_state.ui.snap_to_iso_enabled)
+        checkbox(state.editor.ui.snap_to_iso_enabled)
             .label("Snap to ISO frequencies")
-            .on_toggle(Message::ToggleSnapToIso)
+            .on_toggle(|val| Message::Editor(EditorMessage::ToggleSnapToIso(val)))
             .size(CHECKBOX_SIZE)
             .text_size(crate::ui::tokens::TYPE_CAPTION)
             .style(theme::checkbox_style),
@@ -358,7 +359,7 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     ]
     .spacing(SPACE_12);
 
-    let active_tab = state.editor_state.ui.active_tools_tab;
+    let active_tab = state.editor.ui.active_tools_tab;
     let tab_strip = row![
         tab_button("Preset", ToolsTab::Preset, active_tab),
         tab_button("Import", ToolsTab::AutoEq, active_tab),
@@ -366,9 +367,9 @@ pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
     ];
 
     let settings_body = container(
-        column![checkbox(state.editor_state.ui.auto_pull_on_connect)
+        column![checkbox(state.editor.ui.auto_pull_on_connect)
             .label("Auto-pull EQ from device on connect")
-            .on_toggle(Message::ToggleAutoPullOnConnect)
+            .on_toggle(|val| Message::Editor(EditorMessage::ToggleAutoPullOnConnect(val)))
             .size(CHECKBOX_SIZE)
             .text_size(crate::ui::tokens::TYPE_CAPTION)
             .style(theme::checkbox_style),]

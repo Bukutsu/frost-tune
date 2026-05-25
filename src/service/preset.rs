@@ -7,47 +7,42 @@ use crate::storage::{self, Profile};
 use std::path::Path;
 
 /// Facade wrapping the file-based profile and preset persistence engine.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PresetService;
 
 impl PresetService {
-    /// Loads all saved AutoEQ/EqualizerAPO profiles from the storage directory.
-    pub fn load_all() -> Result<(Vec<Profile>, Vec<String>)> {
-        storage::load_all_profiles()
+    pub async fn load_all(&self) -> Result<(Vec<Profile>, Vec<String>)> {
+        storage::load_all_profiles().await
     }
 
-    /// Saves a profile under a specified name with the given PEQ parameters.
-    pub fn save(name: &str, data: &PEQData) -> Result<()> {
-        storage::save_profile(name, data)
+    pub async fn save(&self, name: &str, data: &PEQData) -> Result<()> {
+        storage::save_profile(name, data).await
     }
 
-    /// Deletes a profile by name.
-    pub fn delete(name: &str) -> Result<()> {
-        storage::delete_profile(name)
+    pub async fn delete(&self, name: &str) -> Result<()> {
+        storage::delete_profile(name).await
     }
 
-    /// Imports a profile from a specified filesystem path.
-    pub fn import(path: &Path) -> Result<Profile> {
-        storage::import_profile(path)
+    pub async fn import(&self, path: &Path) -> Result<Profile> {
+        storage::import_profile(path).await
     }
 
-    /// Exports a profile to a specified filesystem path.
-    pub fn export(path: &Path, data: &PEQData) -> Result<()> {
-        storage::export_profile(path, data)
+    pub async fn export(&self, path: &Path, data: &PEQData) -> Result<()> {
+        storage::export_profile(path, data).await
     }
 
     /// Opens the profile directory using the system default file manager.
-    pub fn open_directory() -> Result<()> {
+    pub fn open_directory(&self) -> Result<()> {
         storage::open_profiles_dir()
     }
 
     /// Returns the current modification time of the profiles directory.
-    pub fn get_directory_mtime() -> Option<std::time::SystemTime> {
+    pub fn get_directory_mtime(&self) -> Option<std::time::SystemTime> {
         storage::get_profiles_dir_mtime()
     }
 
     /// Returns a human-readable display string of the profiles directory path.
-    pub fn get_directory_display() -> String {
+    pub fn get_directory_display(&self) -> String {
         storage::get_profiles_dir_display()
     }
 }

@@ -2,83 +2,88 @@
 // SPDX-License-Identifier: MIT
 
 use crate::autoeq;
+use crate::core::PEQData;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
-use crate::models::PEQData;
 use crate::ui::main_window::APP_VERSION;
-use crate::ui::messages::{Message, StatusSeverity};
+use crate::ui::messages::*;
 use crate::ui::state::MainWindow;
 use iced::{clipboard, Task};
 
 pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::ExportAutoEQPressed => {
+        Message::AutoEq(AutoEqMessage::ExportAutoEQPressed) => {
             let peq = PEQData {
-                filters: window.editor_state.data.filters.clone(),
-                global_gain: window.editor_state.data.global_gain,
+                filters: window.editor.data.filters.clone(),
+                global_gain: window.editor.data.global_gain,
             };
             let output = autoeq::peq_to_autoeq(&peq);
-            let write_task = clipboard::write(output).map(|()| Message::ExportComplete);
+            let write_task =
+                clipboard::write(output).map(|()| Message::AutoEq(AutoEqMessage::ExportComplete));
             let status_task = window.set_status("Exported to clipboard", StatusSeverity::Success);
             Task::batch(vec![write_task, status_task])
         }
-        Message::ExportComplete => Task::none(),
-        Message::ImportFromClipboard => {
+        Message::AutoEq(AutoEqMessage::ExportComplete) => Task::none(),
+        Message::AutoEq(AutoEqMessage::ImportFromClipboard) => {
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::AutoEQ,
                 "Import from clipboard started",
             ));
             clipboard::read().map(|result| match result {
-                Some(text) => Message::ImportClipboardReceived(text),
-                None => Message::ImportClipboardFailed("Clipboard empty or not text".into()),
+                Some(text) => Message::AutoEq(AutoEqMessage::ImportClipboardReceived(text)),
+                None => Message::AutoEq(AutoEqMessage::ImportClipboardFailed(
+                    "Clipboard empty or not text".into(),
+                )),
             })
         }
-        Message::ImportClipboardReceived(text) => match autoeq::parse_autoeq_text(
-            &text,
-            window.num_bands(),
-            window.freq_range(),
-            window.gain_range(),
-            window.q_range(),
-        ) {
-            Ok((peq, warnings)) => {
-                if !warnings.is_empty() {
-                    for w in &warnings {
-                        window.diagnostics.push(DiagnosticEvent::new(
-                            LogLevel::Warn,
-                            Source::AutoEQ,
-                            format!("Import warning: {}", w),
-                        ));
+        Message::AutoEq(AutoEqMessage::ImportClipboardReceived(text)) => {
+            match autoeq::parse_autoeq_text(
+                &text,
+                window.num_bands(),
+                window.freq_range(),
+                window.gain_range(),
+                window.q_range(),
+            ) {
+                Ok((peq, warnings)) => {
+                    if !warnings.is_empty() {
+                        for w in &warnings {
+                            window.diagnostics.push(DiagnosticEvent::new(
+                                LogLevel::Warn,
+                                Source::AutoEQ,
+                                format!("Import warning: {}", w),
+                            ));
+                        }
+                    }
+                    window.editor.session.import_temporary = false;
+                    window.editor.session.import_name_input.clear();
+                    window.editor.session.pending_confirm =
+                        crate::ui::components::editor::ConfirmAction::ImportAutoEQ {
+                            data: peq,
+                            default_name: format!(
+                                "Imported {}",
+                                chrono::Local::now().format("%Y-%m-%d %H:%M")
+                            ),
+                        };
+                    if !warnings.is_empty() {
+                        window.set_status(
+                            format!("Import parsed with warnings: {}", warnings.join("; ")),
+                            StatusSeverity::Warning,
+                        )
+                    } else {
+                        Task::none()
                     }
                 }
-                window.editor_state.session.import_temporary = false;
-                window.editor_state.session.import_name_input.clear();
-                window.editor_state.session.pending_confirm =
-                    crate::ui::state::ConfirmAction::ImportAutoEQ {
-                        data: peq,
-                        default_name: format!(
-                            "Imported {}",
-                            chrono::Local::now().format("%Y-%m-%d %H:%M")
-                        ),
-                    };
-                if !warnings.is_empty() {
-                    window.set_status(
-                        format!("Import parsed with warnings: {}", warnings.join("; ")),
-                        StatusSeverity::Warning,
-                    )
-                } else {
-                    Task::none()
+                Err(e) => {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Warn,
+                        Source::AutoEQ,
+                        format!("Clipboard parse failed: {}", e),
+                    ));
+                    window.set_status("Clipboard doesn't contain an EQ", StatusSeverity::Warning)
                 }
             }
-            Err(e) => {
-                window.diagnostics.push(DiagnosticEvent::new(
-                    LogLevel::Warn,
-                    Source::AutoEQ,
-                    format!("Clipboard parse failed: {}", e),
-                ));
-                window.set_status("Clipboard doesn't contain an EQ", StatusSeverity::Warning)
-            }
-        },
-        Message::ImportClipboardFailed(msg) => {
+        }
+        Message::AutoEq(AutoEqMessage::ImportClipboardFailed(msg)) => {
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Warn,
                 Source::AutoEQ,
@@ -86,24 +91,25 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
             ));
             window.set_status(msg, StatusSeverity::Warning)
         }
-        Message::CopyDiagnostics => {
-            let conn_str = format!("{:?}", window.connection_status);
+        Message::Diagnostics(DiagnosticsMessage::CopyDiagnostics) => {
+            let conn_str = format!("{:?}", window.connection.status);
             let output =
                 crate::diagnostics::format_diagnostics(&window.diagnostics, APP_VERSION, &conn_str);
-            let write_task = clipboard::write(output).map(|()| Message::ExportComplete);
+            let write_task =
+                clipboard::write(output).map(|()| Message::AutoEq(AutoEqMessage::ExportComplete));
             let status_task = window.set_status("Diagnostics copied", StatusSeverity::Info);
             Task::batch(vec![write_task, status_task])
         }
-        Message::ClearDiagnostics => {
+        Message::Diagnostics(DiagnosticsMessage::ClearDiagnostics) => {
             window.diagnostics.clear();
             window.set_status("Diagnostics cleared", StatusSeverity::Info)
         }
-        Message::ToggleDiagnosticsErrorsOnly(v) => {
-            window.editor_state.ui.diagnostics_errors_only = v;
+        Message::Diagnostics(DiagnosticsMessage::ToggleDiagnosticsErrorsOnly(v)) => {
+            window.editor.ui.diagnostics_errors_only = v;
             Task::none()
         }
-        Message::ExportDiagnosticsToFile => {
-            let conn_str = format!("{:?}", window.connection_status);
+        Message::Diagnostics(DiagnosticsMessage::ExportDiagnosticsToFile) => {
+            let conn_str = format!("{:?}", window.connection.status);
             let output =
                 crate::diagnostics::format_diagnostics(&window.diagnostics, APP_VERSION, &conn_str);
             let now = chrono::Local::now();
@@ -123,16 +129,20 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
                         )
                     })
                 },
-                move |result| Message::DiagnosticsExportedToFile {
-                    path: path_str.clone(),
-                    result,
+                move |result| {
+                    Message::Diagnostics(DiagnosticsMessage::DiagnosticsExportedToFile {
+                        path: path_str.clone(),
+                        result,
+                    })
                 },
             )
         }
-        Message::DiagnosticsExportedToFile { path, result } => match result {
-            Ok(_) => window.set_status(format!("Saved to {}", path), StatusSeverity::Success),
-            Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
-        },
+        Message::Diagnostics(DiagnosticsMessage::DiagnosticsExportedToFile { path, result }) => {
+            match result {
+                Ok(_) => window.set_status(format!("Saved to {}", path), StatusSeverity::Success),
+                Err(e) => window.set_status(format!("Export failed: {}", e), StatusSeverity::Error),
+            }
+        }
         _ => Task::none(),
     }
 }

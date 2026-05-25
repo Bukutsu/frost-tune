@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::ui::messages::Message;
+use crate::ui::messages::*;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_SMALL, COLOR_ON_SURFACE, COLOR_ON_SURFACE_VARIANT, DIALOG_WIDTH,
@@ -110,7 +110,7 @@ pub fn view_name_input_dialog<'a>(
     is_danger: bool,
 ) -> Element<'a, Message> {
     let input = text_input(input_placeholder, input_value)
-        .on_input(Message::ImportNameInput)
+        .on_input(|val| Message::AutoEq(AutoEqMessage::ImportNameInput(val)))
         .on_submit(confirm_msg.clone())
         .style(theme::m3_filled_input)
         .width(Length::Fill);
@@ -161,12 +161,12 @@ pub fn view_import_dialog<'a>(
         dialog_tab_button(
             "Try EQ (Temporary)",
             import_temporary,
-            Message::ImportTemporaryToggled(true)
+            Message::AutoEq(AutoEqMessage::ImportTemporaryToggled(true))
         ),
         dialog_tab_button(
             "Save to Profile",
             !import_temporary,
-            Message::ImportTemporaryToggled(false)
+            Message::AutoEq(AutoEqMessage::ImportTemporaryToggled(false))
         ),
     ]
     .spacing(SPACE_4)
@@ -190,7 +190,7 @@ pub fn view_import_dialog<'a>(
         .into()
     } else {
         let input = text_input(input_placeholder, input_value)
-            .on_input(Message::ImportNameInput)
+            .on_input(|val| Message::AutoEq(AutoEqMessage::ImportNameInput(val)))
             .on_submit(confirm_msg.clone())
             .style(theme::m3_filled_input)
             .width(Length::Fill);
@@ -202,10 +202,12 @@ pub fn view_import_dialog<'a>(
                 .find(|&name| name == input_value)
                 .cloned();
 
-            let dropdown = pick_list(profile_names, selected_name, Message::ImportProfileSelected)
-                .placeholder("Choose existing profile to overwrite...")
-                .style(theme::m3_input_pick_list)
-                .width(Length::Fill);
+            let dropdown = pick_list(profile_names, selected_name, |val| {
+                Message::AutoEq(AutoEqMessage::ImportProfileSelected(val))
+            })
+            .placeholder("Choose existing profile to overwrite...")
+            .style(theme::m3_input_pick_list)
+            .width(Length::Fill);
 
             column![
                 column![
@@ -243,7 +245,7 @@ pub fn view_import_dialog<'a>(
 
     let confirm_btn = if import_temporary {
         action_button("Apply to EQ")
-            .on_press(Message::ImportDirectlyToEditor)
+            .on_press(Message::AutoEq(AutoEqMessage::ImportDirectlyToEditor))
             .style(theme::m3_filled_button)
             .width(Length::Fill)
     } else {

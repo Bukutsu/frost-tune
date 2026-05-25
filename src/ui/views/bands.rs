@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::models::FilterType;
-use crate::ui::messages::Message;
-use crate::ui::state::{EqSource, MainWindow};
+use crate::core::FilterType;
+use crate::ui::components::editor::EqSource;
+use crate::ui::messages::*;
+use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
@@ -36,7 +37,7 @@ fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
             .on_press_maybe(if is_busy {
                 None
             } else {
-                Some(Message::ImportFromClipboard)
+                Some(Message::AutoEq(AutoEqMessage::ImportFromClipboard))
             })
             .style(theme::m3_filled_button);
 
@@ -44,7 +45,7 @@ fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
         .on_press_maybe(if is_busy {
             None
         } else {
-            Some(Message::ImportFromFilePressed)
+            Some(Message::Profiles(ProfilesMessage::ImportFromFilePressed))
         })
         .style(theme::m3_tonal_button);
 
@@ -69,11 +70,12 @@ fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
 }
 
 pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
-    let is_busy = state.operation_lock.is_pulling || state.operation_lock.is_pushing;
+    let is_busy =
+        state.connection.operation_lock.is_pulling || state.connection.operation_lock.is_pushing;
     let show_enable = state.supports_per_band_enable();
 
-    let is_empty = state.editor_state.ui.eq_source == EqSource::Default
-        && state.editor_state.data.filters.iter().all(|f| !f.enabled);
+    let is_empty = state.editor.ui.eq_source == EqSource::Default
+        && state.editor.data.filters.iter().all(|f| !f.enabled);
 
     if is_empty {
         return render_empty_state(is_busy);
@@ -82,13 +84,8 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
     responsive(move |size| {
         if size.width < BANDS_TWO_COLUMN_BREAK {
             // Single column for narrow/medium widths
-            let col = render_band_column(
-                0,
-                &state.editor_state.data.filters,
-                state,
-                is_busy,
-                show_enable,
-            );
+            let col =
+                render_band_column(0, &state.editor.data.filters, state, is_busy, show_enable);
             container(col)
                 .style(theme::card_style)
                 .padding(SPACE_8)
@@ -96,17 +93,17 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
                 .into()
         } else {
             // Two columns for wide widths
-            let mid = state.editor_state.data.filters.len() / 2;
+            let mid = state.editor.data.filters.len() / 2;
             let col1 = render_band_column(
                 0,
-                &state.editor_state.data.filters[..mid],
+                &state.editor.data.filters[..mid],
                 state,
                 is_busy,
                 show_enable,
             );
             let col2 = render_band_column(
                 mid,
-                &state.editor_state.data.filters[mid..],
+                &state.editor.data.filters[mid..],
                 state,
                 is_busy,
                 show_enable,
@@ -131,7 +128,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
 
 fn render_band_column<'a>(
     start_index: usize,
-    bands: &'a [crate::models::Filter],
+    bands: &'a [crate::core::Filter],
     state: &'a MainWindow,
     is_busy: bool,
     show_enable: bool,
@@ -306,10 +303,10 @@ fn render_input_field<'a>(
 
 fn render_type_buttons<'a>(
     i: usize,
-    band: &crate::models::Filter,
+    band: &crate::core::Filter,
     is_busy: bool,
     is_active: bool,
-    supported: crate::models::FilterTypeFlags,
+    supported: crate::core::FilterTypeFlags,
 ) -> Element<'a, Message> {
     row(FilterType::ALL
         .iter()
@@ -373,7 +370,8 @@ fn render_type_buttons<'a>(
             if is_busy {
                 btn.into()
             } else {
-                btn.on_press(Message::BandTypeChanged(i, ft)).into()
+                btn.on_press(Message::Editor(EditorMessage::BandTypeChanged(i, ft)))
+                    .into()
             }
         })
         .collect::<Vec<Element<Message>>>())
@@ -383,7 +381,7 @@ fn render_type_buttons<'a>(
 
 fn render_freq_cell<'a>(
     i: usize,
-    band: &crate::models::Filter,
+    band: &crate::core::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     freq_error: Option<&'a str>,
@@ -391,7 +389,7 @@ fn render_freq_cell<'a>(
 ) -> Element<'a, Message> {
     column![render_input_field(
         state
-            .editor_state
+            .editor
             .session
             .input_buffer
             .get_freq_input(i)
@@ -399,8 +397,8 @@ fn render_freq_cell<'a>(
         is_busy,
         freq_error,
         is_active,
-        move |s| Message::BandFreqInput(i, s),
-        Message::BandFreqInputCommit(i),
+        move |s| Message::Editor(EditorMessage::BandFreqInput(i, s)),
+        Message::Editor(EditorMessage::BandFreqInputCommit(i)),
     )]
     .spacing(SPACE_2)
     .width(Length::Fixed(BAND_GAIN_LABEL_WIDTH))
@@ -409,7 +407,7 @@ fn render_freq_cell<'a>(
 
 fn render_gain_cell<'a>(
     i: usize,
-    band: &crate::models::Filter,
+    band: &crate::core::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     gain_error: Option<&'a str>,
@@ -420,29 +418,29 @@ fn render_gain_cell<'a>(
         if is_busy {
             Message::None
         } else {
-            Message::BandGainChanged(i, v)
+            Message::Editor(EditorMessage::BandGainChanged(i, v))
         }
     })
-    .step(crate::models::GAIN_STEP)
+    .step(crate::core::GAIN_STEP)
     .width(Length::Fill)
     .style(theme::gain_slider_style(band.gain, is_active))
     .on_release(if is_busy {
         Message::None
     } else {
-        Message::BandGainReleased(i)
+        Message::Editor(EditorMessage::BandGainReleased(i))
     });
 
     let input = render_input_field_raw(
         state
-            .editor_state
+            .editor
             .session
             .input_buffer
             .get_gain_input(i)
             .map_or_else(|| format!("{:.2}", band.gain), |s| s.to_string()),
         is_busy,
         is_active,
-        move |s| Message::BandGainInput(i, s),
-        Message::BandGainInputCommit(i),
+        move |s| Message::Editor(EditorMessage::BandGainInput(i, s)),
+        Message::Editor(EditorMessage::BandGainInputCommit(i)),
     );
 
     let error_row: Element<'_, Message> = if let Some(err) = gain_error {
@@ -473,7 +471,7 @@ fn render_gain_cell<'a>(
 
 fn render_q_cell<'a>(
     i: usize,
-    band: &crate::models::Filter,
+    band: &crate::core::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     q_error: Option<&'a str>,
@@ -481,7 +479,7 @@ fn render_q_cell<'a>(
 ) -> Element<'a, Message> {
     column![render_input_field(
         state
-            .editor_state
+            .editor
             .session
             .input_buffer
             .get_q_input(i)
@@ -489,8 +487,8 @@ fn render_q_cell<'a>(
         is_busy,
         q_error,
         is_active,
-        move |s| Message::BandQInput(i, s),
-        Message::BandQInputCommit(i),
+        move |s| Message::Editor(EditorMessage::BandQInput(i, s)),
+        Message::Editor(EditorMessage::BandQInputCommit(i)),
     )]
     .spacing(SPACE_2)
     .width(Length::Fixed(BAND_Q_INPUT_WIDTH))
@@ -499,14 +497,14 @@ fn render_q_cell<'a>(
 
 fn render_band_row<'a>(
     i: usize,
-    band: &'a crate::models::Filter,
+    band: &'a crate::core::Filter,
     state: &'a MainWindow,
     is_busy: bool,
     show_enable: bool,
 ) -> Element<'a, Message> {
-    let freq_error = state.editor_state.session.input_buffer.get_freq_error(i);
-    let gain_error = state.editor_state.session.input_buffer.get_gain_error(i);
-    let q_error = state.editor_state.session.input_buffer.get_q_error(i);
+    let freq_error = state.editor.session.input_buffer.get_freq_error(i);
+    let gain_error = state.editor.session.input_buffer.get_gain_error(i);
+    let q_error = state.editor.session.input_buffer.get_q_error(i);
 
     let is_active = band.enabled;
     let accent_color = if is_active {
@@ -533,7 +531,7 @@ fn render_band_row<'a>(
                         if is_busy {
                             Message::None
                         } else {
-                            Message::BandEnabledToggled(i, en)
+                            Message::Editor(EditorMessage::BandEnabledToggled(i, en))
                         }
                     })
                     .size(CHECKBOX_SIZE)

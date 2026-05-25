@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::ui::messages::{Message, StatusSeverity};
+use crate::ui::messages::*;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
@@ -14,7 +14,7 @@ use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 
 pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
-    if let Some(msg) = &state.editor_state.session.status_message {
+    if let Some(msg) = &state.editor.session.status_message {
         let (color, icon) = match msg.severity {
             StatusSeverity::Info => (COLOR_INFO, ICON_INFO),
             StatusSeverity::Success => (COLOR_SUCCESS, ICON_CHECK_CIRCLE),
@@ -30,7 +30,7 @@ pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
             StatusSeverity::Warning | StatusSeverity::Error
         ) {
             let btn = small_action_button("Details")
-                .on_press(Message::ToggleDiagnostics)
+                .on_press(Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics))
                 .style(theme::m3_banner_text_button);
             actions = actions.push(btn);
         }

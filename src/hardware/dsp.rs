@@ -7,7 +7,7 @@
 //! live in `core/device/tp35pro`. This module contains only the biquad coefficient
 //! and magnitude-response helpers used by the UI graph renderer.
 
-use crate::models::{Filter, FilterType};
+use crate::core::{Filter, FilterType};
 use std::f64::consts::TAU;
 
 const DSP_SAMPLE_RATE: f64 = 96000.0;
@@ -176,7 +176,7 @@ pub fn calculate_total_response(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Filter;
+    use crate::core::Filter;
 
     #[test]
     fn test_peak_filter_magnitude_response() {

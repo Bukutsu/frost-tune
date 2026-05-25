@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 use crate::autoeq;
+use crate::core::PEQData;
 use crate::error::{AppError, ErrorKind, Result};
-use crate::models::PEQData;
-use std::fs;
 use std::path::Path;
+use tokio::fs;
 
 use super::paths::{get_profiles_dir, sanitize_name};
 
@@ -16,22 +16,22 @@ pub struct Profile {
     pub modified: Option<String>,
 }
 
-pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
+pub async fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
     let dir = get_profiles_dir()?;
     let mut profiles = Vec::new();
     let mut errors = Vec::new();
 
-    let entries = fs::read_dir(dir).map_err(|e| {
+    let mut entries = fs::read_dir(dir).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to read profiles directory: {}", e),
         )
     })?;
 
-    for entry in entries.flatten() {
+    while let Ok(Some(entry)) = entries.next_entry().await {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "txt") {
-            if let Ok(metadata) = fs::metadata(&path) {
+            if let Ok(metadata) = fs::metadata(&path).await {
                 if metadata.len() > 1024 * 1024 {
                     if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                         errors.push(format!("Profile '{}' is too large (> 1MB)", name));
@@ -41,7 +41,7 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
             }
 
             if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                let content = match fs::read_to_string(&path) {
+                let content = match fs::read_to_string(&path).await {
                     Ok(c) => c,
                     Err(e) => {
                         errors.push(format!("Cannot read profile '{}': {}", name, e));
@@ -50,10 +50,10 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
                 };
                 match autoeq::parse_autoeq_text(
                     &content,
-                    crate::models::NUM_BANDS,
-                    (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
-                    (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
-                    (crate::models::MIN_Q, crate::models::MAX_Q),
+                    crate::core::NUM_BANDS,
+                    (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+                    (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+                    (crate::core::MIN_Q, crate::core::MAX_Q),
                 ) {
                     Ok((data, warnings)) => {
                         if !warnings.is_empty() {
@@ -62,6 +62,7 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
                             }
                         }
                         let modified = fs::metadata(&path)
+                            .await
                             .ok()
                             .and_then(|m| m.modified().ok())
                             .map(|t| {
@@ -89,7 +90,7 @@ pub fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
     Ok((profiles, errors))
 }
 
-pub fn save_profile(name: &str, data: &PEQData) -> Result<()> {
+pub async fn save_profile(name: &str, data: &PEQData) -> Result<()> {
     let dir = get_profiles_dir()?;
     let sanitized_name = sanitize_name(name);
 
@@ -104,39 +105,38 @@ pub fn save_profile(name: &str, data: &PEQData) -> Result<()> {
     let tmp_path = dir.join(format!(".{}.tmp", sanitized_name));
 
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(&tmp_path, &content).map_err(|e| {
+    fs::write(&tmp_path, &content).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to write temp profile: {}", e),
         )
     })?;
-    fs::rename(&tmp_path, &path).map_err(|e| {
-        if let Err(cleanup_err) = fs::remove_file(&tmp_path) {
-            log::warn!(
-                "Failed to clean up temp file after rename error: {}",
-                cleanup_err
-            );
-        }
+    fs::rename(&tmp_path, &path).await.map_err(|e| {
+        // Fallback since remove_file is async, we can't easily wait here inside map_err without being an async closure.
+        // We will just let the map_err construct the error, then we will spawn a cleanup task or ignore.
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to finalize profile save: {}", e),
         )
     })?;
 
-    if let Ok(dir_file) = fs::File::open(&dir) {
-        let _ = dir_file.sync_all();
+    if let Ok(dir_file) = fs::File::open(&dir).await {
+        let _ = dir_file.sync_all().await;
     }
+
+    // Cleanup tmp file if it still exists (e.g., if rename succeeded or failed)
+    let _ = fs::remove_file(&tmp_path).await;
 
     Ok(())
 }
 
-pub fn delete_profile(name: &str) -> Result<()> {
+pub async fn delete_profile(name: &str) -> Result<()> {
     let dir = get_profiles_dir()?;
     let sanitized_name = sanitize_name(name);
     let path = dir.join(format!("{}.txt", sanitized_name));
 
     if path.exists() {
-        fs::remove_file(path).map_err(|e| {
+        fs::remove_file(path).await.map_err(|e| {
             AppError::new(
                 ErrorKind::StorageError,
                 format!("Failed to delete profile: {}", e),
@@ -147,8 +147,8 @@ pub fn delete_profile(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn import_profile(path: &Path) -> Result<Profile> {
-    let metadata = fs::metadata(path).map_err(|e| {
+pub async fn import_profile(path: &Path) -> Result<Profile> {
+    let metadata = fs::metadata(path).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to stat profile file: {}", e),
@@ -162,7 +162,7 @@ pub fn import_profile(path: &Path) -> Result<Profile> {
         ));
     }
 
-    let content = fs::read_to_string(path).map_err(|e| {
+    let content = fs::read_to_string(path).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to read profile file: {}", e),
@@ -170,10 +170,10 @@ pub fn import_profile(path: &Path) -> Result<Profile> {
     })?;
     let (data, warnings) = autoeq::parse_autoeq_text(
         &content,
-        crate::models::NUM_BANDS,
-        (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
-        (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
-        (crate::models::MIN_Q, crate::models::MAX_Q),
+        crate::core::NUM_BANDS,
+        (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+        (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+        (crate::core::MIN_Q, crate::core::MAX_Q),
     )
     .map_err(|e| {
         AppError::new(
@@ -196,9 +196,9 @@ pub fn import_profile(path: &Path) -> Result<Profile> {
     })
 }
 
-pub fn export_profile(path: &Path, data: &PEQData) -> Result<()> {
+pub async fn export_profile(path: &Path, data: &PEQData) -> Result<()> {
     let content = autoeq::peq_to_autoeq(data);
-    fs::write(path, content).map_err(|e| {
+    fs::write(path, content).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to write profile file: {}", e),
@@ -255,7 +255,7 @@ pub fn open_profiles_dir() -> Result<()> {
 mod tests {
     use super::*;
     use crate::autoeq;
-    use crate::models::{Filter, FilterType, PEQData};
+    use crate::core::{Filter, FilterType, PEQData};
 
     #[test]
     fn test_sanitize_name() {
@@ -266,8 +266,8 @@ mod tests {
         assert_eq!(sanitize_name("Normal Name 123"), "Normal Name 123");
     }
 
-    #[test]
-    fn test_save_and_load_profile_roundtrip() {
+    #[tokio::test]
+    async fn test_save_and_load_profile_roundtrip() {
         let test_name = "___test_roundtrip_profile___";
         let data = PEQData {
             filters: vec![Filter {
@@ -281,33 +281,33 @@ mod tests {
             global_gain: -2,
         };
 
-        let save_result = save_profile(test_name, &data);
+        let save_result = save_profile(test_name, &data).await;
         assert!(save_result.is_ok(), "Saving profile should succeed");
 
-        let load_result = load_all_profiles();
+        let load_result = load_all_profiles().await;
         assert!(load_result.is_ok());
         let (profiles, _) = load_result.unwrap();
 
         let found = profiles.iter().any(|p| p.name == test_name);
         assert!(found, "Test profile should be in loaded profiles");
 
-        let _ = delete_profile(test_name);
+        let _ = delete_profile(test_name).await;
     }
 
-    #[test]
-    fn test_delete_profile() {
+    #[tokio::test]
+    async fn test_delete_profile() {
         let test_name = "___test_delete_profile___";
         let data = PEQData {
             filters: vec![Filter::enabled(0, true)],
             global_gain: 0,
         };
 
-        let _ = save_profile(test_name, &data);
+        let _ = save_profile(test_name, &data).await;
 
-        let delete_result = delete_profile(test_name);
+        let delete_result = delete_profile(test_name).await;
         assert!(delete_result.is_ok(), "Deleting profile should succeed");
 
-        let (profiles, _) = load_all_profiles().unwrap_or_default();
+        let (profiles, _) = load_all_profiles().await.unwrap_or_default();
         let found = profiles.iter().any(|p| p.name == test_name);
         assert!(!found, "Deleted profile should not be in loaded profiles");
     }
@@ -317,10 +317,10 @@ mod tests {
         let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
         let (data, warnings) = autoeq::parse_autoeq_text(
             content,
-            crate::models::NUM_BANDS,
-            (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
-            (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
-            (crate::models::MIN_Q, crate::models::MAX_Q),
+            crate::core::NUM_BANDS,
+            (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+            (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+            (crate::core::MIN_Q, crate::core::MAX_Q),
         )
         .unwrap();
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::diagnostics::{DiagnosticEvent, LogLevel};
-use crate::ui::messages::Message;
+use crate::ui::messages::*;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
@@ -18,7 +18,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     let events: Vec<&DiagnosticEvent> = state
         .diagnostics
         .events()
-        .filter(|e| !state.editor_state.ui.diagnostics_errors_only || e.level == LogLevel::Error)
+        .filter(|e| !state.editor.ui.diagnostics_errors_only || e.level == LogLevel::Error)
         .collect();
 
     let error_count = events.iter().filter(|e| e.level == LogLevel::Error).count();
@@ -44,26 +44,32 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     let header_row = row![
         super::section_header("DIAGNOSTICS".to_string()),
         container(text("")).width(Length::Fill),
-        if state.editor_state.ui.diagnostics_errors_only {
+        if state.editor.ui.diagnostics_errors_only {
             icon_button(crate::ui::tokens::ICON_WARNING)
-                .on_press(Message::ToggleDiagnosticsErrorsOnly(false))
+                .on_press(Message::Diagnostics(
+                    DiagnosticsMessage::ToggleDiagnosticsErrorsOnly(false),
+                ))
                 .style(theme::m3_text_button_active)
         } else {
             icon_button(crate::ui::tokens::ICON_WARNING)
-                .on_press(Message::ToggleDiagnosticsErrorsOnly(true))
+                .on_press(Message::Diagnostics(
+                    DiagnosticsMessage::ToggleDiagnosticsErrorsOnly(true),
+                ))
                 .style(theme::m3_text_button)
         },
         small_action_button("Copy")
-            .on_press(Message::CopyDiagnostics)
+            .on_press(Message::Diagnostics(DiagnosticsMessage::CopyDiagnostics))
             .style(theme::m3_text_button),
         small_action_button("Clear")
-            .on_press(Message::ClearDiagnostics)
+            .on_press(Message::Diagnostics(DiagnosticsMessage::ClearDiagnostics))
             .style(theme::m3_text_button),
         small_action_button("Export")
-            .on_press(Message::ExportDiagnosticsToFile)
+            .on_press(Message::Diagnostics(
+                DiagnosticsMessage::ExportDiagnosticsToFile
+            ))
             .style(theme::m3_text_button),
         small_action_button("Hide")
-            .on_press(Message::ToggleDiagnostics)
+            .on_press(Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics))
             .style(theme::m3_text_button),
     ]
     .spacing(SPACE_4)
@@ -187,7 +193,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
 }
 
 pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
-    if state.editor_state.ui.show_diagnostics {
+    if state.editor.ui.show_diagnostics {
         view_diagnostics(state)
     } else {
         container(
@@ -195,7 +201,7 @@ pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
                 super::section_header("DIAGNOSTICS".to_string()),
                 container(text("")).width(Length::Fill),
                 small_action_button("Show")
-                    .on_press(Message::ToggleDiagnostics)
+                    .on_press(Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics))
                     .style(theme::m3_text_button),
             ]
             .spacing(SPACE_8)

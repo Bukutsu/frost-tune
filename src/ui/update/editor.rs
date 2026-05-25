@@ -1,11 +1,12 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::*;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
-use crate::models::*;
+use crate::ui::components::editor::{ConfirmAction, DraftFilter};
 use crate::ui::main_window::parse_freq_string;
-use crate::ui::messages::{Message, StatusSeverity};
-use crate::ui::state::{ConfirmAction, DraftFilter, MainWindow};
+use crate::ui::messages::*;
+use crate::ui::state::MainWindow;
 use iced::Task;
 
 fn handle_band_text_input(
@@ -14,7 +15,7 @@ fn handle_band_text_input(
     s: String,
     setter: impl FnOnce(&mut DraftFilter, String),
 ) {
-    let filter = match window.editor_state.data.filters.get(index) {
+    let filter = match window.editor.data.filters.get(index) {
         Some(f) => f,
         None => {
             log::error!("Band input: index {} out of bounds", index);
@@ -22,7 +23,7 @@ fn handle_band_text_input(
         }
     };
     let draft = window
-        .editor_state
+        .editor
         .session
         .input_buffer
         .active_draft
@@ -34,9 +35,9 @@ fn handle_band_text_input(
 }
 
 fn cancel_band_draft_input(window: &mut MainWindow, index: usize) {
-    if let Some(draft) = window.editor_state.session.input_buffer.active_draft.take() {
+    if let Some(draft) = window.editor.session.input_buffer.active_draft.take() {
         if draft.index != index {
-            window.editor_state.session.input_buffer.active_draft = Some(draft);
+            window.editor.session.input_buffer.active_draft = Some(draft);
         }
     }
 }
@@ -46,18 +47,18 @@ fn commit_band_field(
     index: usize,
     parse_and_apply: impl FnOnce(&mut Filter, &mut DraftFilter) -> bool,
 ) -> Task<Message> {
-    if let Some(mut draft) = window.editor_state.session.input_buffer.active_draft.take() {
+    if let Some(mut draft) = window.editor.session.input_buffer.active_draft.take() {
         if draft.index == index {
-            window.editor_state.push_undo();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+            window.editor.push_undo();
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 if parse_and_apply(band, &mut draft) {
-                    window.editor_state.session.is_dirty = true;
+                    window.editor.session.is_dirty = true;
                 } else {
-                    window.editor_state.session.input_buffer.active_draft = Some(draft);
+                    window.editor.session.input_buffer.active_draft = Some(draft);
                 }
             }
         } else {
-            window.editor_state.session.input_buffer.active_draft = Some(draft);
+            window.editor.session.input_buffer.active_draft = Some(draft);
         }
     }
     Task::none()
@@ -65,60 +66,60 @@ fn commit_band_field(
 
 pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::BandFreqChanged(index, freq) => {
-            window.editor_state.push_undo();
+        Message::Editor(EditorMessage::BandFreqChanged(index, freq)) => {
+            window.editor.push_undo();
             let freq_range = window.freq_range();
             let gain_range = window.gain_range();
             let q_range = window.q_range();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 band.freq = freq;
                 band.enabled = true;
                 band.clamp(freq_range, gain_range, q_range);
-                window.editor_state.session.is_dirty = true;
+                window.editor.session.is_dirty = true;
             }
             Task::none()
         }
-        Message::BandTypeChanged(index, t) => {
-            window.editor_state.push_undo();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+        Message::Editor(EditorMessage::BandTypeChanged(index, t)) => {
+            window.editor.push_undo();
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 band.filter_type = t;
-                window.editor_state.session.is_dirty = true;
+                window.editor.session.is_dirty = true;
             }
             Task::none()
         }
-        Message::BandEnabledToggled(index, en) => {
+        Message::Editor(EditorMessage::BandEnabledToggled(index, en)) => {
             if !window.supports_per_band_enable() {
                 return Task::none();
             }
-            window.editor_state.push_undo();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+            window.editor.push_undo();
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 band.enabled = en;
-                window.editor_state.session.is_dirty = true;
+                window.editor.session.is_dirty = true;
             }
             Task::none()
         }
-        Message::BandFreqInput(index, s) => {
+        Message::Editor(EditorMessage::BandFreqInput(index, s)) => {
             handle_band_text_input(window, index, s, |draft, val| {
                 draft.freq_input = val;
                 draft.freq_error = None;
             });
             Task::none()
         }
-        Message::BandGainInput(index, s) => {
+        Message::Editor(EditorMessage::BandGainInput(index, s)) => {
             handle_band_text_input(window, index, s, |draft, val| {
                 draft.gain_input = val;
                 draft.gain_error = None;
             });
             Task::none()
         }
-        Message::BandQInput(index, s) => {
+        Message::Editor(EditorMessage::BandQInput(index, s)) => {
             handle_band_text_input(window, index, s, |draft, val| {
                 draft.q_input = val;
                 draft.q_error = None;
             });
             Task::none()
         }
-        Message::BandFreqInputCommit(index) => {
+        Message::Editor(EditorMessage::BandFreqInputCommit(index)) => {
             let (min, max) = window.freq_range();
             commit_band_field(window, index, move |band, draft| {
                 if let Some(v) = parse_freq_string(&draft.freq_input) {
@@ -131,7 +132,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 }
             })
         }
-        Message::BandGainInputCommit(index) => {
+        Message::Editor(EditorMessage::BandGainInputCommit(index)) => {
             let (min, max) = window.gain_range();
             commit_band_field(window, index, move |band, draft| {
                 match draft.gain_input.trim().parse::<f64>() {
@@ -151,7 +152,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 }
             })
         }
-        Message::BandQInputCommit(index) => {
+        Message::Editor(EditorMessage::BandQInputCommit(index)) => {
             let (min, max) = window.q_range();
             commit_band_field(window, index, move |band, draft| {
                 match draft.q_input.trim().parse::<f64>() {
@@ -171,34 +172,28 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 }
             })
         }
-        Message::BandFreqInputCancel(index) => {
+        Message::Editor(EditorMessage::BandFreqInputCancel(index)) => {
             cancel_band_draft_input(window, index);
             Task::none()
         }
-        Message::BandGainInputCancel(index) => {
+        Message::Editor(EditorMessage::BandGainInputCancel(index)) => {
             cancel_band_draft_input(window, index);
             Task::none()
         }
-        Message::BandQInputCancel(index) => {
+        Message::Editor(EditorMessage::BandQInputCancel(index)) => {
             cancel_band_draft_input(window, index);
             Task::none()
         }
-        Message::BandFreqSliderChanged(index, v) => {
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+        Message::Editor(EditorMessage::BandFreqSliderChanged(index, v)) => {
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 let hz = 10f64.powf(v).round() as u16;
-                band.freq = if window.editor_state.ui.snap_to_iso_enabled {
+                band.freq = if window.editor.ui.snap_to_iso_enabled {
                     snap_freq_to_iso(hz)
                 } else {
                     hz
                 };
-                window.editor_state.session.is_dirty = true;
-                if let Some(draft) = window
-                    .editor_state
-                    .session
-                    .input_buffer
-                    .active_draft
-                    .as_mut()
-                {
+                window.editor.session.is_dirty = true;
+                if let Some(draft) = window.editor.session.input_buffer.active_draft.as_mut() {
                     if draft.index == index {
                         draft.freq_input = band.freq.to_string();
                     }
@@ -206,23 +201,17 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             }
             Task::none()
         }
-        Message::BandFreqSliderReleased(_index) => {
-            window.editor_state.push_undo();
+        Message::Editor(EditorMessage::BandFreqSliderReleased(_index)) => {
+            window.editor.push_undo();
             Task::none()
         }
-        Message::BandGainChanged(index, v) => {
+        Message::Editor(EditorMessage::BandGainChanged(index, v)) => {
             let (min_gain, max_gain) = window.gain_range();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 band.gain = v.clamp(min_gain, max_gain);
                 band.enabled = true;
-                window.editor_state.session.is_dirty = true;
-                if let Some(draft) = window
-                    .editor_state
-                    .session
-                    .input_buffer
-                    .active_draft
-                    .as_mut()
-                {
+                window.editor.session.is_dirty = true;
+                if let Some(draft) = window.editor.session.input_buffer.active_draft.as_mut() {
                     if draft.index == index {
                         draft.gain_input = format!("{:.2}", band.gain);
                     }
@@ -230,23 +219,17 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             }
             Task::none()
         }
-        Message::BandGainReleased(_index) => {
-            window.editor_state.push_undo();
+        Message::Editor(EditorMessage::BandGainReleased(_index)) => {
+            window.editor.push_undo();
             Task::none()
         }
-        Message::BandQChanged(index, v) => {
-            window.editor_state.push_undo();
-            if let Some(band) = window.editor_state.data.filters.get_mut(index) {
+        Message::Editor(EditorMessage::BandQChanged(index, v)) => {
+            window.editor.push_undo();
+            if let Some(band) = window.editor.data.filters.get_mut(index) {
                 let q_val = 10f64.powf(v);
                 band.q = snap_q_to_iso(q_val);
-                window.editor_state.session.is_dirty = true;
-                if let Some(draft) = window
-                    .editor_state
-                    .session
-                    .input_buffer
-                    .active_draft
-                    .as_mut()
-                {
+                window.editor.session.is_dirty = true;
+                if let Some(draft) = window.editor.session.input_buffer.active_draft.as_mut() {
                     if draft.index == index {
                         draft.q_input = format!("{:.2}", band.q);
                     }
@@ -254,92 +237,91 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
             }
             Task::none()
         }
-        Message::GlobalGainChanged(gain) => {
-            window.editor_state.push_undo();
+        Message::Editor(EditorMessage::GlobalGainChanged(gain)) => {
+            window.editor.push_undo();
             let gain_range = window.global_gain_range();
-            window.editor_state.data.global_gain =
-                gain.clamp(*gain_range.start(), *gain_range.end());
-            window.editor_state.session.is_dirty = true;
+            window.editor.data.global_gain = gain.clamp(*gain_range.start(), *gain_range.end());
+            window.editor.session.is_dirty = true;
             Task::none()
         }
-        Message::ResetFiltersPressed => {
-            window.editor_state.session.pending_confirm = ConfirmAction::ResetFilters;
+        Message::Editor(EditorMessage::ResetFiltersPressed) => {
+            window.editor.session.pending_confirm = ConfirmAction::ResetFilters;
             Task::none()
         }
-        Message::ConfirmResetFilters => {
+        Message::Editor(EditorMessage::ConfirmResetFilters) => {
             let num_bands = window.num_bands();
             if matches!(
-                window.editor_state.session.pending_confirm,
+                window.editor.session.pending_confirm,
                 ConfirmAction::ResetFilters
             ) {
-                window.editor_state.push_undo();
-                window.editor_state.data.filters.clear();
+                window.editor.push_undo();
+                window.editor.data.filters.clear();
                 for i in 0..num_bands {
                     window
-                        .editor_state
+                        .editor
                         .data
                         .filters
                         .push(Filter::enabled(i as u8, false));
                 }
-                window.editor_state.data.global_gain = 0;
-                window.editor_state.session.is_dirty = true;
-                window.editor_state.session.is_autoeq_active = false;
-                window.editor_state.session.input_buffer.active_draft = None;
-                window.editor_state.ui.selected_profile_name = None;
-                window.editor_state.ui.eq_source = crate::ui::state::EqSource::Default;
+                window.editor.data.global_gain = 0;
+                window.editor.session.is_dirty = true;
+                window.editor.session.is_autoeq_active = false;
+                window.editor.session.input_buffer.active_draft = None;
+                window.editor.ui.selected_profile_name = None;
+                window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Default;
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,
                     "Reset filters to default",
                 ));
-                window.editor_state.session.pending_confirm = ConfirmAction::None;
+                window.editor.session.pending_confirm = ConfirmAction::None;
                 window.set_status("Filters reset to default", StatusSeverity::Info)
             } else {
                 Task::none()
             }
         }
-        Message::ToggleDiagnostics => {
-            window.editor_state.ui.show_diagnostics = !window.editor_state.ui.show_diagnostics;
+        Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics) => {
+            window.editor.ui.show_diagnostics = !window.editor.ui.show_diagnostics;
             Task::none()
         }
 
-        Message::Undo => {
-            if let Some(prev) = window.editor_state.session.undo_stack.pop() {
-                let current = crate::models::PEQData {
-                    filters: window.editor_state.data.filters.clone(),
-                    global_gain: window.editor_state.data.global_gain,
+        Message::Editor(EditorMessage::Undo) => {
+            if let Some(prev) = window.editor.session.undo_stack.pop() {
+                let current = crate::core::PEQData {
+                    filters: window.editor.data.filters.clone(),
+                    global_gain: window.editor.data.global_gain,
                 };
-                window.editor_state.session.redo_stack.push(current);
-                window.editor_state.data.filters = prev.filters;
-                window.editor_state.data.global_gain = prev.global_gain;
-                window.editor_state.data.generation += 1;
-                window.editor_state.session.is_dirty = true;
-                window.editor_state.session.input_buffer.active_draft = None;
+                window.editor.session.redo_stack.push(current);
+                window.editor.data.filters = prev.filters;
+                window.editor.data.global_gain = prev.global_gain;
+                window.editor.data.generation += 1;
+                window.editor.session.is_dirty = true;
+                window.editor.session.input_buffer.active_draft = None;
             }
             Task::none()
         }
-        Message::Redo => {
-            if let Some(next) = window.editor_state.session.redo_stack.pop() {
-                let current = crate::models::PEQData {
-                    filters: window.editor_state.data.filters.clone(),
-                    global_gain: window.editor_state.data.global_gain,
+        Message::Editor(EditorMessage::Redo) => {
+            if let Some(next) = window.editor.session.redo_stack.pop() {
+                let current = crate::core::PEQData {
+                    filters: window.editor.data.filters.clone(),
+                    global_gain: window.editor.data.global_gain,
                 };
-                window.editor_state.session.undo_stack.push(current);
-                window.editor_state.data.filters = next.filters;
-                window.editor_state.data.global_gain = next.global_gain;
-                window.editor_state.data.generation += 1;
-                window.editor_state.session.is_dirty = true;
-                window.editor_state.session.input_buffer.active_draft = None;
+                window.editor.session.undo_stack.push(current);
+                window.editor.data.filters = next.filters;
+                window.editor.data.global_gain = next.global_gain;
+                window.editor.data.generation += 1;
+                window.editor.session.is_dirty = true;
+                window.editor.session.input_buffer.active_draft = None;
             }
             Task::none()
         }
 
-        Message::ToggleSnapToIso(enabled) => {
-            window.editor_state.ui.snap_to_iso_enabled = enabled;
+        Message::Editor(EditorMessage::ToggleSnapToIso(enabled)) => {
+            window.editor.ui.snap_to_iso_enabled = enabled;
             Task::none()
         }
-        Message::ToggleAutoPullOnConnect(enabled) => {
-            window.editor_state.ui.auto_pull_on_connect = enabled;
+        Message::Editor(EditorMessage::ToggleAutoPullOnConnect(enabled)) => {
+            window.editor.ui.auto_pull_on_connect = enabled;
             // Persist immediately; ignore I/O errors so the toggle still flips in-memory.
             Task::perform(
                 async move {
@@ -353,10 +335,10 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                         )
                     })
                 },
-                |result| Message::SettingsSaved { result },
+                |result| Message::Editor(EditorMessage::SettingsSaved { result }),
             )
         }
-        Message::SettingsSaved { result } => {
+        Message::Editor(EditorMessage::SettingsSaved { result }) => {
             if let Err(e) = result {
                 window
                     .diagnostics

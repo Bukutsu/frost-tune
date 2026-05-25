@@ -9,6 +9,9 @@
 
 pub mod device;
 pub mod eq;
+pub mod ipc;
 
-pub use device::Device;
-pub use eq::{Filter, FilterType, PEQData};
+pub use device::{Device, DeviceCapabilities, DeviceInfo, FilterTypeFlags};
+pub use eq::constants::*;
+pub use eq::{snap_freq_to_iso, snap_gain_step, snap_q_to_iso, Filter, FilterType, PEQData};
+pub use ipc::*;

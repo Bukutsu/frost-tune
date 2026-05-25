@@ -1,12 +1,9 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
 use crate::hardware::worker::{BackendKind, UsbWorker, WorkerStatus};
-use crate::models::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
 use std::sync::Arc;
-use tokio::sync::oneshot;
-
-/// Facade wrapping the low-level UsbWorker background thread and USB interface.
 #[derive(Clone)]
 pub struct HardwareService {
     worker: Arc<UsbWorker>,
@@ -27,32 +24,32 @@ impl HardwareService {
     }
 
     /// Attempts to connect to a specific USB DAC device using the specified backend.
-    pub fn connect(
+    pub async fn connect(
         &self,
         device: Option<DeviceInfo>,
         backend: Option<BackendKind>,
-    ) -> oneshot::Receiver<ConnectionResult> {
-        self.worker.connect(device, backend)
+    ) -> Result<ConnectionResult, String> {
+        self.worker.connect(device, backend).await
     }
 
     /// Disconnects from the current USB DAC device.
-    pub fn disconnect(&self) -> oneshot::Receiver<OperationResult> {
-        self.worker.disconnect()
+    pub async fn disconnect(&self) -> Result<OperationResult, String> {
+        self.worker.disconnect().await
     }
 
     /// Polls the current worker/connection status.
-    pub fn status(&self) -> oneshot::Receiver<WorkerStatus> {
-        self.worker.status()
+    pub async fn status(&self) -> Result<WorkerStatus, String> {
+        self.worker.status().await
     }
 
     /// Pulls the active PEQ state/filters from the connected USB DAC device.
-    pub fn pull_peq(&self) -> oneshot::Receiver<OperationResult> {
-        self.worker.pull_peq()
+    pub async fn pull_peq(&self) -> Result<OperationResult, String> {
+        self.worker.pull_peq().await
     }
 
     /// Pushes a new PEQ configuration to the connected USB DAC device.
-    pub fn push_peq(&self, payload: PushPayload) -> oneshot::Receiver<OperationResult> {
-        self.worker.push_peq(payload)
+    pub async fn push_peq(&self, payload: PushPayload) -> Result<OperationResult, String> {
+        self.worker.push_peq(payload).await
     }
 }
 

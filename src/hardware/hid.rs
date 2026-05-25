@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::{Device, DeviceInfo, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
 use crate::hardware::packet_format::ReadTiming;
 use crate::hardware::protocol::DeviceProtocol;
-use crate::models::{Device, DeviceInfo, Filter, PEQData};
 
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
 pub const MAX_GLOBAL_GAIN_ATTEMPTS: u8 = 20;
@@ -253,11 +253,11 @@ fn validate_filter_reads(strict: bool, had_mismatch: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::FilterType;
     use crate::hardware::packet_format::{
         CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, READ,
         WRITE,
     };
-    use crate::models::FilterType;
 
     #[allow(dead_code)]
     struct TestProtocol;

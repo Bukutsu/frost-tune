@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::{DeviceInfo, Filter};
 use crate::error::{AppError, ErrorKind};
-use crate::models::{DeviceInfo, Filter};
 use serde::{Deserialize, Serialize};
 
 pub const IPC_VERSION: &str = "1.2.0";

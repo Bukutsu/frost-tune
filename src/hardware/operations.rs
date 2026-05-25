@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::{Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 use crate::hardware::protocol::DeviceProtocol;
-use crate::models::{Filter, PEQData};
 
 pub fn pull_peq_data(
     d: &hidapi::HidDevice,
@@ -131,14 +131,14 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Filter, PEQData};
+    use crate::core::{Filter, PEQData};
 
     fn make_filter(
         index: u8,
         freq: u16,
         gain: f64,
         q: f64,
-        filter_type: crate::models::FilterType,
+        filter_type: crate::core::FilterType,
     ) -> Filter {
         Filter {
             index,
@@ -157,7 +157,7 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let data = PEQData {
             filters: filters.clone(),
@@ -173,7 +173,7 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let mut data = PEQData {
             filters: filters.clone(),
@@ -195,7 +195,7 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let mut data = PEQData {
             filters: filters.clone(),
@@ -213,7 +213,7 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let mut data = PEQData {
             filters: filters.clone(),
@@ -231,7 +231,7 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let data = PEQData {
             filters: filters.clone(),
@@ -248,13 +248,13 @@ mod tests {
             1000,
             5.0,
             1.0,
-            crate::models::FilterType::Peak,
+            crate::core::FilterType::Peak,
         )];
         let mut data = PEQData {
             filters: filters.clone(),
             global_gain: 0,
         };
-        data.filters[0].filter_type = crate::models::FilterType::LowShelf;
+        data.filters[0].filter_type = crate::core::FilterType::LowShelf;
         let result = compare_peq(&data, &filters, 0);
         assert!(result.is_err());
     }

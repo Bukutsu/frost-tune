@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::models::{Filter, FilterType, PEQData, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
+use crate::core::{Filter, FilterType, PEQData, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
 
 pub fn parse_autoeq_text(
     text: &str,
@@ -209,9 +209,7 @@ pub fn peq_to_autoeq(peq: &PEQData) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        MAX_BAND_GAIN, MAX_FREQ, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_Q, NUM_BANDS,
-    };
+    use crate::core::{MAX_BAND_GAIN, MAX_FREQ, MAX_Q, MIN_BAND_GAIN, MIN_FREQ, MIN_Q, NUM_BANDS};
 
     #[test]
     fn test_parse_autoeq_with_preamp() {

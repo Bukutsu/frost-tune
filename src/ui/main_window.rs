@@ -1,13 +1,18 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::Filter;
 use crate::diagnostics::{
     parse_diagnostic_log_line, DiagnosticEvent, DiagnosticsStore, LogLevel, Source,
 };
 use crate::hardware::worker::UsbWorker;
-use crate::models::Filter;
-use crate::ui::messages::{Message, StatusMessage, StatusSeverity};
-use crate::ui::state::{ConfirmAction, ConnectionStatus, EditorState, MainWindow};
+use crate::ui::components::connection::{ConnectionComponent, ConnectionStatus};
+use crate::ui::components::editor::{ConfirmAction, EditorComponent};
+use crate::ui::messages::{
+    AutoEqMessage, ConnectionMessage, EditorMessage, Message, ProfilesMessage, StatusMessage,
+    StatusSeverity,
+};
+use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     LAYOUT_DEVICES_MAX_WIDTH, LAYOUT_WINDOW_MIN_HEIGHT, LAYOUT_WINDOW_MIN_WIDTH, SPACE_0, SPACE_16,
@@ -81,25 +86,28 @@ impl MainWindow {
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
         let settings = crate::storage::load_settings();
         let window = MainWindow {
-            editor_state: EditorState {
-                data: crate::ui::state::EditorData {
+            editor: EditorComponent {
+                data: crate::ui::components::editor::EditorData {
                     filters: default_filters,
                     ..Default::default()
                 },
-                ui: crate::ui::state::EditorUI {
+                ui: crate::ui::components::editor::EditorUI {
                     snap_to_iso_enabled: true,
                     auto_pull_on_connect: settings.auto_pull_on_connect,
                     ..Default::default()
                 },
                 ..Default::default()
             },
-            worker: Some(worker),
+            connection: ConnectionComponent {
+                worker: Some(worker),
+                ..Default::default()
+            },
             diagnostics,
             ..Default::default()
         };
         let load_profiles_task = Task::perform(
-            async move { crate::storage::load_all_profiles() },
-            Message::ProfilesLoaded,
+            async move { crate::storage::load_all_profiles().await },
+            |result| Message::Profiles(ProfilesMessage::ProfilesLoaded(result)),
         );
         let load_font_task =
             iced::font::load(crate::ui::tokens::ICON_FONT_BYTES).map(|_| Message::None);
@@ -115,7 +123,7 @@ impl MainWindow {
     }
 
     fn title(&self) -> String {
-        if self.editor_state.session.is_dirty {
+        if self.editor.session.is_dirty {
             "Frost-Tune *".into()
         } else {
             "Frost-Tune".into()
@@ -148,22 +156,22 @@ impl MainWindow {
                 format!("Status set: {}", content),
             ));
         }
-        let should_auto_clear = self.status_should_auto_clear(severity);
+        let should_auto_clear = self.status_should_auto_clear(severity.clone());
         let id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
 
-        self.editor_state.session.status_message = Some(StatusMessage {
-            id,
+        self.editor.session.status_message = Some(StatusMessage {
+            id: id as usize,
             content,
             severity,
-            created_at: chrono::Local::now().to_rfc3339(),
+            timestamp: std::time::Instant::now(),
         });
         if should_auto_clear {
             Task::perform(
                 async { tokio::time::sleep(Self::status_auto_clear_duration()).await },
-                move |_| Message::ClearStatusMessage(id),
+                move |_| Message::ClearStatusMessage(id as usize),
             )
         } else {
             Task::none()
@@ -175,10 +183,10 @@ impl MainWindow {
     }
 
     pub fn status_should_auto_clear(&self, severity: StatusSeverity) -> bool {
-        if self.operation_lock.is_connecting
-            || self.operation_lock.is_disconnecting
-            || self.operation_lock.is_pulling
-            || self.operation_lock.is_pushing
+        if self.connection.operation_lock.is_connecting
+            || self.connection.operation_lock.is_disconnecting
+            || self.connection.operation_lock.is_pulling
+            || self.connection.operation_lock.is_pushing
         {
             return false;
         }
@@ -186,7 +194,7 @@ impl MainWindow {
     }
 
     pub fn header_status_message(&self) -> String {
-        match &self.connection_status {
+        match &self.connection.status {
             ConnectionStatus::Disconnected => "Disconnected".to_string(),
             ConnectionStatus::Connecting => "Connecting…".to_string(),
             ConnectionStatus::Connected => "Connected".to_string(),
@@ -195,7 +203,7 @@ impl MainWindow {
     }
 
     pub fn status_banner_message(&self) -> Option<String> {
-        self.editor_state
+        self.editor
             .session
             .status_message
             .as_ref()
@@ -203,16 +211,16 @@ impl MainWindow {
     }
 
     pub fn disabled_reason_for_action(&self, action: &str) -> Option<String> {
-        if let ConnectionStatus::Error(e) = &self.connection_status {
+        if let ConnectionStatus::Error(e) = &self.connection.status {
             return Some(format!("Error: {}", e));
         }
 
         match action {
             "connect" => {
-                if self.connection_status == ConnectionStatus::Disconnected {
+                if self.connection.status == ConnectionStatus::Disconnected {
                     None
-                } else if self.operation_lock.is_connecting
-                    || self.connection_status == ConnectionStatus::Connecting
+                } else if self.connection.operation_lock.is_connecting
+                    || self.connection.status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device…".to_string())
                 } else {
@@ -220,12 +228,12 @@ impl MainWindow {
                 }
             }
             "disconnect" => {
-                if self.operation_lock.is_disconnecting {
+                if self.connection.operation_lock.is_disconnecting {
                     Some("Disconnecting…".to_string())
-                } else if self.connection_status == ConnectionStatus::Disconnected {
+                } else if self.connection.status == ConnectionStatus::Disconnected {
                     Some("Device disconnected".to_string())
-                } else if self.operation_lock.is_connecting
-                    || self.connection_status == ConnectionStatus::Connecting
+                } else if self.connection.operation_lock.is_connecting
+                    || self.connection.status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device…".to_string())
                 } else {
@@ -233,32 +241,32 @@ impl MainWindow {
                 }
             }
             "read" => {
-                if self.connection_status == ConnectionStatus::Disconnected {
+                if self.connection.status == ConnectionStatus::Disconnected {
                     Some("Device disconnected".to_string())
-                } else if self.operation_lock.is_connecting
-                    || self.connection_status == ConnectionStatus::Connecting
+                } else if self.connection.operation_lock.is_connecting
+                    || self.connection.status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device…".to_string())
-                } else if self.operation_lock.is_pulling {
+                } else if self.connection.operation_lock.is_pulling {
                     Some("Pulling…".to_string())
-                } else if self.operation_lock.is_pushing {
+                } else if self.connection.operation_lock.is_pushing {
                     Some("Pushing…".to_string())
                 } else {
                     None
                 }
             }
             "write" => {
-                if self.connection_status == ConnectionStatus::Disconnected {
+                if self.connection.status == ConnectionStatus::Disconnected {
                     Some("Device disconnected".to_string())
-                } else if self.operation_lock.is_connecting
-                    || self.connection_status == ConnectionStatus::Connecting
+                } else if self.connection.operation_lock.is_connecting
+                    || self.connection.status == ConnectionStatus::Connecting
                 {
                     Some("Connecting to device…".to_string())
-                } else if self.editor_state.session.input_buffer.has_errors() {
+                } else if self.editor.session.input_buffer.has_errors() {
                     Some("Resolve input errors first".to_string())
-                } else if self.operation_lock.is_pushing {
+                } else if self.connection.operation_lock.is_pushing {
                     Some("Pushing…".to_string())
-                } else if self.operation_lock.is_pulling {
+                } else if self.connection.operation_lock.is_pulling {
                     Some("Pulling…".to_string())
                 } else {
                     None
@@ -269,22 +277,22 @@ impl MainWindow {
     }
 
     pub fn header_disabled_reason_message(&self) -> Option<String> {
-        if self.operation_lock.is_disconnecting {
+        if self.connection.operation_lock.is_disconnecting {
             return Some("Disconnecting…".to_string());
         }
-        if self.operation_lock.is_connecting {
+        if self.connection.operation_lock.is_connecting {
             return Some("Connecting to device…".to_string());
         }
-        if self.operation_lock.is_pulling {
+        if self.connection.operation_lock.is_pulling {
             return Some("Operation in progress: Reading".to_string());
         }
-        if self.operation_lock.is_pushing {
+        if self.connection.operation_lock.is_pushing {
             return Some("Operation in progress: Writing or Connecting".to_string());
         }
-        if let ConnectionStatus::Error(e) = &self.connection_status {
+        if let ConnectionStatus::Error(e) = &self.connection.status {
             return Some(format!("Error: {}", e));
         }
-        if self.connection_status == ConnectionStatus::Disconnected {
+        if self.connection.status == ConnectionStatus::Disconnected {
             return Some("Device disconnected".to_string());
         }
         None
@@ -310,7 +318,7 @@ impl MainWindow {
         self.active_device().supports_per_band_enable()
     }
 
-    pub fn supported_filter_types(&self) -> crate::models::FilterTypeFlags {
+    pub fn supported_filter_types(&self) -> crate::core::FilterTypeFlags {
         self.active_device().supported_filter_types()
     }
 
@@ -437,19 +445,19 @@ impl MainWindow {
     }
 
     fn with_modal_overlay<'a>(&'a self, main_view: Element<'a, Message>) -> Element<'a, Message> {
-        if let Some(dialog) = match self.editor_state.session.pending_confirm {
+        if let Some(dialog) = match self.editor.session.pending_confirm {
             ConfirmAction::ResetFilters => Some(views::confirm_dialog::view_confirm_dialog(
                 "Reset Filters?".to_string(),
                 "This will reset all 10 bands to default values and set global gain to 0.".to_string(),
                 "Reset",
-                Message::ConfirmResetFilters,
+                Message::Editor(EditorMessage::ConfirmResetFilters),
                 true,
             )),
             ConfirmAction::DeleteProfile => Some(views::confirm_dialog::view_confirm_dialog(
                 "Delete Profile?".to_string(),
                 "Are you sure you want to delete this profile? This cannot be undone.".to_string(),
                 "Delete",
-                Message::ConfirmDeleteProfile,
+                Message::Profiles(ProfilesMessage::ConfirmDeleteProfile),
                 true,
             )),
             ConfirmAction::ImportAutoEQ { ref data, ref default_name } => {
@@ -461,32 +469,32 @@ impl MainWindow {
                 Some(views::confirm_dialog::view_import_dialog(
                     "Import Profile".to_string(),
                     message,
-                    self.editor_state.session.import_name_input.as_str(),
+                    self.editor.session.import_name_input.as_str(),
                     default_name.as_str(),
-                    &self.editor_state.ui.profiles,
-                    self.editor_state.ui.selected_profile_name.as_deref(),
-                    self.editor_state.session.import_temporary,
+                    &self.editor.ui.profiles,
+                    self.editor.ui.selected_profile_name.as_deref(),
+                    self.editor.session.import_temporary,
                     "Import",
-                    Message::ConfirmImportWithName,
+                    Message::AutoEq(AutoEqMessage::ConfirmImportWithName),
                 ))
             },
             ConfirmAction::OverwriteProfile { ref name, .. } => Some(views::confirm_dialog::view_confirm_dialog(
                 "Overwrite Profile?".to_string(),
                 format!("Profile '{}' already exists. Overwrite?", name),
                 "Overwrite",
-                Message::ConfirmOverwriteProfile,
+                Message::Profiles(ProfilesMessage::ConfirmOverwriteProfile),
                 true,
             )),
             ConfirmAction::PullDevice => Some(views::confirm_dialog::view_confirm_dialog(
                 "Pull from Device?".to_string(),
                 "You have unsaved changes. Pulling from the device will replace your current editor settings with the hardware configuration. Continue?".to_string(),
                 "Discard & Pull",
-                Message::ConfirmPullPressed,
+                Message::Editor(EditorMessage::ConfirmPullPressed),
                 false,
             )),
             ConfirmAction::PushToDevice => {
-                let active = self.editor_state.data.filters.iter().filter(|f| f.enabled).count();
-                let gain = self.editor_state.data.global_gain;
+                let active = self.editor.data.filters.iter().filter(|f| f.enabled).count();
+                let gain = self.editor.data.global_gain;
                 Some(views::confirm_dialog::view_confirm_dialog(
                     "Push to Device?".to_string(),
                     format!(
@@ -494,7 +502,7 @@ impl MainWindow {
                         active, gain
                     ),
                     "Push",
-                    Message::ConfirmPushPressed,
+                    Message::Editor(EditorMessage::ConfirmPushPressed),
                     false,
                 ))
             }
@@ -502,7 +510,7 @@ impl MainWindow {
                 "Unsaved Changes".to_string(),
                 format!("You have unsaved changes. Loading '{}' will replace your current editor settings. Continue?", name),
                 "Discard & Load",
-                Message::ConfirmLoadProfile,
+                Message::Profiles(ProfilesMessage::ConfirmLoadProfile),
                 true,
             )),
             ConfirmAction::ExitWithUnsavedChanges(id) => Some(views::confirm_dialog::view_exit_dialog(
@@ -539,15 +547,15 @@ impl MainWindow {
             .color(crate::ui::tokens::COLOR_ON_SURFACE),]
         .spacing(SPACE_16);
 
-        if self.available_devices.is_empty() {
+        if self.connection.available_devices.is_empty() {
             devices_col = devices_col.push(
                 text("No devices found. Is your DAC plugged in?")
                     .size(TYPE_BODY)
                     .color(crate::ui::tokens::COLOR_ON_SURFACE_VARIANT),
             );
         } else {
-            for dev in self.available_devices.iter() {
-                let dev_type = crate::models::Device::from_vid_pid(dev.vendor_id, dev.product_id);
+            for dev in self.connection.available_devices.iter() {
+                let dev_type = crate::core::Device::from_vid_pid(dev.vendor_id, dev.product_id);
 
                 let dev_row = row![column![
                     text(dev_type.name())
@@ -565,7 +573,9 @@ impl MainWindow {
                 let dev_btn =
                     iced::widget::button(container(dev_row).padding(SPACE_16).width(Length::Fill))
                         .style(theme::device_button_style)
-                        .on_press(Message::ConnectPressed(dev.clone()))
+                        .on_press(Message::Connection(ConnectionMessage::ConnectPressed(
+                            dev.clone(),
+                        )))
                         .width(Length::Fill);
 
                 devices_col = devices_col.push(dev_btn);
@@ -583,7 +593,7 @@ impl MainWindow {
 
     fn view(&self) -> Element<'_, Message> {
         let content: Element<'_, Message> =
-            if self.connection_status == ConnectionStatus::Disconnected {
+            if self.connection.status == ConnectionStatus::Disconnected {
                 container(self.view_disconnected())
                     .padding(SPACE_24)
                     .width(Length::Fill)
@@ -630,30 +640,30 @@ impl MainWindow {
             Message::Tick(std::time::Instant::now())
         }
         let tick_sub = time::repeat(|| Box::pin(tick()), Duration::from_secs(2));
-        let close_sub = iced::window::close_requests().map(Message::WindowCloseRequested);
+        let close_sub = iced::window::close_requests().map(Message::CloseRequested);
         let keyboard_sub = keyboard::listen().filter_map(|event| {
             if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
                 if modifiers.control() {
                     if modifiers.shift() && key == keyboard::Key::Character("Z".into()) {
-                        return Some(Message::Redo);
+                        return Some(Message::Editor(EditorMessage::Redo));
                     }
                     if key == keyboard::Key::Character("z".into()) {
-                        return Some(Message::Undo);
+                        return Some(Message::Editor(EditorMessage::Undo));
                     }
                     if key == keyboard::Key::Character("s".into()) {
-                        return Some(Message::SaveProfilePressed);
+                        return Some(Message::Profiles(ProfilesMessage::SaveProfilePressed));
                     }
                     if key == keyboard::Key::Character("r".into()) {
-                        return Some(Message::PullPressed);
+                        return Some(Message::Editor(EditorMessage::PullPressed));
                     }
                     if modifiers.shift() && key == keyboard::Key::Character("r".into()) {
-                        return Some(Message::ResetFiltersPressed);
+                        return Some(Message::Editor(EditorMessage::ResetFiltersPressed));
                     }
                     if key == keyboard::Key::Named(keyboard::key::Named::Enter) {
-                        return Some(Message::PushPressed);
+                        return Some(Message::Editor(EditorMessage::PushPressed));
                     }
                     if key == keyboard::Key::Character("v".into()) {
-                        return Some(Message::ImportFromClipboard);
+                        return Some(Message::AutoEq(AutoEqMessage::ImportFromClipboard));
                     }
                 }
                 if key == keyboard::Key::Named(keyboard::key::Named::Escape) {
@@ -667,7 +677,7 @@ impl MainWindow {
         } else {
             iced::event::listen_with(|event, _status, _id| {
                 if let iced::Event::Window(iced::window::Event::FileDropped(path)) = event {
-                    Some(Message::FileImported(Some(path)))
+                    Some(Message::Profiles(ProfilesMessage::FileImported(Some(path))))
                 } else {
                     None
                 }

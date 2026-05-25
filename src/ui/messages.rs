@@ -1,140 +1,56 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::error::AppError;
-use crate::hardware::worker::WorkerStatus;
-use crate::models::{ConnectionResult, DeviceInfo, OperationResult};
-use crate::storage::Profile;
+pub use crate::ui::components::autoeq::AutoEqMessage;
+pub use crate::ui::components::connection::ConnectionMessage;
+pub use crate::ui::components::diagnostics::DiagnosticsMessage;
+pub use crate::ui::components::editor::EditorMessage;
+pub use crate::ui::components::profiles::ProfilesMessage;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StatusSeverity {
     Info,
-    Success,
     Warning,
     Error,
+    Success,
 }
 
 #[derive(Debug, Clone)]
 pub struct StatusMessage {
-    pub id: u64,
+    pub id: usize,
     pub content: String,
     pub severity: StatusSeverity,
-    pub created_at: String,
+    pub timestamp: std::time::Instant,
+}
+
+#[derive(Debug, Clone)]
+pub enum SaveContext {
+    Standard,
+    Exit(iced::window::Id),
+    LoadProfile(String),
+    ImportOverwrite,
+    ImportWithName,
+    Overwrite,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
-    ConnectPressed(DeviceInfo),
-    DisconnectPressed,
-    PullPressed,
-    ConfirmPullPressed,
-    PushPressed,
-    ConfirmPushPressed,
-    WorkerConnected(ConnectionResult),
-    WorkerDisconnected(OperationResult),
-    WorkerPulled(OperationResult),
-    WorkerPushed(OperationResult),
-    WorkerStatus(WorkerStatus),
+
+    Connection(ConnectionMessage),
+    Editor(EditorMessage),
+    Profiles(ProfilesMessage),
+    AutoEq(AutoEqMessage),
+    Diagnostics(DiagnosticsMessage),
+
     Tick(std::time::Instant),
-    BandGainChanged(usize, f64),
-    BandFreqChanged(usize, u16),
-    BandQChanged(usize, f64),
-    BandTypeChanged(usize, crate::models::FilterType),
-    BandEnabledToggled(usize, bool),
-    BandGainInput(usize, String),
-    BandFreqInput(usize, String),
-    BandQInput(usize, String),
-    BandFreqSliderChanged(usize, f64),
-    BandFreqSliderReleased(usize),
-    BandGainReleased(usize),
-    BandFreqInputCommit(usize),
-    BandGainInputCommit(usize),
-    BandQInputCommit(usize),
-    BandFreqInputCancel(usize),
-    BandGainInputCancel(usize),
-    BandQInputCancel(usize),
-    GlobalGainChanged(i8),
-    ResetFiltersPressed,
-    ConfirmResetFilters,
-    ImportNameInput(String),
-    ConfirmImportWithName,
-    ConfirmOverwriteProfile,
-    ImportDirectlyToEditor,
-    ImportOverwriteActive,
-    ImportProfileSelected(String),
-    ImportTemporaryToggled(bool),
-    ImportFromClipboard,
-    ImportClipboardReceived(String),
-    ImportClipboardFailed(String),
-    ExportAutoEQPressed,
-    ExportComplete,
-    CopyDiagnostics,
-    ClearDiagnostics,
-    ToggleDiagnostics,
-    ToggleDiagnosticsErrorsOnly(bool),
-    ExportDiagnosticsToFile,
-    DiagnosticsExported(String),
-    ProfilesLoaded(Result<(Vec<Profile>, Vec<String>), AppError>),
-    ProfilesDirMtimeChecked(Option<std::time::SystemTime>),
-    WorkerBackendReset,
-    ReloadProfilesPressed,
-    OpenProfilesDirPressed,
-
-    ProfileSelected(String),
-    ProfileNameInput(String),
-    SaveProfilePressed,
-    ConfirmDeleteProfile,
-    ConfirmLoadProfile,
-    DeleteProfilePressed,
-    ImportFromFilePressed,
-    ExportToFilePressed,
-    FileImported(Option<std::path::PathBuf>),
-    FileExported(Option<std::path::PathBuf>, crate::models::PEQData),
-
-    ClearStatusMessage(u64),
-    DismissConfirmDialog,
-    WindowCloseRequested(iced::window::Id),
+    Event(iced::Event),
+    CloseRequested(iced::window::Id),
     ConfirmExit(iced::window::Id),
+    CancelExit,
+    SettingsLoaded(Result<crate::storage::Settings, crate::error::AppError>),
+    ToolsTabSelected(crate::ui::components::editor::ToolsTab),
+    ClearStatusMessage(usize),
+    DismissConfirmDialog,
     SaveAndExit(iced::window::Id),
-
-    Undo,
-    Redo,
-
-    ToggleSnapToIso(bool),
-    ProfileSearchInput(String),
-    ToolsTabSelected(crate::ui::state::ToolsTab),
-    ToggleAutoPullOnConnect(bool),
-    ProfileSaved {
-        name: String,
-        data: crate::models::PEQData,
-        result: Result<(), AppError>,
-        context: SaveContext,
-    },
-    ProfileDeleted {
-        name: String,
-        result: Result<(), AppError>,
-    },
-    ProfileImported {
-        result: Result<Profile, AppError>,
-    },
-    ProfileExported {
-        result: Result<(), AppError>,
-    },
-    SettingsSaved {
-        result: Result<(), AppError>,
-    },
-    DiagnosticsExportedToFile {
-        path: String,
-        result: Result<(), AppError>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum SaveContext {
-    Standard,
-    ImportOverwrite,
-    ImportWithName,
-    Overwrite,
-    Exit(iced::window::Id),
 }

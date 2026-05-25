@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot};
-use tokio_util::codec::{LinesCodec, FramedRead, FramedWrite};
+use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 
 pub struct ElevatedTransport {
     tx: mpsc::Sender<IpcRequest>,
@@ -42,7 +42,10 @@ impl ElevatedTransport {
             .ok_or_else(|| AppError::general("Failed to open helper stdout"))?;
 
         let (request_tx, mut request_rx) = mpsc::channel::<IpcRequest>(32);
-        let pending = Arc::new(tokio::sync::Mutex::new(HashMap::<u64, oneshot::Sender<HelperResponse>>::new()));
+        let pending = Arc::new(tokio::sync::Mutex::new(HashMap::<
+            u64,
+            oneshot::Sender<HelperResponse>,
+        >::new()));
         let pending_task_ref = Arc::clone(&pending);
 
         // Task for writing to helper stdin
@@ -69,7 +72,10 @@ impl ElevatedTransport {
                             if let Some(tx) = lock.remove(&ipc_resp.id) {
                                 let _ = tx.send(ipc_resp.payload);
                             } else {
-                                log::warn!("Received response for unknown/expired ID: {}", ipc_resp.id);
+                                log::warn!(
+                                    "Received response for unknown/expired ID: {}",
+                                    ipc_resp.id
+                                );
                             }
                         }
                     }

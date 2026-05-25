@@ -1,68 +1,71 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::{OperationResult, PushPayload};
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::ErrorKind;
-use crate::models::{OperationResult, PushPayload};
-use crate::ui::messages::{Message, StatusSeverity};
-use crate::ui::state::{ConnectionStatus, MainWindow};
+use crate::ui::components::connection::ConnectionStatus;
+use crate::ui::messages::*;
+use crate::ui::state::MainWindow;
 use iced::Task;
 use std::sync::Arc;
 
 fn is_hw_busy(window: &MainWindow) -> bool {
-    window.worker.is_none()
-        || window.operation_lock.is_pulling
-        || window.operation_lock.is_pushing
-        || window.operation_lock.is_connecting
+    window.connection.worker.is_none()
+        || window.connection.operation_lock.is_pulling
+        || window.connection.operation_lock.is_pushing
+        || window.connection.operation_lock.is_connecting
 }
 
 pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Message> {
     match message {
-        Message::PullPressed => {
+        Message::Editor(EditorMessage::PullPressed) => {
             if is_hw_busy(window) {
                 return Task::none();
             }
 
-            if window.editor_state.session.is_dirty {
-                window.editor_state.session.pending_confirm =
-                    crate::ui::state::ConfirmAction::PullDevice;
+            if window.editor.session.is_dirty {
+                window.editor.session.pending_confirm =
+                    crate::ui::components::editor::ConfirmAction::PullDevice;
                 return Task::none();
             }
 
             perform_pull(window)
         }
-        Message::ConfirmPullPressed => {
-            window.editor_state.session.pending_confirm = crate::ui::state::ConfirmAction::None;
+        Message::Editor(EditorMessage::ConfirmPullPressed) => {
+            window.editor.session.pending_confirm =
+                crate::ui::components::editor::ConfirmAction::None;
             perform_pull(window)
         }
-        Message::PushPressed => {
+        Message::Editor(EditorMessage::PushPressed) => {
             if is_hw_busy(window) {
                 return Task::none();
             }
 
-            if window.editor_state.session.is_dirty {
-                window.editor_state.session.pending_confirm =
-                    crate::ui::state::ConfirmAction::PushToDevice;
+            if window.editor.session.is_dirty {
+                window.editor.session.pending_confirm =
+                    crate::ui::components::editor::ConfirmAction::PushToDevice;
                 return Task::none();
             }
 
             perform_push(window)
         }
-        Message::ConfirmPushPressed => {
-            window.editor_state.session.pending_confirm = crate::ui::state::ConfirmAction::None;
+        Message::Editor(EditorMessage::ConfirmPushPressed) => {
+            window.editor.session.pending_confirm =
+                crate::ui::components::editor::ConfirmAction::None;
             perform_push(window)
         }
-        Message::WorkerPulled(result) => {
-            window.operation_lock.is_pulling = false;
+        Message::Editor(EditorMessage::WorkerPulled(result)) => {
+            window.connection.operation_lock.is_pulling = false;
             if result.success {
-                window.editor_state.session.is_dirty = false;
+                window.editor.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.data.filters = peq.filters.clone();
-                    window.editor_state.data.global_gain = peq.global_gain;
-                    window.editor_state.data.generation += 1;
+                    window.editor.data.filters = peq.filters.clone();
+                    window.editor.data.global_gain = peq.global_gain;
+                    window.editor.data.generation += 1;
 
                     let matched = window
-                        .editor_state
+                        .editor
                         .ui
                         .profiles
                         .iter()
@@ -70,12 +73,14 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                         .map(|p| p.name.clone());
 
                     let status_msg = if let Some(name) = matched {
-                        window.editor_state.ui.selected_profile_name = Some(name.clone());
-                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Profile;
+                        window.editor.ui.selected_profile_name = Some(name.clone());
+                        window.editor.ui.eq_source =
+                            crate::ui::components::editor::EqSource::Profile;
                         format!("Device matches profile: {}", name)
                     } else {
-                        window.editor_state.ui.selected_profile_name = None;
-                        window.editor_state.ui.eq_source = crate::ui::state::EqSource::Pulled;
+                        window.editor.ui.selected_profile_name = None;
+                        window.editor.ui.eq_source =
+                            crate::ui::components::editor::EqSource::Pulled;
                         "Data pulled from device".to_string()
                     };
 
@@ -91,11 +96,11 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 let msg = if err.kind == ErrorKind::NotConnected
                     || err.kind == ErrorKind::PolkitAuthRequired
                 {
-                    window.connection_status =
+                    window.connection.status =
                         ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
                 } else {
-                    window.connection_status =
+                    window.connection.status =
                         ConnectionStatus::Error(err.user_message().to_string());
                     err.user_message().to_string()
                 };
@@ -116,14 +121,14 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 Task::none()
             }
         }
-        Message::WorkerPushed(result) => {
-            window.operation_lock.is_pushing = false;
+        Message::Editor(EditorMessage::WorkerPushed(result)) => {
+            window.connection.operation_lock.is_pushing = false;
             if result.success {
-                window.editor_state.session.is_dirty = false;
+                window.editor.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor_state.data.filters = peq.filters;
-                    window.editor_state.data.global_gain = peq.global_gain;
-                    window.editor_state.data.generation += 1;
+                    window.editor.data.filters = peq.filters;
+                    window.editor.data.global_gain = peq.global_gain;
+                    window.editor.data.generation += 1;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::Worker,
@@ -135,13 +140,14 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 Task::none()
             } else if let Some(err) = result.error {
                 let base_msg = if err.kind == ErrorKind::NotConnected {
-                    window.connection_status =
+                    window.connection.status =
                         ConnectionStatus::Error("Device lost during operation".into());
                     "Device lost during operation".to_string()
                 } else if err.kind == ErrorKind::DeviceLost {
-                    window.connection_status =
+                    window.connection.status =
                         ConnectionStatus::Error("Device disconnected".into());
-                    window.disconnect_reason = crate::ui::state::DisconnectReason::DeviceLost;
+                    window.connection.disconnect_reason =
+                        crate::ui::components::connection::DisconnectReason::DeviceLost;
                     "Device disconnected. Please reconnect and try again.".to_string()
                 } else if err.kind == ErrorKind::DeviceBusy {
                     "Device is busy. Close other applications using the device and retry."
@@ -151,7 +157,7 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
                 } else if err.kind == ErrorKind::PolkitAuthRequired {
                     "Authentication required to access USB DAC on Linux. Approve the polkit prompt and retry.".to_string()
                 } else {
-                    window.connection_status =
+                    window.connection.status =
                         ConnectionStatus::Error(err.user_message().to_string());
                     err.user_message().to_string()
                 };
@@ -182,61 +188,65 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
     }
 }
 
-async fn recv_operation_result(
-    rx: tokio::sync::oneshot::Receiver<OperationResult>,
-) -> OperationResult {
-    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
-        Ok(Ok(res)) => res,
-        Ok(Err(_)) => OperationResult::worker_gone(),
-        Err(_) => OperationResult::timed_out(),
+fn unwrap_operation_result(result: Result<OperationResult, String>) -> OperationResult {
+    match result {
+        Ok(res) => res,
+        Err(e) => OperationResult {
+            success: false,
+            data: None,
+            error: Some(crate::error::AppError::new(
+                crate::error::ErrorKind::IpcError,
+                e,
+            )),
+        },
     }
 }
 
 fn perform_pull(window: &mut MainWindow) -> Task<Message> {
-    window.operation_lock.is_pulling = true;
+    window.connection.operation_lock.is_pulling = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
         Source::UI,
         "Pulling from device",
     ));
-    let worker = match window.worker.as_ref() {
+    let worker = match window.connection.worker.as_ref() {
         Some(w) => Arc::clone(w),
         None => return Task::none(),
     };
     let pull_task = Task::perform(
         async move {
-            let rx = worker.pull_peq();
-            recv_operation_result(rx).await
+            let result = worker.pull_peq().await;
+            unwrap_operation_result(result)
         },
-        Message::WorkerPulled,
+        |res| Message::Editor(EditorMessage::WorkerPulled(res)),
     );
     let status_task = window.set_status("Reading from device...", StatusSeverity::Info);
     Task::batch(vec![pull_task, status_task])
 }
 
 fn perform_push(window: &mut MainWindow) -> Task<Message> {
-    window.operation_lock.is_pushing = true;
+    window.connection.operation_lock.is_pushing = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
         Source::UI,
         "Push pressed",
     ));
-    let worker = match window.worker.as_ref() {
+    let worker = match window.connection.worker.as_ref() {
         Some(w) => Arc::clone(w),
         None => return Task::none(),
     };
-    let filters = window.editor_state.data.filters.clone();
-    let global_gain = window.editor_state.data.global_gain;
+    let filters = window.editor.data.filters.clone();
+    let global_gain = window.editor.data.global_gain;
     let push_task = Task::perform(
         async move {
             let payload = PushPayload {
                 filters,
                 global_gain: Some(global_gain),
             };
-            let rx = worker.push_peq(payload);
-            recv_operation_result(rx).await
+            let result = worker.push_peq(payload).await;
+            unwrap_operation_result(result)
         },
-        Message::WorkerPushed,
+        |res| Message::Editor(EditorMessage::WorkerPushed(res)),
     );
     let status_task = window.set_status("Writing to device...", StatusSeverity::Info);
     Task::batch(vec![push_task, status_task])

@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::models::Device;
-use crate::ui::messages::Message;
-use crate::ui::state::{ConnectionStatus, EqSource, MainWindow};
+use crate::core::Device;
+use crate::ui::components::connection::ConnectionStatus;
+use crate::ui::components::editor::EqSource;
+use crate::ui::messages::*;
+use crate::ui::state::MainWindow;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING,
@@ -48,26 +50,26 @@ fn sync_toolbar_button<'a>(
 }
 
 pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
-    let is_busy = state.operation_lock.is_pulling
-        || state.operation_lock.is_pushing
-        || state.operation_lock.is_connecting
-        || state.operation_lock.is_disconnecting;
+    let is_busy = state.connection.operation_lock.is_pulling
+        || state.connection.operation_lock.is_pushing
+        || state.connection.operation_lock.is_connecting
+        || state.connection.operation_lock.is_disconnecting;
 
-    let is_connected = state.connection_status == ConnectionStatus::Connected;
+    let is_connected = state.connection.status == ConnectionStatus::Connected;
 
     let mut sync_buttons = row![
         sync_toolbar_button(
             "Pull",
-            Message::PullPressed,
+            Message::Editor(EditorMessage::PullPressed),
             "read",
             state,
             is_busy,
             is_connected,
             "Ctrl+R"
         ),
-        if !is_busy && is_connected && !state.editor_state.session.input_buffer.has_errors() {
+        if !is_busy && is_connected && !state.editor.session.input_buffer.has_errors() {
             let btn = toolbar_button("Push")
-                .on_press(Message::PushPressed)
+                .on_press(Message::Editor(EditorMessage::PushPressed))
                 .style(theme::m3_filled_button);
             Element::from(
                 tooltip(
@@ -91,10 +93,10 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     ]
     .spacing(SPACE_8);
 
-    if state.connection_status != ConnectionStatus::Disconnected {
+    if state.connection.status != ConnectionStatus::Disconnected {
         sync_buttons = sync_buttons.push(sync_toolbar_button(
             "Disconnect",
-            Message::DisconnectPressed,
+            Message::Connection(ConnectionMessage::DisconnectPressed),
             "disconnect",
             state,
             is_busy,
@@ -103,14 +105,14 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
         ));
     }
 
-    let (chip_label, chip_color) = if state.operation_lock.is_pulling {
+    let (chip_label, chip_color) = if state.connection.operation_lock.is_pulling {
         ("Pulling…", COLOR_INFO)
-    } else if state.operation_lock.is_pushing {
+    } else if state.connection.operation_lock.is_pushing {
         ("Pushing…", COLOR_INFO)
-    } else if state.operation_lock.is_disconnecting {
+    } else if state.connection.operation_lock.is_disconnecting {
         ("Disconnecting…", COLOR_WARNING)
     } else {
-        match &state.connection_status {
+        match &state.connection.status {
             ConnectionStatus::Connected => ("Synced", COLOR_SUCCESS),
             ConnectionStatus::Connecting => ("Connecting…", COLOR_WARNING),
             ConnectionStatus::Disconnected => ("Offline", COLOR_ON_SURFACE_VARIANT),
@@ -125,7 +127,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let error_count = state.diagnostics.errors().count();
     let diag_pill: Option<Element<'_, Message>> =
-        if error_count > 0 && !state.editor_state.ui.show_diagnostics {
+        if error_count > 0 && !state.editor.ui.show_diagnostics {
             let pill_btn = button(
                 text(format!(
                     "⚠ {} error{}",
@@ -136,7 +138,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
                 .color(COLOR_ERROR),
             )
             .padding([SPACE_2, SPACE_8])
-            .on_press(Message::ToggleDiagnostics)
+            .on_press(Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics))
             .style(theme::m3_text_button);
             Some(
                 tooltip(
@@ -151,9 +153,9 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
             None
         };
 
-    let profile_name = match state.editor_state.ui.eq_source {
+    let profile_name = match state.editor.ui.eq_source {
         EqSource::Profile => state
-            .editor_state
+            .editor
             .ui
             .selected_profile_name
             .as_deref()
@@ -173,7 +175,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     .spacing(SPACE_8)
     .align_y(iced::Alignment::Center);
 
-    if state.editor_state.session.is_dirty {
+    if state.editor.session.is_dirty {
         display_row = display_row.push(
             container(
                 text("UNSAVED")
@@ -201,7 +203,8 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
     }
     let profile_display: Element<'_, Message> = display_row.into();
 
-    let device_info: Element<'_, Message> = if let Some(ref dev) = state.connected_device {
+    let device_info: Element<'_, Message> = if let Some(ref dev) = state.connection.connected_device
+    {
         let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
         tooltip(
             text(device_type.name())

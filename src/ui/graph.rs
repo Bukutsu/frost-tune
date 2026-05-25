@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use crate::core::Filter;
 use crate::hardware::dsp::{
     get_biquad_coefficients, get_magnitude_response_with_precomputed, PrecomputedFreq,
 };
-use crate::models::Filter;
-use crate::ui::state::GraphState;
+use crate::ui::components::editor::GraphState;
 use crate::ui::tokens::{
     COLOR_GRAPH_BAND_FILL, COLOR_GRAPH_BAND_STROKE, COLOR_GRAPH_GRID, COLOR_ON_SURFACE_VARIANT,
     COLOR_PRIMARY, TYPE_AXIS_LABEL,

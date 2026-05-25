@@ -91,11 +91,11 @@ macro_rules! define_devices {
                         supports_per_band_enable: $supports_per_band_enable,
                     },)*
                     Device::Unknown => DeviceCapabilities {
-                        num_bands: crate::models::NUM_BANDS,
-                        global_gain_range: (crate::models::MIN_GLOBAL_GAIN, crate::models::MAX_GLOBAL_GAIN),
-                        band_gain_range: (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
-                        freq_range: (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
-                        q_range: (crate::models::MIN_Q, crate::models::MAX_Q),
+                        num_bands: crate::core::NUM_BANDS,
+                        global_gain_range: (crate::core::MIN_GLOBAL_GAIN, crate::core::MAX_GLOBAL_GAIN),
+                        band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+                        freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+                        q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
                         supported_filter_types: FilterTypeFlags::PEAK
                             | FilterTypeFlags::LOW_SHELF
                             | FilterTypeFlags::HIGH_SHELF
@@ -120,42 +120,42 @@ macro_rules! define_devices {
             pub fn min_global_gain(&self) -> i8 {
                 match self {
                     $(Device::$variant => $min_global_gain,)*
-                    Device::Unknown => crate::models::MIN_GLOBAL_GAIN,
+                    Device::Unknown => crate::core::MIN_GLOBAL_GAIN,
                 }
             }
 
             pub fn max_global_gain(&self) -> i8 {
                 match self {
                     $(Device::$variant => $max_global_gain,)*
-                    Device::Unknown => crate::models::MAX_GLOBAL_GAIN,
+                    Device::Unknown => crate::core::MAX_GLOBAL_GAIN,
                 }
             }
 
             pub fn num_bands(&self) -> usize {
                 match self {
                     $(Device::$variant => $num_bands,)*
-                    Device::Unknown => crate::models::NUM_BANDS,
+                    Device::Unknown => crate::core::NUM_BANDS,
                 }
             }
 
             pub fn band_gain_range(&self) -> (f64, f64) {
                 match self {
                     $(Device::$variant => ($min_band_gain, $max_band_gain),)*
-                    Device::Unknown => (crate::models::MIN_BAND_GAIN, crate::models::MAX_BAND_GAIN),
+                    Device::Unknown => (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
                 }
             }
 
             pub fn freq_range(&self) -> (u16, u16) {
                 match self {
                     $(Device::$variant => ($min_freq, $max_freq),)*
-                    Device::Unknown => (crate::models::MIN_FREQ, crate::models::MAX_FREQ),
+                    Device::Unknown => (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
                 }
             }
 
             pub fn q_range(&self) -> (f64, f64) {
                 match self {
                     $(Device::$variant => ($min_q, $max_q),)*
-                    Device::Unknown => (crate::models::MIN_Q, crate::models::MAX_Q),
+                    Device::Unknown => (crate::core::MIN_Q, crate::core::MAX_Q),
                 }
             }
 
