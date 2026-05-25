@@ -8,6 +8,7 @@
 //! maps VID/PID → profile lives in `crate::hardware::registry`.
 
 use crate::core::device::capabilities::DeviceCapabilities;
+use crate::core::device::device::DeviceInfo;
 use crate::core::device::protocol::DeviceProtocol;
 
 /// Static capability and identity profile for a supported USB DAC model.
@@ -30,4 +31,13 @@ pub trait DeviceProfile: Send + Sync {
 
     /// Instantiates the USB packet protocol for this device.
     fn protocol(&self) -> Box<dyn DeviceProtocol>;
+
+    /// Optional filter: return `true` if this HID device should be matched to this profile.
+    ///
+    /// Called after the VID/PID match. Override this when two different products
+    /// share the same VID/PID and must be distinguished by product string.
+    /// The default returns `true`.
+    fn filter_device(&self, _device_info: &DeviceInfo) -> bool {
+        true
+    }
 }

@@ -218,6 +218,7 @@ impl LocalWorkerState {
                         product_id: pid,
                         path: "unknown".into(),
                         manufacturer: None,
+                        product_string: None,
                     });
 
                 let profile = get_profile(vid, pid);

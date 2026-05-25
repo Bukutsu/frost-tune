@@ -78,13 +78,18 @@ pub fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
         product_id: device_info.product_id(),
         path: device_info.path().to_string_lossy().into(),
         manufacturer: device_info.manufacturer_string().map(|s| s.to_string()),
+        product_string: device_info.product_string().map(|s| s.to_string()),
     }
 }
 
 pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
     for device in api.device_list() {
-        if crate::hardware::get_profile(device.vendor_id(), device.product_id()).is_some() {
-            return Some(device.clone());
+        if let Some(profile) = crate::hardware::get_profile(device.vendor_id(), device.product_id())
+        {
+            let info = device_info_from_hid(device);
+            if profile.filter_device(&info) {
+                return Some(device.clone());
+            }
         }
     }
     None
@@ -93,8 +98,12 @@ pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
 pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
     let mut devices = Vec::new();
     for device in api.device_list() {
-        if crate::hardware::get_profile(device.vendor_id(), device.product_id()).is_some() {
-            devices.push(device_info_from_hid(device));
+        if let Some(profile) = crate::hardware::get_profile(device.vendor_id(), device.product_id())
+        {
+            let info = device_info_from_hid(device);
+            if profile.filter_device(&info) {
+                devices.push(info);
+            }
         }
     }
     devices
@@ -197,6 +206,19 @@ fn read_single_filter(
                     return proto.parse_filter_response(data);
                 } else if count > offset {
                     mismatches += 1;
+                    if mismatches <= 2 || mismatches == MAX_MISMATCH_COUNT {
+                        // Log first two mismatches (to confirm the pattern) and the
+                        // final mismatch (to confirm we exhausted attempts). Hidden
+                        // behind RUST_LOG=trace so normal users never see this.
+                        log::trace!(
+                            "Filter read mismatch: expected index={} nonce={:#04x}, \
+                             got {:02x?} (first {} bytes)",
+                            expected_index,
+                            nonce,
+                            &data[..data.len().min(8)],
+                            data.len().min(8)
+                        );
+                    }
                     if mismatches > MAX_MISMATCH_COUNT {
                         return None;
                     }

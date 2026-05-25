@@ -9,4 +9,5 @@ pub struct DeviceInfo {
     pub product_id: u16,
     pub path: String,
     pub manufacturer: Option<String>,
+    pub product_string: Option<String>,
 }

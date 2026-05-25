@@ -5,5 +5,6 @@ pub mod core;
 pub mod diagnostics;
 pub mod error;
 pub mod hardware;
+pub mod probe;
 pub mod storage;
 pub mod ui;

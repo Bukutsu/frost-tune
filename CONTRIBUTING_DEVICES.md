@@ -24,6 +24,121 @@ You need to know how the device talks over USB HID before you write any code.
 
 ---
 
+## How to Decode Unknown USB HID Packets
+
+This section covers the reverse-engineering **methodology** — how to work from raw
+hex dumps to a working protocol implementation. It matters more than any code
+skeleton because every USB DAC uses a different wire format.
+
+### The Golden Rule: Change One Parameter at a Time
+
+In the official app, change **exactly one setting** between captures:
+
+```
+Capture A → set band 0 to 1000 Hz,  +5.0 dB gain, Q 1.0, Peak
+Capture B → set band 0 to 2000 Hz,  +5.0 dB gain, Q 1.0, Peak   (change freq only)
+Capture C → set band 0 to 1000 Hz, +10.0 dB gain, Q 1.0, Peak   (change gain only)
+Capture D → set band 0 to 1000 Hz,  +5.0 dB gain, Q 5.0, Peak   (change Q only)
+Capture E → set band 0 to 1000 Hz,  +5.0 dB gain, Q 1.0, LowShelf (change type only)
+```
+
+Compare `Capture A` to `Capture B` side-by-side. The bytes that changed are the
+**frequency field**. Repeat for gain, Q, and filter type. Each field is almost always:
+
+| Field | Typical size | Typical encoding |
+|-------|-------------|-----------------|
+| Frequency | 2 bytes (u16, little-endian) | Raw Hz (1000 = `[0xE8, 0x03]`) |
+| Gain | 2 bytes (signed, little-endian) | `gain * 10` (`+5.0 dB` = `50` → `[0x32, 0x00]`) or `gain * 256` (TI/DSP chips) |
+| Q | 2 bytes (u16, little-endian) | `q * 100` (`Q 1.0` = `100` → `[0x64, 0x00]`) or `q * 256` |
+| Filter type | 1 byte | Varies per manufacturer (build a mapping table) |
+| Band index | 1 byte | Usually byte 4 or byte 5 in the packet |
+| Nonce | 1 byte | Usually byte 2 or byte 3; device echoes it back in responses |
+
+### How to Determine the Fixed-Point Multiplier
+
+Pick a known value, check the raw bytes, and compute backwards:
+
+```
+Gain = 5.0 dB → raw bytes = [0x32, 0x00] (50 as u16 LE)
+Scale factor = 50 / 5.0 = 10   → multiplier is 10×
+
+Gain = 5.0 dB → raw bytes = [0x00, 0x05] (1280 as u16 LE)
+Scale factor = 1280 / 5.0 = 256 → multiplier is 256×
+```
+
+Common multipliers: **10×** (most Chinese DACs, FiiO), **100×** (some KTMicro chips),
+**256×** (TI/ADI DSP chips, Walkplay family). Test with a simple value like +5.0 dB or
+Q 1.0 and compute the ratio.
+
+### How to Build a Filter Type Mapping Table
+
+The `FilterType` enum uses its own u8 encoding (1=LowShelf, 2=Peak, 3=HighShelf,
+4=HighPass, 5=LowPass). Your device will use **different** byte values. Do not call
+`FilterType::from(device_byte)` — the byte domains are unrelated.
+
+Instead, set each filter type in the official app and capture the write packet.
+Read the filter-type byte from the packet and build a mapping function:
+
+```
+Official app: Peak     → capture shows byte 0x10 → FilterType::Peak
+Official app: LowShelf → capture shows byte 0x20 → FilterType::LowShelf
+...and so on.
+```
+
+Write a function like:
+```rust
+fn device_byte_to_filter_type(b: u8) -> FilterType {
+    match b {
+        0x10 => FilterType::Peak,
+        0x20 => FilterType::LowShelf,
+        0x30 => FilterType::HighShelf,
+        0x40 => FilterType::HighPass,
+        0x50 => FilterType::LowPass,
+        _ => FilterType::Peak,
+    }
+}
+```
+
+### How to Find the Commit Sequence
+
+Some devices write filters directly to flash (no commit step — `build_commit_packets`
+returns `vec![]`). Others hold settings in volatile memory and need a "save" command.
+
+To find the commit sequence:
+1. In the official app, change one filter. Capture traffic while editing — you'll see
+   write packets streaming.
+2. Press **Save** / **Apply** / **OK** in the official app.
+3. Capture traffic. You'll see 1-3 additional packets that did NOT appear during
+   editing. These are your commit packets.
+4. Note the delay between commit packets. The official app typically pauses 100-2000 ms
+   for flash programming. This is your `write_timing().commit_step_ms`.
+
+### How to Find the Init Sequence
+
+Some devices need a "wake" ping before they'll accept read/write commands.
+In a fresh capture:
+1. Look at the first few packets the official app sends after opening the device.
+2. They often look like `[0x80, 0x0C, 0x00]` or `[0x01, 0x00]` — short packets
+   that appear before any EQ traffic.
+3. These are your `build_init_packets()`.
+
+### Known Protocol Families
+
+If your device's packet structure resembles one of these, it likely shares the
+same chip family. The offsets and multipliers will be identical or nearly so.
+
+| Family | Chip vendor | Example devices | Key traits |
+|--------|------------|----------------|-----------|
+| **Walkplay** | Walkplay DSP | EPZ TP35 Pro, some Moondrop | Command byte at [1], nonce at [2], index at [4], 20-byte biquad block at [7..27], then freq/Q/gain/filter-type at [27..34]. **Host computes biquad coefficients.** gain*256, q*256 |
+| **FiiO** | Savitech / XMOS | FiiO KA5, KA17, BTR series | Command byte at [0], index at [4], freq/gain/Q packed in 8-byte filter block. **Device takes (freq, gain, Q) directly.** gain*10, q*100 |
+| **KTMicro** | KTMicro KT0200 series | Some budget dongles | Single fixed-size packet for all 10 bands. **Bulk write, no per-band reads.** gain*100 |
+| **CB5100** | Comtrue CB5100 | Moondrop Dawn Pro | 5 bands. Use `CMD_READ_FILTER = 0x32`, filter type byte in a flags bitfield rather than a dedicated byte. gain*1 (integer), q*100 |
+
+If your packet looks nothing like any of these, start from scratch with the
+one-parameter-at-a-time method above.
+
+---
+
 ## Step 1: Implement `DeviceProtocol`
 
 Create a new file `src/hardware/devices/<vendor>/mod.rs`. Replace `<vendor>` with a
@@ -98,23 +213,21 @@ impl DeviceProtocol for MyDeviceProtocol {
             enabled:     data[5] != 0,
             freq:        u16::from_le_bytes([data[6], data[7]]),
             gain:        (i16::from_le_bytes([data[8], data[9]]) as f64) / 10.0,
-            q:           1.0,  // parse from packet if available
-            filter_type: crate::core::eq::FilterType::Peak,
+            q:           u16::from_le_bytes([data[10], data[11]]) as f64 / 100.0,
+            filter_type: device_byte_to_filter_type(data[12]),
         })
     }
 
     fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
-        // Build the packet to write `filter` to band slot `index`.
-        // Note: most devices take (freq, gain, Q) directly.
-        // Only devices with Walkplay/DSP chips (like TP35 Pro) require host-side
-        // biquad coefficient computation.
-        let filter_type_byte: u8 = filter.filter_type.into();
+        let filter_type_byte: u8 = filter_type_to_device_byte(filter.filter_type);
+        let gain_raw = (filter.gain * 10.0).round() as i16;
+        let q_raw = (filter.q * 100.0).round() as u16;
         vec![
             WRITE, CMD_WRITE_FILTER,
             index,
             (filter.freq & 0xFF) as u8, (filter.freq >> 8) as u8,
-            ((filter.gain * 10.0).round() as i16 as u16 & 0xFF) as u8,
-            ((filter.gain * 10.0).round() as i16 as u16 >> 8) as u8,
+            (gain_raw & 0xFF) as u8, (gain_raw >> 8) as u8,
+            (q_raw & 0xFF) as u8, (q_raw >> 8) as u8,
             filter_type_byte,
             END,
         ]
@@ -159,32 +272,36 @@ For the full set of methods available on `DeviceProtocol`, see
 
 ### Filter type byte mapping
 
-`FilterType`'s u8 encoding is **app-internal** and may not match your device's
-wire format:
-
-| `FilterType` variant | App byte |
-|----------------------|----------|
-| `LowShelf`           | `1`      |
-| `Peak`               | `2`      |
-| `HighShelf`          | `3`      |
-| `HighPass`           | `4`      |
-| `LowPass`            | `5`      |
-
-Do **not** call `FilterType::from(device_byte)` directly if your device uses
-different values. Map your device's byte to the app's byte explicitly:
+`FilterType`'s internal u8 encoding (1=LowShelf, 2=Peak, 3=HighShelf, 4=HighPass,
+5=LowPass) is **app-internal** and will not match your device's wire format. You
+must write two mapping functions — one for reads, one for writes:
 
 ```rust
 fn device_byte_to_filter_type(b: u8) -> FilterType {
     match b {
-        0x01 => FilterType::Peak,      // your device's byte for Peak
-        0x02 => FilterType::LowShelf,  // adjust per your capture
-        _ => FilterType::Peak,
+        0x10 => FilterType::Peak,      // your device's wire byte for Peak
+        0x20 => FilterType::LowShelf,  // your device's wire byte for LowShelf
+        _    => FilterType::Peak,      // default for unknown bytes
+    }
+}
+
+fn filter_type_to_device_byte(ft: FilterType) -> u8 {
+    match ft {
+        FilterType::Peak      => 0x10,
+        FilterType::LowShelf  => 0x20,
+        FilterType::HighShelf => 0x30,
+        FilterType::HighPass  => 0x40,
+        FilterType::LowPass   => 0x50,
     }
 }
 ```
 
-An unrecognised byte logs a warning and defaults to `Peak`; your tests will
-catch this if you include a round-trip assertion.
+The TP35 Pro happens to use the same byte encoding as the app, which is why
+its `parse_filter_packet` calls `FilterType::from()`. This is a coincidence,
+not the norm. Most devices will need explicit mapping functions.
+
+An unrecognised byte in `device_byte_to_filter_type` defaults to `Peak`; your
+round-trip tests will catch this if you include a filter-type assertion.
 
 ---
 

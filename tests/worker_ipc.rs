@@ -27,6 +27,7 @@ fn test_worker_status_structure() {
             product_id: 0x5678,
             path: "/dev/bus/usb/001/002".to_string(),
             manufacturer: Some("Test Manufacturer".to_string()),
+            product_string: None,
         }),
         available_devices: vec![],
         backend_reset: false,
