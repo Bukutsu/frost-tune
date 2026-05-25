@@ -27,28 +27,6 @@ impl FilterType {
         FilterType::HighPass,
         FilterType::LowPass,
     ];
-
-    /// Short 2-letter label for compact UI buttons.
-    pub fn short_label(&self) -> &'static str {
-        match self {
-            FilterType::Peak => "PK",
-            FilterType::LowShelf => "LS",
-            FilterType::HighShelf => "HS",
-            FilterType::HighPass => "HP",
-            FilterType::LowPass => "LP",
-        }
-    }
-
-    /// Canonical AutoEQ / EqualizerAPO token used in ParametricEQ.txt files.
-    pub fn autoeq_token(&self) -> &'static str {
-        match self {
-            FilterType::Peak => "PK",
-            FilterType::LowShelf => "LSC",
-            FilterType::HighShelf => "HSC",
-            FilterType::HighPass => "HP",
-            FilterType::LowPass => "LP",
-        }
-    }
 }
 
 impl From<u8> for FilterType {
@@ -59,7 +37,14 @@ impl From<u8> for FilterType {
             3 => FilterType::HighShelf,
             4 => FilterType::HighPass,
             5 => FilterType::LowPass,
-            _ => FilterType::Peak,
+            _ => {
+                log::warn!(
+                    "Unknown FilterType byte {:#04x} in device response — defaulting to Peak. \
+                     Your device likely uses a different filter-type encoding; see CONTRIBUTING_DEVICES.md.",
+                    value
+                );
+                FilterType::Peak
+            }
         }
     }
 }

@@ -1,0 +1,6 @@
+# frost-tune udev rules
+# Grants the logged-in user access to supported USB DACs without requiring root.
+# Install to /etc/udev/rules.d/ and run: sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# EPZ TP35 Pro
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3302", ATTRS{idProduct}=="43e6", TAG+="uaccess"

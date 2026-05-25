@@ -17,6 +17,7 @@ pub fn pull_peq_data(
     d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
+    num_bands: usize,
 ) -> Result<PEQData> {
     let mut last_err = AppError::new(ErrorKind::ReadTimeout, "Timeout");
     for attempt in 0..PEQ_RETRY_COUNT {
@@ -24,7 +25,7 @@ pub fn pull_peq_data(
             log::info!("Retrying PEQ pull, attempt {}...", attempt + 1);
         }
         crate::hardware::hid::flush_hid_buffer(d);
-        match pull_peq_internal(d, proto, strict) {
+        match pull_peq_internal(d, proto, strict, num_bands) {
             Ok(data) => return Ok(data),
             Err(e) => {
                 log::warn!("PEQ pull attempt {} failed: {}", attempt + 1, e.message);
@@ -42,9 +43,17 @@ pub fn rollback_state(
     d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     state: &PEQData,
+    num_bands: usize,
 ) -> Result<()> {
     let timing = proto.write_timing();
-    write_filters_and_gain(d, proto, &state.filters, state.global_gain, &timing)?;
+    write_filters_and_gain(
+        d,
+        proto,
+        &state.filters,
+        state.global_gain,
+        &timing,
+        num_bands,
+    )?;
     commit_changes(d, proto, &timing)
 }
 
@@ -52,15 +61,16 @@ pub fn rollback_and_verify(
     d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     snapshot: &PEQData,
+    num_bands: usize,
 ) -> Result<()> {
     log::info!("Starting hardware state rollback and verification...");
-    rollback_state(d, proto, snapshot).map_err(|e| {
+    rollback_state(d, proto, snapshot, num_bands).map_err(|e| {
         let msg = format!("rollback write failed: {}", e.message);
         log::error!("{}", msg);
         AppError::new(ErrorKind::RollbackFailed, msg)
     })?;
 
-    let restored = pull_peq_data(d, proto, true).map_err(|e| {
+    let restored = pull_peq_data(d, proto, true, num_bands).map_err(|e| {
         let msg = format!("rollback verify read failed: {}", e.message);
         log::error!("{}", msg);
         AppError::new(ErrorKind::RollbackFailed, msg)

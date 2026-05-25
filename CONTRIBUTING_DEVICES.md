@@ -1,7 +1,8 @@
 # Adding a New Device to frost-tune
 
 This guide walks you through every step needed to add support for a new USB DAC.
-If something is unclear, look at `src/core/device/tp35pro/` as the reference implementation.
+If something is unclear, look at `src/hardware/devices/tp35pro.rs` as the reference
+implementation.
 
 ---
 
@@ -23,23 +24,26 @@ You need to know how the device talks over USB HID before you write any code.
 
 ---
 
-## Step 1: Create the device module
+## Step 1: Implement `DeviceProtocol`
 
-Create a new directory `src/core/device/<vendor>/` and a `mod.rs` file inside it.
-Replace `<vendor>` with a short lowercase identifier (e.g. `fiio`, `ktmicro`, `moondrop`).
+Create a new file `src/hardware/devices/<vendor>/mod.rs`. Replace `<vendor>` with a
+short lowercase identifier (e.g. `fiio`, `ktmicro`, `moondrop`).
 
 ```
-src/core/device/
+src/hardware/devices/
+  tp35pro.rs          ← existing reference implementation
   <vendor>/
-    mod.rs        ← your implementation goes here
-    constants.rs  ← (optional) wire constants if there are many
-    dsp.rs        ← (optional) DSP math if host must compute biquad coefficients
+    mod.rs            ← your DeviceProtocol + DeviceProfile
+    constants.rs      ← (optional) wire constants if there are many
+    dsp.rs            ← (optional) DSP math if host must compute biquad coefficients
 ```
 
 **Minimal skeleton (`mod.rs`):**
 
 ```rust
 use crate::core::device::protocol::DeviceProtocol;
+use crate::core::device::profile::DeviceProfile;
+use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::eq::Filter;
 
 // ── Wire constants ────────────────────────────────────────────────────────────
@@ -145,49 +149,124 @@ impl DeviceProtocol for MyDeviceProtocol {
 }
 ```
 
----
+Note: The TP35 Pro requires host-side biquad coefficient computation because its
+Walkplay DSP chip accepts pre-computed coefficients instead of raw (freq, gain, Q).
+If your device is the same, see `src/hardware/devices/tp35pro.rs` for the
+`compute_iir_filter()` pattern. Most devices take (freq, gain, Q) directly.
 
-## Step 2: Register the device
+For the full set of methods available on `DeviceProtocol`, see
+`src/core/device/protocol.rs`.
 
-Open `src/core/device/device.rs`. Add your import near the top:
+### Filter type byte mapping
+
+`FilterType`'s u8 encoding is **app-internal** and may not match your device's
+wire format:
+
+| `FilterType` variant | App byte |
+|----------------------|----------|
+| `LowShelf`           | `1`      |
+| `Peak`               | `2`      |
+| `HighShelf`          | `3`      |
+| `HighPass`           | `4`      |
+| `LowPass`            | `5`      |
+
+Do **not** call `FilterType::from(device_byte)` directly if your device uses
+different values. Map your device's byte to the app's byte explicitly:
 
 ```rust
-use crate::core::device::myvendor::MyDeviceProtocol;
+fn device_byte_to_filter_type(b: u8) -> FilterType {
+    match b {
+        0x01 => FilterType::Peak,      // your device's byte for Peak
+        0x02 => FilterType::LowShelf,  // adjust per your capture
+        _ => FilterType::Peak,
+    }
+}
 ```
 
-Then add a block inside `define_devices! { ... }`:
+An unrecognised byte logs a warning and defaults to `Peak`; your tests will
+catch this if you include a round-trip assertion.
+
+---
+
+## Step 2: Implement `DeviceProfile` and register
+
+Add a `DeviceProfile` implementation in the same file:
 
 ```rust
-MyDevice {
-    name: "Manufacturer Model Name",
-    vid: 0x1234,   // USB Vendor ID (from lsusb or USBPcap)
-    pid: 0x5678,   // USB Product ID
-    protocol: MyDeviceProtocol,
-    supported_filter_types: FilterTypeFlags::PEAK
-        | FilterTypeFlags::LOW_SHELF
-        | FilterTypeFlags::HIGH_SHELF,
-    supports_per_band_enable: true,   // can individual bands be enabled/disabled?
-    min_global_gain: -10,
-    max_global_gain:  6,
-    num_bands: 10,
-    min_band_gain: -10.0,
-    max_band_gain:  10.0,
-    min_freq:    20,
-    max_freq: 20000,
-    min_q:  0.1,
-    max_q: 10.0,
-},
+pub struct MyDeviceProfile;
+
+impl DeviceProfile for MyDeviceProfile {
+    fn name(&self) -> &'static str {
+        "Manufacturer Model Name"
+    }
+
+    fn vendor_id(&self) -> u16 {
+        0x1234   // USB Vendor ID (from lsusb or USBPcap)
+    }
+
+    fn product_id(&self) -> u16 {
+        0x5678   // USB Product ID
+    }
+
+    fn capabilities(&self) -> DeviceCapabilities {
+        DeviceCapabilities {
+            num_bands: 10,
+            global_gain_range: (-10, 6),
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 10.0),
+            supported_filter_types: FilterTypeFlags::PEAK
+                | FilterTypeFlags::LOW_SHELF
+                | FilterTypeFlags::HIGH_SHELF,
+            supports_per_band_enable: true,
+        }
+    }
+
+    fn protocol(&self) -> Box<dyn DeviceProtocol> {
+        Box::new(MyDeviceProtocol)
+    }
+}
 ```
 
 **Finding the right `FilterTypeFlags`:** test which filter types the device accepts.
 Sending an unsupported type will either silently misinterpret the value or be ignored.
 When in doubt, start with `FilterTypeFlags::PEAK` only.
 
+**`supports_per_band_enable`:** this flag controls whether the UI shows enable
+toggles per band. When you set it `true`, your `build_filter_write_packet` **must**
+also honour `filter.enabled`:
+
+```rust
+fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
+    // If the device has an on-wire enable bit:
+    let enable_byte: u8 = if filter.enabled { 0x01 } else { 0x00 };
+    vec![WRITE, CMD_WRITE_FILTER, index, enable_byte, ...]
+
+    // If the device has no enable bit but you want toggles to silence a band,
+    // write gain = 0 when disabled (the UI will already grey the band out):
+    let gain = if filter.enabled { filter.gain } else { 0.0 };
+    // ... build packet using gain
+}
+```
+
+When `supports_per_band_enable: false`, `PEQData::clamp_to_capabilities` zeroes
+the gain of disabled bands before the payload reaches the protocol layer, so your
+write packet does not need to handle `filter.enabled` at all (as in the TP35 Pro).
+
+Then register in `src/hardware/registry.rs`:
+
+```rust
+pub const REGISTRY: &[&dyn DeviceProfile] = &[
+    &crate::hardware::devices::tp35pro::TP35ProProfile,
+    &crate::hardware::devices::myvendor::MyDeviceProfile,  // ← add this line
+];
+```
+
 ---
 
 ## Step 3: Register the module
 
-Open `src/core/device/mod.rs` and add:
+Open `src/hardware/devices/mod.rs` and add:
 
 ```rust
 pub mod myvendor;
@@ -240,7 +319,7 @@ mod tests {
     #[test]
     fn build_commit_packets_nonempty() {
         let proto = MyDeviceProtocol;
-        // Every device needs at least one commit packet to persist EQ
+        // Most devices need at least one commit packet to persist EQ
         assert!(!proto.build_commit_packets().is_empty());
     }
 
@@ -258,8 +337,14 @@ Run with `cargo test --all-targets`.
 
 ## Step 6: Verify end-to-end
 
-Run `cargo fmt --all && cargo clippy --all-targets -- -D warnings && cargo test --all-targets --locked`
-before opening a PR. See `CLAUDE.md` for the full pre-push checklist.
+Run the full pre-push checklist (see `CLAUDE.md`):
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo build --all-targets --locked
+cargo test --all-targets --locked
+```
 
 ---
 

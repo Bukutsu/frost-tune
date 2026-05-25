@@ -39,14 +39,15 @@ pub fn write_filters_and_gain(
     filters: &[Filter],
     global_gain: i8,
     timing: &WriteTiming,
+    num_bands: usize,
 ) -> Result<()> {
-    if filters.len() > proto.num_bands() {
+    if filters.len() > num_bands {
         return Err(AppError::new(
             ErrorKind::InvalidPayload,
             format!(
                 "Payload exceeds device capacity. Provided: {}, max allowed: {}",
                 filters.len(),
-                proto.num_bands()
+                num_bands
             ),
         ));
     }

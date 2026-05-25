@@ -15,6 +15,7 @@ pub fn pull_with_retry(
     device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
+    num_bands: usize,
 ) -> Result<PEQData> {
     let wake_request = proto.build_global_gain_request(WAKE_NONCE);
     if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
@@ -22,7 +23,7 @@ pub fn pull_with_retry(
         log::warn!("pull wake request failed: {}", e);
     }
     delay_ms(WAKE_DELAY_MS);
-    let first_result = pull_peq_data(device, proto, strict);
+    let first_result = pull_peq_data(device, proto, strict, num_bands);
 
     let needs_retry = match &first_result {
         Ok(peq) => {
@@ -36,7 +37,7 @@ pub fn pull_with_retry(
 
     if needs_retry {
         delay_ms(RETRY_DELAY_PULL_MS);
-        match pull_peq_data(device, proto, strict) {
+        match pull_peq_data(device, proto, strict, num_bands) {
             Ok(peq) => Ok(peq),
             Err(e) => {
                 if first_result.is_ok() {
@@ -69,6 +70,7 @@ fn do_write_and_commit(
     device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     payload: &PushPayload,
+    num_bands: usize,
 ) -> Result<()> {
     let timing = proto.write_timing();
     init_device_session(device, proto)?;
@@ -78,6 +80,7 @@ fn do_write_and_commit(
         &payload.filters,
         payload.global_gain.unwrap_or(0),
         &timing,
+        num_bands,
     )?;
     commit_changes(device, proto, &timing)
 }
@@ -88,18 +91,19 @@ fn verify_or_rollback(
     expected_filters: &[Filter],
     expected_gain: Option<i8>,
     snapshot: &PEQData,
+    num_bands: usize,
 ) -> Result<PEQData> {
     for attempt in 0..VERIFY_RETRY_COUNT {
         let backoff_ms = VERIFY_BACKOFF_BASE_MS.saturating_mul(2u64.saturating_pow(attempt as u32));
         delay_ms(backoff_ms);
-        match pull_peq_data(device, proto, true) {
+        match pull_peq_data(device, proto, true, num_bands) {
             Ok(read_back) => {
                 if compare_peq(&read_back, expected_filters, expected_gain.unwrap_or(0)).is_ok() {
                     return Ok(read_back);
                 }
             }
             Err(e) => {
-                rollback_and_verify(device, proto, snapshot).map_err(|r| {
+                rollback_and_verify(device, proto, snapshot, num_bands).map_err(|r| {
                     AppError::new(
                         ErrorKind::RollbackFailed,
                         format!(
@@ -112,7 +116,7 @@ fn verify_or_rollback(
             }
         }
     }
-    rollback_and_verify(device, proto, snapshot).map_err(|r| {
+    rollback_and_verify(device, proto, snapshot, num_bands).map_err(|r| {
         AppError::new(
             ErrorKind::RollbackFailed,
             format!(
@@ -134,6 +138,7 @@ pub fn push_with_verify(
     mut payload: PushPayload,
 ) -> Result<PEQData> {
     let caps = profile.capabilities();
+    let num_bands = caps.num_bands;
     payload.clamp(
         caps.freq_range,
         caps.band_gain_range,
@@ -142,7 +147,7 @@ pub fn push_with_verify(
     );
     payload
         .is_valid(
-            caps.num_bands,
+            num_bands,
             caps.freq_range,
             caps.band_gain_range,
             caps.q_range,
@@ -151,10 +156,10 @@ pub fn push_with_verify(
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     wake_device(device, proto);
-    let snapshot = pull_peq_data(device, proto, true)?;
+    let snapshot = pull_peq_data(device, proto, true, num_bands)?;
 
-    if let Err(e) = do_write_and_commit(device, proto, &payload) {
-        rollback_and_verify(device, proto, &snapshot).map_err(|r| {
+    if let Err(e) = do_write_and_commit(device, proto, &payload, num_bands) {
+        rollback_and_verify(device, proto, &snapshot, num_bands).map_err(|r| {
             AppError::new(
                 ErrorKind::RollbackFailed,
                 format!(
@@ -172,5 +177,6 @@ pub fn push_with_verify(
         &payload.filters,
         payload.global_gain,
         &snapshot,
+        num_bands,
     )
 }

@@ -11,7 +11,7 @@ use crate::core::eq::Filter;
 /// Hardware-specific packet building and response matching for a USB DAC.
 ///
 /// Each supported device has exactly one struct implementing this trait, living in
-/// `src/core/device/<vendor>/mod.rs`. The hardware layer (`hid.rs`, `packet_builder.rs`)
+/// `src/hardware/devices/<vendor>/`. The hardware layer (`hid.rs`, `packet_builder.rs`)
 /// calls these methods and knows nothing about any specific wire format.
 ///
 /// ## Contract
@@ -32,11 +32,6 @@ pub trait DeviceProtocol: Send + Sync {
     /// Device-specific write timing.
     fn write_timing(&self) -> WriteTiming {
         WriteTiming::default()
-    }
-
-    /// Number of EQ bands this device has. Drives the filter read/write loop bounds.
-    fn num_bands(&self) -> usize {
-        10
     }
 
     // ── Session init ─────────────────────────────────────────────────────────

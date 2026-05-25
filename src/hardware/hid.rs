@@ -132,11 +132,11 @@ pub fn pull_peq_internal(
     device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
+    num_bands: usize,
 ) -> Result<PEQData> {
     let cfg = proto.read_timing();
     let mut session = init_device_session(device, proto)?;
 
-    let num_bands = proto.num_bands();
     let mut filter_results: Vec<Option<Filter>> = Vec::with_capacity(num_bands);
     let mut had_mismatch = false;
 

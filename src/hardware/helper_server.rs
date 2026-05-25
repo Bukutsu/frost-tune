@@ -23,7 +23,8 @@ fn pull_logic(
     strict: bool,
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
-    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict)
+    let num_bands = profile.capabilities().num_bands;
+    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict, num_bands)
 }
 
 #[cfg(target_os = "linux")]

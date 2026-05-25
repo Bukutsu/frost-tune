@@ -306,8 +306,9 @@ impl LocalWorkerState {
             }
         };
         let proto = profile.protocol();
+        let num_bands = profile.capabilities().num_bands;
 
-        match pull_with_retry(device, proto.as_ref(), false) {
+        match pull_with_retry(device, proto.as_ref(), false, num_bands) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),
