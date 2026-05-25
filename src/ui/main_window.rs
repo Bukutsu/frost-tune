@@ -573,7 +573,7 @@ impl MainWindow {
             );
         } else {
             for dev in self.connection.available_devices.iter() {
-                let name = crate::core::device::get_profile(dev.vendor_id, dev.product_id)
+                let name = crate::hardware::get_profile(dev.vendor_id, dev.product_id)
                     .map(|p| p.name())
                     .unwrap_or("Unknown Device");
 

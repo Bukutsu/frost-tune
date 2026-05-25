@@ -5,10 +5,11 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
-use crate::core::{ConnectionResult, DeviceInfo, DeviceProfile, OperationResult, PushPayload};
+use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::hid::{find_device_info, list_devices};
 use crate::hardware::pipeline::{pull_with_retry, push_with_verify};
+use crate::hardware::{get_profile, DeviceProfile};
 
 pub enum LocalCommand {
     Connect(Option<DeviceInfo>, oneshot::Sender<ConnectionResult>),
@@ -219,7 +220,7 @@ impl LocalWorkerState {
                         manufacturer: None,
                     });
 
-                let profile = crate::core::device::get_profile(vid, pid);
+                let profile = get_profile(vid, pid);
 
                 self.device = Some(device);
                 self.info = Some(info.clone());

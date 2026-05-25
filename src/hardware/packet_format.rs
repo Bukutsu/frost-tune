@@ -6,7 +6,7 @@
 //! device impls remain independent of the hardware layer.
 
 pub use crate::core::device::timing::{ReadTiming, WriteTiming};
-pub use crate::core::device::tp35pro::{
+pub use crate::hardware::devices::tp35pro::{
     CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, CONST_FLASH_EQ_LEN,
     CONST_GLOBAL_GAIN_LEN, CONST_PEQ_PAYLOAD_LEN, CONST_TEMP_WRITE_LEN, CONST_TEMP_WRITE_MAGIC_A,
     CONST_TEMP_WRITE_MAGIC_B, END, FILTER_SLOT, OFFSET_BIQUAD_START, OFFSET_CMD, OFFSET_CMD_TYPE,

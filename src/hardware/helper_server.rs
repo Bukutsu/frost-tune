@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 #[cfg(target_os = "linux")]
-use crate::core::{DeviceInfo, DeviceProfile, Filter, PEQData, PushPayload};
+use crate::core::{DeviceInfo, Filter, PEQData, PushPayload};
 #[cfg(target_os = "linux")]
 use crate::hardware::hid::{device_info_from_hid, find_device_info};
+use crate::hardware::DeviceProfile;
 
 #[cfg(target_os = "linux")]
 use crate::error::{AppError, ErrorKind};
@@ -61,7 +62,7 @@ fn handle_connect(
     match find_device_info(api) {
         Some(found) => {
             if let Some(profile) =
-                crate::core::device::get_profile(found.vendor_id(), found.product_id())
+                crate::hardware::get_profile(found.vendor_id(), found.product_id())
             {
                 match found.open_device(api) {
                     Ok(opened) => {

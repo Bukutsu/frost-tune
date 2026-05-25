@@ -251,7 +251,7 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.connection.operation_lock.is_connecting = false;
             window.suspend_status_polling = false;
             let device_name_owned = if let Some(ref d) = result.device {
-                crate::core::device::get_profile(d.vendor_id, d.product_id)
+                crate::hardware::get_profile(d.vendor_id, d.product_id)
                     .map(|p| p.name())
                     .unwrap_or("Unknown Device")
                     .to_string()

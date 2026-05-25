@@ -7,8 +7,6 @@
 //! live in `core/device/tp35pro`. This module contains only the biquad coefficient
 //! and magnitude-response helpers used by the UI graph renderer.
 
-pub mod iir_math;
-
 use crate::core::{Filter, FilterType};
 use std::f64::consts::TAU;
 

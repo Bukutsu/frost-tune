@@ -28,7 +28,7 @@ pub trait DeviceProfile: Send + Sync {
 ///
 /// Under the Open-Closed Principle, adding a new device only requires implementing
 /// `DeviceProfile` and adding its static reference to this array.
-pub const REGISTRY: &[&dyn DeviceProfile] = &[&crate::core::device::tp35pro::TP35ProProfile];
+pub const REGISTRY: &[&dyn DeviceProfile] = &[&crate::hardware::devices::tp35pro::TP35ProProfile];
 
 /// Resolves a `DeviceProfile` from a USB Vendor ID and Product ID.
 pub fn get_profile(vid: u16, pid: u16) -> Option<&'static dyn DeviceProfile> {

@@ -8,13 +8,13 @@
 
 use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::device::protocol::DeviceProtocol;
-use crate::core::device::registry::DeviceProfile;
 use crate::core::device::timing::WriteTiming;
-use crate::core::eq::{Filter, FilterType};
-pub use crate::hardware::dsp::iir_math::{
+pub use crate::core::eq::iir_math::{
     compute_iir_filter, convert_to_2byte_array, BYTE_BIT_SHIFT, GAIN_FLOAT_TO_U16_DIVISOR,
     GAIN_I16_THRESHOLD, Q_FLOAT_TO_U16_DIVISOR, U16_WRAP_AROUND,
 };
+use crate::core::eq::{Filter, FilterType};
+use crate::hardware::registry::DeviceProfile;
 
 // ─── Wire constants ───────────────────────────────────────────────────────────
 

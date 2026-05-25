@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+pub mod devices;
 /// # Hardware Interaction Layer
 ///
 /// This module provides the infrastructure for discovering, authenticating, and communicating
@@ -26,9 +27,11 @@ pub mod packet_builder;
 pub mod packet_format;
 pub mod pipeline;
 pub mod protocol;
+pub mod registry;
 pub mod worker;
 
 pub use dsp::*;
 pub use packet_format::{ReadTiming, WriteTiming};
 pub use protocol::*;
+pub use registry::*;
 pub use worker::*;

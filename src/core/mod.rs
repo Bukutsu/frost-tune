@@ -11,10 +11,7 @@ pub mod device;
 pub mod eq;
 pub mod ipc;
 
-pub use device::{
-    get_profile, list_profiles, DeviceCapabilities, DeviceInfo, DeviceProfile, FilterTypeFlags,
-    REGISTRY,
-};
+pub use device::{DeviceCapabilities, DeviceInfo, FilterTypeFlags};
 pub use eq::constants::*;
 pub use eq::{snap_freq_to_iso, snap_gain_step, snap_q_to_iso, Filter, FilterType, PEQData};
 pub use ipc::*;

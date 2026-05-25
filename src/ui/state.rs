@@ -1,5 +1,5 @@
-use crate::core::DeviceProfile;
 use crate::diagnostics::DiagnosticsStore;
+use crate::hardware::DeviceProfile;
 use crate::ui::components::connection::ConnectionComponent;
 use crate::ui::components::editor::EditorComponent;
 
@@ -21,7 +21,7 @@ impl MainWindow {
         self.connection
             .connected_device
             .as_ref()
-            .and_then(|info| crate::core::device::get_profile(info.vendor_id, info.product_id))
+            .and_then(|info| crate::hardware::get_profile(info.vendor_id, info.product_id))
     }
 
     /// Returns the global gain range for the currently connected device.

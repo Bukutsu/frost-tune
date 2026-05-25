@@ -55,7 +55,7 @@ pub fn device_info_from_hid(device_info: &hidapi::DeviceInfo) -> DeviceInfo {
 
 pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
     for device in api.device_list() {
-        if crate::core::device::get_profile(device.vendor_id(), device.product_id()).is_some() {
+        if crate::hardware::get_profile(device.vendor_id(), device.product_id()).is_some() {
             return Some(device.clone());
         }
     }
@@ -65,7 +65,7 @@ pub fn find_device_info(api: &hidapi::HidApi) -> Option<hidapi::DeviceInfo> {
 pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
     let mut devices = Vec::new();
     for device in api.device_list() {
-        if crate::core::device::get_profile(device.vendor_id(), device.product_id()).is_some() {
+        if crate::hardware::get_profile(device.vendor_id(), device.product_id()).is_some() {
             devices.push(device_info_from_hid(device));
         }
     }

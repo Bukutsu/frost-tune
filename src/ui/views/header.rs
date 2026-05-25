@@ -204,7 +204,7 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let device_info: Element<'_, Message> = if let Some(ref dev) = state.connection.connected_device
     {
-        let name = crate::core::device::get_profile(dev.vendor_id, dev.product_id)
+        let name = crate::hardware::get_profile(dev.vendor_id, dev.product_id)
             .map(|p| p.name())
             .unwrap_or("Unknown Device");
         tooltip(
