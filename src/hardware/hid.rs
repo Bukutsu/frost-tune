@@ -36,6 +36,10 @@ pub const MAX_GLOBAL_GAIN_ATTEMPTS: u8 = 20;
 pub const MAX_WRITE_RETRIES: u8 = 3;
 pub const DEFAULT_RETRY_DELAY_MS: u64 = 20;
 
+const DRAIN_TIMEOUT_MS: i32 = 5;
+const MAX_DRAIN_ITERATIONS: usize = 64;
+const MAX_MISMATCH_COUNT: u8 = 8;
+
 /// Per-operation nonce counter. Created fresh by `init_device_session` so there
 /// is no shared mutable state between concurrent (or sequential) operations.
 pub struct DeviceSession {
@@ -113,12 +117,12 @@ pub fn send_report(device: &dyn HidDeviceIo, data: &[u8], report_id: u8) -> Resu
 pub fn flush_hid_buffer(device: &dyn HidDeviceIo) {
     let mut buf = [0u8; 64];
     let mut total_drained = 0;
-    while let Ok(count) = device.read_timeout(&mut buf[..], 5) {
+    while let Ok(count) = device.read_timeout(&mut buf[..], DRAIN_TIMEOUT_MS) {
         if count == 0 {
             break;
         }
         total_drained += 1;
-        if total_drained > 64 {
+        if total_drained > MAX_DRAIN_ITERATIONS {
             break;
         }
     }
@@ -193,7 +197,7 @@ fn read_single_filter(
                     return proto.parse_filter_response(data);
                 } else if count > offset {
                     mismatches += 1;
-                    if mismatches > 8 {
+                    if mismatches > MAX_MISMATCH_COUNT {
                         return None;
                     }
                     continue;

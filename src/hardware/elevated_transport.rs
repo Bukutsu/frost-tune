@@ -14,6 +14,10 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 
+const CHANNEL_BUFFER_SIZE: usize = 32;
+const HANDSHAKE_TIMEOUT_SECS: u64 = 120;
+const ROUND_TRIP_TIMEOUT_SECS: u64 = 15;
+
 pub struct ElevatedTransport {
     tx: mpsc::Sender<IpcRequest>,
     pending: Arc<tokio::sync::Mutex<HashMap<u64, oneshot::Sender<HelperResponse>>>>,
@@ -41,7 +45,7 @@ impl ElevatedTransport {
             .take()
             .ok_or_else(|| AppError::general("Failed to open helper stdout"))?;
 
-        let (request_tx, mut request_rx) = mpsc::channel::<IpcRequest>(32);
+        let (request_tx, mut request_rx) = mpsc::channel::<IpcRequest>(CHANNEL_BUFFER_SIZE);
         let pending = Arc::new(tokio::sync::Mutex::new(HashMap::<
             u64,
             oneshot::Sender<HelperResponse>,
@@ -97,7 +101,10 @@ impl ElevatedTransport {
         // Version check with a long timeout for the human polkit prompt
         use crate::hardware::helper_ipc::IPC_VERSION;
         match transport
-            .round_trip_with_timeout(&HelperRequest::Version, std::time::Duration::from_secs(120))
+            .round_trip_with_timeout(
+                &HelperRequest::Version,
+                std::time::Duration::from_secs(HANDSHAKE_TIMEOUT_SECS),
+            )
             .await?
         {
             HelperResponse::Version { version } => {
@@ -123,8 +130,11 @@ impl ElevatedTransport {
     }
 
     pub async fn round_trip(&self, request: &HelperRequest) -> Result<HelperResponse> {
-        self.round_trip_with_timeout(request, std::time::Duration::from_secs(15))
-            .await
+        self.round_trip_with_timeout(
+            request,
+            std::time::Duration::from_secs(ROUND_TRIP_TIMEOUT_SECS),
+        )
+        .await
     }
 
     pub async fn round_trip_with_timeout(

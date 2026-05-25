@@ -7,13 +7,19 @@ use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal, HidDeviceIo};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 
+const PEQ_RETRY_COUNT: usize = 3;
+const PEQ_RETRY_DELAY_MS: u64 = 200;
+const GAIN_COMPARE_TOLERANCE: f64 = 0.15;
+const FREQ_COMPARE_TOLERANCE: i32 = 1;
+const Q_COMPARE_TOLERANCE: f64 = 0.05;
+
 pub fn pull_peq_data(
     d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
     let mut last_err = AppError::new(ErrorKind::ReadTimeout, "Timeout");
-    for attempt in 0..3 {
+    for attempt in 0..PEQ_RETRY_COUNT {
         if attempt > 0 {
             log::info!("Retrying PEQ pull, attempt {}...", attempt + 1);
         }
@@ -25,8 +31,8 @@ pub fn pull_peq_data(
                 last_err = e;
             }
         }
-        if attempt < 2 {
-            delay_ms(200);
+        if attempt < PEQ_RETRY_COUNT - 1 {
+            delay_ms(PEQ_RETRY_DELAY_MS);
         }
     }
     Err(last_err)
@@ -91,7 +97,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
         ));
     }
     for (a, f) in actual.filters.iter().zip(filters.iter()) {
-        if (a.gain - f.gain).abs() > 0.15 {
+        if (a.gain - f.gain).abs() > GAIN_COMPARE_TOLERANCE {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
@@ -100,7 +106,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
                 ),
             ));
         }
-        if (a.freq as i32 - f.freq as i32).abs() > 1 {
+        if (a.freq as i32 - f.freq as i32).abs() > FREQ_COMPARE_TOLERANCE {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
@@ -109,7 +115,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
                 ),
             ));
         }
-        if (a.q - f.q).abs() > 0.05 {
+        if (a.q - f.q).abs() > Q_COMPARE_TOLERANCE {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(

@@ -7,6 +7,10 @@ use crate::core::Filter;
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, send_report, DeviceSession, HidDeviceIo};
 
+const INIT_POST_DELAY_MS: u64 = 50;
+const DRAIN_READ_TIMEOUT_MS: i32 = 20;
+const MAX_DRAIN_ITERATIONS: usize = 100;
+
 /// Sends the device's init sequence (version ping / wake), drains stale USB frames,
 /// and returns a fresh `DeviceSession` with its nonce counter reset to 1.
 /// Every read and write operation must start here.
@@ -17,11 +21,11 @@ pub fn init_device_session(
     for packet in proto.build_init_packets() {
         send_report(device, &packet, proto.report_id())?;
     }
-    delay_ms(50);
+    delay_ms(INIT_POST_DELAY_MS);
     let mut drain = [0u8; 64];
     let mut iterations = 0;
-    while let Ok(count) = device.read_timeout(&mut drain[..], 20) {
-        if count == 0 || iterations > 100 {
+    while let Ok(count) = device.read_timeout(&mut drain[..], DRAIN_READ_TIMEOUT_MS) {
+        if count == 0 || iterations > MAX_DRAIN_ITERATIONS {
             break;
         }
         iterations += 1;

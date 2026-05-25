@@ -16,12 +16,12 @@ pub fn pull_with_retry(
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
-    let wake_request = proto.build_global_gain_request(0x01);
+    let wake_request = proto.build_global_gain_request(WAKE_NONCE);
     if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
     {
         log::warn!("pull wake request failed: {}", e);
     }
-    delay_ms(50);
+    delay_ms(WAKE_DELAY_MS);
     let first_result = pull_peq_data(device, proto, strict);
 
     let needs_retry = match &first_result {
@@ -35,7 +35,7 @@ pub fn pull_with_retry(
     };
 
     if needs_retry {
-        delay_ms(100);
+        delay_ms(RETRY_DELAY_PULL_MS);
         match pull_peq_data(device, proto, strict) {
             Ok(peq) => Ok(peq),
             Err(e) => {
@@ -51,12 +51,18 @@ pub fn pull_with_retry(
     }
 }
 
+const WAKE_NONCE: u8 = 0x01;
+const WAKE_DELAY_MS: u64 = 50;
+const RETRY_DELAY_PULL_MS: u64 = 100;
+const VERIFY_RETRY_COUNT: usize = 3;
+const VERIFY_BACKOFF_BASE_MS: u64 = 200;
+
 fn wake_device(device: &dyn HidDeviceIo, proto: &dyn DeviceProtocol) {
-    let wake = proto.build_global_gain_request(0x01);
+    let wake = proto.build_global_gain_request(WAKE_NONCE);
     if let Err(e) = send_report(device, &wake[..], proto.report_id()) {
         log::warn!("wake request failed: {}", e);
     }
-    delay_ms(50);
+    delay_ms(WAKE_DELAY_MS);
 }
 
 fn do_write_and_commit(
@@ -83,8 +89,8 @@ fn verify_or_rollback(
     expected_gain: Option<i8>,
     snapshot: &PEQData,
 ) -> Result<PEQData> {
-    for attempt in 0..3 {
-        let backoff_ms = 200_u64.saturating_mul(2u64.saturating_pow(attempt as u32));
+    for attempt in 0..VERIFY_RETRY_COUNT {
+        let backoff_ms = VERIFY_BACKOFF_BASE_MS.saturating_mul(2u64.saturating_pow(attempt as u32));
         delay_ms(backoff_ms);
         match pull_peq_data(device, proto, true) {
             Ok(read_back) => {
