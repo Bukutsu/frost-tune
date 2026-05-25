@@ -48,13 +48,7 @@ pub async fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
                         continue;
                     }
                 };
-                match autoeq::parse_autoeq_text(
-                    &content,
-                    crate::core::NUM_BANDS,
-                    (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-                    (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-                    (crate::core::MIN_Q, crate::core::MAX_Q),
-                ) {
+                match autoeq::parse_autoeq_text(&content) {
                     Ok((data, warnings)) => {
                         if !warnings.is_empty() {
                             for w in &warnings {
@@ -168,14 +162,7 @@ pub async fn import_profile(path: &Path) -> Result<Profile> {
             format!("Failed to read profile file: {}", e),
         )
     })?;
-    let (data, warnings) = autoeq::parse_autoeq_text(
-        &content,
-        crate::core::NUM_BANDS,
-        (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-        (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-        (crate::core::MIN_Q, crate::core::MAX_Q),
-    )
-    .map_err(|e| {
+    let (data, warnings) = autoeq::parse_autoeq_text(&content).map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to parse profile: {}", e),
@@ -315,14 +302,7 @@ mod tests {
     #[test]
     fn test_import_profile() {
         let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
-        let (data, warnings) = autoeq::parse_autoeq_text(
-            content,
-            crate::core::NUM_BANDS,
-            (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-            (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-            (crate::core::MIN_Q, crate::core::MAX_Q),
-        )
-        .unwrap();
+        let (data, warnings) = autoeq::parse_autoeq_text(content).unwrap();
 
         assert_eq!(data.global_gain, -3);
         assert!(data.filters[0].enabled);

@@ -16,7 +16,26 @@ fn reload_profiles_task() -> Task<Message> {
     )
 }
 
-pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, peq: PEQData) -> (bool, usize) {
+pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, mut peq: PEQData) -> (bool, usize) {
+    if let Some(active) = window.active_device() {
+        peq.clamp_to_capabilities(&active.capabilities());
+    } else {
+        let default_caps = crate::core::DeviceCapabilities {
+            num_bands: crate::core::NUM_BANDS,
+            global_gain_range: (crate::core::MIN_GLOBAL_GAIN, crate::core::MAX_GLOBAL_GAIN),
+            band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+            freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+            q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
+            supported_filter_types: crate::core::FilterTypeFlags::PEAK
+                | crate::core::FilterTypeFlags::LOW_SHELF
+                | crate::core::FilterTypeFlags::HIGH_SHELF
+                | crate::core::FilterTypeFlags::LOW_PASS
+                | crate::core::FilterTypeFlags::HIGH_PASS,
+            supports_per_band_enable: true,
+        };
+        peq.clamp_to_capabilities(&default_caps);
+    }
+
     let num_bands = window.num_bands();
     let freq_range = window.freq_range();
     let gain_range = window.gain_range();
@@ -702,7 +721,29 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             Err(e) => window.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error),
         },
         Message::Profiles(ProfilesMessage::ProfileImported { result }) => match result {
-            Ok(profile) => {
+            Ok(mut profile) => {
+                if let Some(active) = window.active_device() {
+                    profile.data.clamp_to_capabilities(&active.capabilities());
+                } else {
+                    let default_caps = crate::core::DeviceCapabilities {
+                        num_bands: crate::core::NUM_BANDS,
+                        global_gain_range: (
+                            crate::core::MIN_GLOBAL_GAIN,
+                            crate::core::MAX_GLOBAL_GAIN,
+                        ),
+                        band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
+                        freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+                        q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
+                        supported_filter_types: crate::core::FilterTypeFlags::PEAK
+                            | crate::core::FilterTypeFlags::LOW_SHELF
+                            | crate::core::FilterTypeFlags::HIGH_SHELF
+                            | crate::core::FilterTypeFlags::LOW_PASS
+                            | crate::core::FilterTypeFlags::HIGH_PASS,
+                        supports_per_band_enable: true,
+                    };
+                    profile.data.clamp_to_capabilities(&default_caps);
+                }
+
                 window.editor.session.import_temporary = false;
                 window.editor.session.import_name_input.clear();
                 window.editor.session.pending_confirm = ConfirmAction::ImportAutoEQ {

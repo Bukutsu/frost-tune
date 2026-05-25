@@ -37,14 +37,33 @@ pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message>
             })
         }
         Message::AutoEq(AutoEqMessage::ImportClipboardReceived(text)) => {
-            match autoeq::parse_autoeq_text(
-                &text,
-                window.num_bands(),
-                window.freq_range(),
-                window.gain_range(),
-                window.q_range(),
-            ) {
-                Ok((peq, warnings)) => {
+            match autoeq::parse_autoeq_text(&text) {
+                Ok((mut peq, warnings)) => {
+                    if let Some(profile) = window.active_device() {
+                        peq.clamp_to_capabilities(&profile.capabilities());
+                    } else {
+                        // Use default constraints if no device is connected
+                        let default_caps = crate::core::DeviceCapabilities {
+                            num_bands: crate::core::NUM_BANDS,
+                            global_gain_range: (
+                                crate::core::MIN_GLOBAL_GAIN,
+                                crate::core::MAX_GLOBAL_GAIN,
+                            ),
+                            band_gain_range: (
+                                crate::core::MIN_BAND_GAIN,
+                                crate::core::MAX_BAND_GAIN,
+                            ),
+                            freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
+                            q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
+                            supported_filter_types: crate::core::FilterTypeFlags::PEAK
+                                | crate::core::FilterTypeFlags::LOW_SHELF
+                                | crate::core::FilterTypeFlags::HIGH_SHELF
+                                | crate::core::FilterTypeFlags::LOW_PASS
+                                | crate::core::FilterTypeFlags::HIGH_PASS,
+                            supports_per_band_enable: true,
+                        };
+                        peq.clamp_to_capabilities(&default_caps);
+                    }
                     if !warnings.is_empty() {
                         for w in &warnings {
                             window.diagnostics.push(DiagnosticEvent::new(

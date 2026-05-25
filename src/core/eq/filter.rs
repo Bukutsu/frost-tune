@@ -125,7 +125,39 @@ pub struct PEQData {
     pub global_gain: i8,
 }
 
+use crate::core::device::capabilities::DeviceCapabilities;
+
 impl PEQData {
+    /// Clamps the EQ data to fit within the given device capabilities.
+    pub fn clamp_to_capabilities(&mut self, caps: &DeviceCapabilities) {
+        self.global_gain = self
+            .global_gain
+            .clamp(caps.global_gain_range.0, caps.global_gain_range.1);
+
+        // Truncate if there are more filters than supported bands
+        if self.filters.len() > caps.num_bands {
+            self.filters.truncate(caps.num_bands);
+        }
+
+        // Pad with disabled filters if there are fewer filters than supported bands
+        while self.filters.len() < caps.num_bands {
+            self.filters
+                .push(Filter::enabled(self.filters.len() as u8, false));
+        }
+
+        for filter in &mut self.filters {
+            filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
+            if !caps.supported_filter_types.supports(filter.filter_type) {
+                filter.filter_type = FilterType::Peak; // Fallback
+            }
+            if !caps.supports_per_band_enable {
+                // If per-band enable is not supported, effectively disable by zeroing gain
+                if !filter.enabled {
+                    filter.gain = 0.0;
+                }
+            }
+        }
+    }
     /// Audibly-equivalent comparison with tolerance for float fields.
     /// Disabled bands match regardless of params (no audible effect).
     pub fn matches_within(&self, other: &Self, gain_tol: f64, q_tol: f64) -> bool {
