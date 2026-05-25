@@ -56,17 +56,14 @@ fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
             }
         };
         if should_attempt {
+            let target_device = window.connection.available_devices.first().cloned()?;
+
             window.last_auto_reconnect_attempt = Some(std::time::Instant::now());
             window.auto_reconnect_attempts += 1;
             window.connection.status = ConnectionStatus::Connecting;
             window.connection.operation_lock.is_connecting = true;
             window.suspend_status_polling = true;
-            let target_device = window
-                .connection
-                .available_devices
-                .first()
-                .cloned()
-                .unwrap();
+
             let worker = match window.connection.worker.as_ref() {
                 Some(w) => Arc::clone(w),
                 None => return None,
