@@ -299,27 +299,45 @@ impl MainWindow {
     }
 
     pub fn num_bands(&self) -> usize {
-        self.active_device().num_bands()
+        self.active_device()
+            .map(|p| p.capabilities().num_bands)
+            .unwrap_or(crate::core::NUM_BANDS)
     }
 
     pub fn freq_range(&self) -> (u16, u16) {
-        self.active_device().freq_range()
+        self.active_device()
+            .map(|p| p.capabilities().freq_range)
+            .unwrap_or((crate::core::MIN_FREQ, crate::core::MAX_FREQ))
     }
 
     pub fn gain_range(&self) -> (f64, f64) {
-        self.active_device().band_gain_range()
+        self.active_device()
+            .map(|p| p.capabilities().band_gain_range)
+            .unwrap_or((crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN))
     }
 
     pub fn q_range(&self) -> (f64, f64) {
-        self.active_device().q_range()
+        self.active_device()
+            .map(|p| p.capabilities().q_range)
+            .unwrap_or((crate::core::MIN_Q, crate::core::MAX_Q))
     }
 
     pub fn supports_per_band_enable(&self) -> bool {
-        self.active_device().supports_per_band_enable()
+        self.active_device()
+            .map(|p| p.capabilities().supports_per_band_enable)
+            .unwrap_or(true)
     }
 
     pub fn supported_filter_types(&self) -> crate::core::FilterTypeFlags {
-        self.active_device().supported_filter_types()
+        self.active_device()
+            .map(|p| p.capabilities().supported_filter_types)
+            .unwrap_or(
+                crate::core::FilterTypeFlags::PEAK
+                    | crate::core::FilterTypeFlags::LOW_SHELF
+                    | crate::core::FilterTypeFlags::HIGH_SHELF
+                    | crate::core::FilterTypeFlags::LOW_PASS
+                    | crate::core::FilterTypeFlags::HIGH_PASS,
+            )
     }
 
     pub fn views_for_bucket(&self, bucket: LayoutBucket) -> Vec<&'static str> {
@@ -555,10 +573,12 @@ impl MainWindow {
             );
         } else {
             for dev in self.connection.available_devices.iter() {
-                let dev_type = crate::core::Device::from_vid_pid(dev.vendor_id, dev.product_id);
+                let name = crate::core::device::get_profile(dev.vendor_id, dev.product_id)
+                    .map(|p| p.name())
+                    .unwrap_or("Unknown Device");
 
                 let dev_row = row![column![
-                    text(dev_type.name())
+                    text(name)
                         .size(TYPE_BODY)
                         .color(crate::ui::tokens::COLOR_ON_SURFACE),
                     text(format!(

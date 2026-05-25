@@ -6,10 +6,15 @@
 //! All wire-level constants are TP35Pro-specific and live here rather than in a shared
 //! packet_format module, so each future device can define its own wire format independently.
 
+use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::device::protocol::DeviceProtocol;
+use crate::core::device::registry::DeviceProfile;
 use crate::core::device::timing::WriteTiming;
 use crate::core::eq::{Filter, FilterType};
-use std::f64::consts::TAU;
+pub use crate::hardware::dsp::iir_math::{
+    compute_iir_filter, convert_to_2byte_array, BYTE_BIT_SHIFT, GAIN_FLOAT_TO_U16_DIVISOR,
+    GAIN_I16_THRESHOLD, Q_FLOAT_TO_U16_DIVISOR, U16_WRAP_AROUND,
+};
 
 // ─── Wire constants ───────────────────────────────────────────────────────────
 
@@ -54,125 +59,7 @@ const FILTER_RESPONSE_MIN_LEN: usize = 34;
 // Minimum response length for a valid global gain packet (offset 4 for gain byte).
 const GLOBAL_GAIN_RESPONSE_MIN_LEN: usize = 6;
 
-// ─── DSP / IIR math ──────────────────────────────────────────────────────────
-
-const DSP_SAMPLE_RATE: f64 = 96000.0;
-const QUANTIZER_SCALE: f64 = 1073741824.0;
-const Q_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-const GAIN_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-const U16_WRAP_AROUND: i32 = 65536;
-const GAIN_I16_THRESHOLD: i32 = 32767;
-const BYTE_BIT_SHIFT: i32 = 8;
-
-fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
-    let i_arr = [
-        (d_arr[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr[2] * QUANTIZER_SCALE).round() as i32,
-    ];
-    let i_arr2 = [
-        (d_arr2[0] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[1] * QUANTIZER_SCALE).round() as i32,
-        (d_arr2[2] * QUANTIZER_SCALE).round() as i32,
-    ];
-    [
-        i_arr2[0],
-        i_arr2[1],
-        i_arr2[2],
-        i_arr[1].wrapping_neg(),
-        i_arr[2].wrapping_neg(),
-    ]
-}
-
-pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64) -> [u8; 20] {
-    let mut b_arr = [0u8; 20];
-    let a = 10_f64.powf(gain / 40.0);
-    let omega = (freq * TAU) / DSP_SAMPLE_RATE;
-    let sin_w = omega.sin();
-    let cos_w = omega.cos();
-
-    let (b0, b1, b2, a0, a1, a2) = match filter_type {
-        FilterType::Peak => {
-            let alpha = sin_w / (2.0 * q);
-            (
-                1.0 + alpha * a,
-                -2.0 * cos_w,
-                1.0 - alpha * a,
-                1.0 + alpha / a,
-                -2.0 * cos_w,
-                1.0 - alpha / a,
-            )
-        }
-        FilterType::LowShelf => {
-            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
-            let a_minus_1 = a - 1.0;
-            let a_plus_1 = a + 1.0;
-            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-            (
-                a * (a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha),
-                2.0 * a * (a_minus_1 - a_plus_1 * cos_w),
-                a * (a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha),
-                a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha,
-                -2.0 * (a_minus_1 + a_plus_1 * cos_w),
-                a_plus_1 + a_minus_1 * cos_w - sqrt_a_alpha,
-            )
-        }
-        FilterType::HighShelf => {
-            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
-            let a_minus_1 = a - 1.0;
-            let a_plus_1 = a + 1.0;
-            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-            (
-                a * (a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha),
-                -2.0 * a * (a_minus_1 + a_plus_1 * cos_w),
-                a * (a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha),
-                a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha,
-                2.0 * (a_minus_1 - a_plus_1 * cos_w),
-                a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha,
-            )
-        }
-        FilterType::HighPass => {
-            let alpha = sin_w / (2.0 * q);
-            (
-                (1.0 + cos_w) / 2.0,
-                -(1.0 + cos_w),
-                (1.0 + cos_w) / 2.0,
-                1.0 + alpha,
-                -2.0 * cos_w,
-                1.0 - alpha,
-            )
-        }
-        FilterType::LowPass => {
-            let alpha = sin_w / (2.0 * q);
-            (
-                (1.0 - cos_w) / 2.0,
-                1.0 - cos_w,
-                (1.0 - cos_w) / 2.0,
-                1.0 + alpha,
-                -2.0 * cos_w,
-                1.0 - alpha,
-            )
-        }
-    };
-
-    let quantizer_data = quantizer(&[1.0, a1 / a0, a2 / a0], &[b0 / a0, b1 / a0, b2 / a0]);
-
-    for (i, &value) in quantizer_data.iter().enumerate() {
-        b_arr[i * 4] = (value & 0xFF) as u8;
-        b_arr[i * 4 + 1] = ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8;
-        b_arr[i * 4 + 2] = ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8;
-        b_arr[i * 4 + 3] = ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8;
-    }
-
-    b_arr
-}
-
-pub fn convert_to_2byte_array(value: i32) -> [u8; 2] {
-    [
-        (value & 0xFF) as u8,
-        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
-    ]
-}
+// DSP IIR math is re-exported from crate::hardware::dsp::iir_math
 
 /// Parses a TP35 Pro filter response payload (report-ID byte already stripped).
 pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
@@ -317,6 +204,42 @@ impl DeviceProtocol for TP35ProProtocol {
             ],
             vec![WRITE, CMD_FLASH_EQ, CONST_FLASH_EQ_LEN, FILTER_SLOT, END],
         ]
+    }
+}
+
+pub struct TP35ProProfile;
+
+impl DeviceProfile for TP35ProProfile {
+    fn name(&self) -> &'static str {
+        "EPZ TP35 Pro"
+    }
+
+    fn vendor_id(&self) -> u16 {
+        0x3302
+    }
+
+    fn product_id(&self) -> u16 {
+        0x43E6
+    }
+
+    fn capabilities(&self) -> DeviceCapabilities {
+        DeviceCapabilities {
+            num_bands: 10,
+            global_gain_range: (-16, 6),
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 10.0),
+            supported_filter_types: FilterTypeFlags::PEAK
+                | FilterTypeFlags::LOW_SHELF
+                | FilterTypeFlags::HIGH_SHELF
+                | FilterTypeFlags::LOW_PASS
+                | FilterTypeFlags::HIGH_PASS,
+            supports_per_band_enable: false,
+        }
+    }
+
+    fn protocol(&self) -> Box<dyn DeviceProtocol> {
+        Box::new(TP35ProProtocol)
     }
 }
 

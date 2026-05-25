@@ -5,7 +5,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
-use crate::core::{ConnectionResult, Device, DeviceInfo, OperationResult, PushPayload};
+use crate::core::{ConnectionResult, DeviceInfo, DeviceProfile, OperationResult, PushPayload};
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::hid::{find_device_info, list_devices};
 use crate::hardware::pipeline::{pull_with_retry, push_with_verify};
@@ -38,7 +38,7 @@ pub struct LocalWorkerState {
     pub check_interval: Duration,
 
     pub device: Option<hidapi::HidDevice>,
-    pub device_type: Device,
+    pub device_profile: Option<&'static dyn DeviceProfile>,
     pub info: Option<DeviceInfo>,
     pub generation: u64,
 }
@@ -70,7 +70,7 @@ impl LocalWorkerState {
             check_interval: Duration::from_millis(1000),
 
             device: None,
-            device_type: Device::Unknown,
+            device_profile: None,
             info: None,
             generation: 0,
         }
@@ -219,11 +219,11 @@ impl LocalWorkerState {
                         manufacturer: None,
                     });
 
-                let dev_type = Device::from_vid_pid(vid, pid);
+                let profile = crate::core::device::get_profile(vid, pid);
 
                 self.device = Some(device);
                 self.info = Some(info.clone());
-                self.device_type = dev_type;
+                self.device_profile = profile;
 
                 ConnectionResult {
                     success: true,
@@ -284,7 +284,7 @@ impl LocalWorkerState {
             }
         };
 
-        let proto = match self.device_type.protocol() {
+        let profile = match self.device_profile {
             Some(p) => p,
             None => {
                 return OperationResult {
@@ -292,11 +292,12 @@ impl LocalWorkerState {
                     data: None,
                     error: Some(AppError::new(
                         ErrorKind::HardwareError,
-                        "Unsupported device protocol",
+                        "Device profile not loaded",
                     )),
                 }
             }
         };
+        let proto = profile.protocol();
 
         match pull_with_retry(device, proto.as_ref(), false) {
             Ok(peq) => OperationResult {
@@ -324,7 +325,7 @@ impl LocalWorkerState {
             }
         };
 
-        let proto = match self.device_type.protocol() {
+        let profile = match self.device_profile {
             Some(p) => p,
             None => {
                 return OperationResult {
@@ -332,13 +333,14 @@ impl LocalWorkerState {
                     data: None,
                     error: Some(AppError::new(
                         ErrorKind::HardwareError,
-                        "Unsupported device protocol",
+                        "Device profile not loaded",
                     )),
                 }
             }
         };
+        let proto = profile.protocol();
 
-        match push_with_verify(device, self.device_type, proto.as_ref(), payload) {
+        match push_with_verify(device, profile, proto.as_ref(), payload) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),

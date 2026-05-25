@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{Device, PEQData, PushPayload};
+use crate::core::{DeviceProfile, PEQData, PushPayload};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::delay_ms;
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
@@ -49,21 +49,18 @@ pub fn pull_with_retry(
 
 pub fn push_with_verify(
     device: &hidapi::HidDevice,
-    device_type: Device,
+    profile: &dyn DeviceProfile,
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
 ) -> Result<PEQData> {
-    payload.clamp(
-        device_type.freq_range(),
-        device_type.band_gain_range(),
-        device_type.q_range(),
-    );
+    let caps = profile.capabilities();
+    payload.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
     payload
         .is_valid(
-            device_type.num_bands(),
-            device_type.freq_range(),
-            device_type.band_gain_range(),
-            device_type.q_range(),
+            caps.num_bands,
+            caps.freq_range,
+            caps.band_gain_range,
+            caps.q_range,
         )
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 

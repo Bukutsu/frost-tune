@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #[cfg(target_os = "linux")]
-use crate::core::{Device, DeviceInfo, Filter, PEQData, PushPayload};
+use crate::core::{DeviceInfo, DeviceProfile, Filter, PEQData, PushPayload};
 #[cfg(target_os = "linux")]
 use crate::hardware::hid::{device_info_from_hid, find_device_info};
 
@@ -18,30 +18,26 @@ use std::io::{self, BufRead, Read, Write};
 #[cfg(target_os = "linux")]
 fn pull_logic(
     device: &hidapi::HidDevice,
-    device_type: Device,
+    profile: &'static dyn DeviceProfile,
     strict: bool,
 ) -> crate::error::Result<PEQData> {
-    let proto = device_type
-        .protocol()
-        .ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
+    let proto = profile.protocol();
     crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict)
 }
 
 #[cfg(target_os = "linux")]
 fn push_logic(
     device: &hidapi::HidDevice,
-    device_type: Device,
+    profile: &'static dyn DeviceProfile,
     filters: Vec<Filter>,
     global_gain: Option<i8>,
 ) -> crate::error::Result<PEQData> {
-    let proto = device_type
-        .protocol()
-        .ok_or_else(|| AppError::new(ErrorKind::HardwareError, "Unsupported device protocol"))?;
+    let proto = profile.protocol();
     let payload = PushPayload {
         filters,
         global_gain,
     };
-    crate::hardware::pipeline::push_with_verify(device, device_type, proto.as_ref(), payload)
+    crate::hardware::pipeline::push_with_verify(device, profile, proto.as_ref(), payload)
 }
 
 #[cfg(target_os = "linux")]
@@ -59,23 +55,19 @@ fn handle_connect(
     api: &mut hidapi::HidApi,
     device: &mut Option<hidapi::HidDevice>,
     device_info: &mut Option<DeviceInfo>,
-    device_type: &mut Device,
+    device_profile: &mut Option<&'static dyn DeviceProfile>,
 ) -> HelperResponse {
     let _ = api.refresh_devices();
     match find_device_info(api) {
         Some(found) => {
-            let found_type = Device::from_vid_pid(found.vendor_id(), found.product_id());
-            if found_type == Device::Unknown {
-                HelperResponse::Error {
-                    kind: ErrorKind::HardwareError,
-                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
-                }
-            } else {
+            if let Some(profile) =
+                crate::core::device::get_profile(found.vendor_id(), found.product_id())
+            {
                 match found.open_device(api) {
                     Ok(opened) => {
                         let info = device_info_from_hid(&found);
                         *device = Some(opened);
-                        *device_type = found_type;
+                        *device_profile = Some(profile);
                         *device_info = Some(info.clone());
                         HelperResponse::Connected { device: Some(info) }
                     }
@@ -83,6 +75,11 @@ fn handle_connect(
                         kind: ErrorKind::PermissionDenied,
                         error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
                     },
+                }
+            } else {
+                HelperResponse::Error {
+                    kind: ErrorKind::HardwareError,
+                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                 }
             }
         }
@@ -125,7 +122,7 @@ pub fn run() -> crate::error::Result<()> {
         .map_err(|e| AppError::general(format!("Failed to init HID API: {}", e)))?;
     let mut device: Option<hidapi::HidDevice> = None;
     let mut device_info: Option<DeviceInfo> = None;
-    let mut device_type: Device = Device::Unknown;
+    let mut device_profile: Option<&'static dyn DeviceProfile> = None;
 
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -207,13 +204,13 @@ pub fn run() -> crate::error::Result<()> {
                         device: device_info.clone(),
                     }
                 } else {
-                    handle_connect(&mut api, &mut device, &mut device_info, &mut device_type)
+                    handle_connect(&mut api, &mut device, &mut device_info, &mut device_profile)
                 }
             }
             HelperRequest::Disconnect => {
                 device = None;
                 device_info = None;
-                device_type = Device::Unknown;
+                device_profile = None;
                 HelperResponse::Disconnected
             }
             HelperRequest::Status => {
@@ -223,7 +220,7 @@ pub fn run() -> crate::error::Result<()> {
                 if device.is_some() && !physically_present {
                     device = None;
                     device_info = None;
-                    device_type = Device::Unknown;
+                    device_profile = None;
                 }
                 HelperResponse::Status {
                     connected: device.is_some(),
@@ -236,20 +233,26 @@ pub fn run() -> crate::error::Result<()> {
             },
             HelperRequest::Ping => HelperResponse::Pong,
             HelperRequest::PullPeq { strict } => match require_device(&device) {
-                Ok(d) => match pull_logic(d, device_type, strict) {
-                    Ok(peq) => match serde_json::to_value(peq) {
-                        Ok(value) => HelperResponse::Pulled { data: value },
+                Ok(d) => match device_profile {
+                    Some(dp) => match pull_logic(d, dp, strict) {
+                        Ok(peq) => match serde_json::to_value(peq) {
+                            Ok(value) => HelperResponse::Pulled { data: value },
+                            Err(e) => HelperResponse::Error {
+                                kind: ErrorKind::ParseError,
+                                error: AppError::new(
+                                    ErrorKind::ParseError,
+                                    format!("Serialization failed: {}", e),
+                                ),
+                            },
+                        },
                         Err(e) => HelperResponse::Error {
-                            kind: ErrorKind::ParseError,
-                            error: AppError::new(
-                                ErrorKind::ParseError,
-                                format!("Serialization failed: {}", e),
-                            ),
+                            kind: e.kind,
+                            error: e,
                         },
                     },
-                    Err(e) => HelperResponse::Error {
-                        kind: e.kind,
-                        error: e,
+                    None => HelperResponse::Error {
+                        kind: ErrorKind::NotConnected,
+                        error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
                 },
                 Err(payload) => payload,
@@ -258,20 +261,26 @@ pub fn run() -> crate::error::Result<()> {
                 filters,
                 global_gain,
             } => match require_device(&device) {
-                Ok(d) => match push_logic(d, device_type, filters, global_gain) {
-                    Ok(peq) => match serde_json::to_value(peq) {
-                        Ok(value) => HelperResponse::Pushed { data: value },
+                Ok(d) => match device_profile {
+                    Some(dp) => match push_logic(d, dp, filters, global_gain) {
+                        Ok(peq) => match serde_json::to_value(peq) {
+                            Ok(value) => HelperResponse::Pushed { data: value },
+                            Err(e) => HelperResponse::Error {
+                                kind: ErrorKind::ParseError,
+                                error: AppError::new(
+                                    ErrorKind::ParseError,
+                                    format!("Serialization failed: {}", e),
+                                ),
+                            },
+                        },
                         Err(e) => HelperResponse::Error {
-                            kind: ErrorKind::ParseError,
-                            error: AppError::new(
-                                ErrorKind::ParseError,
-                                format!("Serialization failed: {}", e),
-                            ),
+                            kind: e.kind,
+                            error: e,
                         },
                     },
-                    Err(e) => HelperResponse::Error {
-                        kind: e.kind,
-                        error: e,
+                    None => HelperResponse::Error {
+                        kind: ErrorKind::NotConnected,
+                        error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
                 },
                 Err(payload) => payload,

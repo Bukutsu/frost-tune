@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::Device;
 use crate::ui::components::connection::ConnectionStatus;
 use crate::ui::components::editor::EqSource;
 use crate::ui::messages::*;
@@ -205,15 +204,14 @@ pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
 
     let device_info: Element<'_, Message> = if let Some(ref dev) = state.connection.connected_device
     {
-        let device_type = Device::from_vid_pid(dev.vendor_id, dev.product_id);
+        let name = crate::core::device::get_profile(dev.vendor_id, dev.product_id)
+            .map(|p| p.name())
+            .unwrap_or("Unknown Device");
         tooltip(
-            text(device_type.name())
-                .size(TYPE_BODY)
-                .color(COLOR_PRIMARY)
-                .font(Font {
-                    weight: Weight::Bold,
-                    ..Default::default()
-                }),
+            text(name).size(TYPE_BODY).color(COLOR_PRIMARY).font(Font {
+                weight: Weight::Bold,
+                ..Default::default()
+            }),
             text(format!(
                 "VID:{:04X}  PID:{:04X}  Path: {}",
                 dev.vendor_id, dev.product_id, dev.path

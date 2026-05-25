@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{ConnectionResult, Device, OperationResult};
+use crate::core::{ConnectionResult, OperationResult};
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::worker::{BackendKind, WorkerStatus};
@@ -251,8 +251,9 @@ pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Mess
             window.connection.operation_lock.is_connecting = false;
             window.suspend_status_polling = false;
             let device_name_owned = if let Some(ref d) = result.device {
-                Device::from_vid_pid(d.vendor_id, d.product_id)
-                    .name()
+                crate::core::device::get_profile(d.vendor_id, d.product_id)
+                    .map(|p| p.name())
+                    .unwrap_or("Unknown Device")
                     .to_string()
             } else {
                 "Unknown Device".to_string()
