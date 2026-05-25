@@ -9,7 +9,9 @@ use crate::models::{Device, DeviceInfo, Filter, PEQData, PushPayload};
 #[cfg(target_os = "linux")]
 use crate::error::{AppError, ErrorKind};
 #[cfg(target_os = "linux")]
-use crate::hardware::helper_ipc::{HelperRequest, HelperResponse, IPC_VERSION};
+use crate::hardware::helper_ipc::{
+    HelperRequest, HelperResponse, IpcRequest, IpcResponse, IPC_VERSION,
+};
 #[cfg(target_os = "linux")]
 use std::io::{self, BufRead, Read, Write};
 
@@ -97,7 +99,7 @@ fn handle_connect(
 #[cfg(target_os = "linux")]
 fn write_response(
     stdout: &mut io::StdoutLock<'_>,
-    response: &HelperResponse,
+    response: &IpcResponse,
 ) -> crate::error::Result<()> {
     let line = serde_json::to_string(response).map_err(|e| {
         AppError::new(
@@ -137,12 +139,15 @@ pub fn run() -> crate::error::Result<()> {
             Err(e) => {
                 let _ = write_response(
                     &mut stdout_lock,
-                    &HelperResponse::Error {
-                        kind: ErrorKind::IpcError,
-                        error: AppError::new(
-                            ErrorKind::IpcError,
-                            format!("Failed reading request: {}", e),
-                        ),
+                    &IpcResponse {
+                        id: 0,
+                        payload: HelperResponse::Error {
+                            kind: ErrorKind::IpcError,
+                            error: AppError::new(
+                                ErrorKind::IpcError,
+                                format!("Failed reading request: {}", e),
+                            ),
+                        },
                     },
                 );
                 continue;
@@ -156,9 +161,12 @@ pub fn run() -> crate::error::Result<()> {
         if bytes_read == 65536 && !line.ends_with('\n') {
             let _ = write_response(
                 &mut stdout_lock,
-                &HelperResponse::Error {
-                    kind: ErrorKind::IpcError,
-                    error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
+                &IpcResponse {
+                    id: 0,
+                    payload: HelperResponse::Error {
+                        kind: ErrorKind::IpcError,
+                        error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
+                    },
                 },
             );
             let mut buf = vec![];
@@ -171,24 +179,28 @@ pub fn run() -> crate::error::Result<()> {
             continue;
         }
 
-        let request = match serde_json::from_str::<HelperRequest>(line) {
+        let request = match serde_json::from_str::<IpcRequest>(line) {
             Ok(r) => r,
             Err(e) => {
                 let _ = write_response(
                     &mut stdout_lock,
-                    &HelperResponse::Error {
-                        kind: ErrorKind::ParseError,
-                        error: AppError::new(
-                            ErrorKind::ParseError,
-                            format!("Invalid request payload: {}", e),
-                        ),
+                    &IpcResponse {
+                        id: 0,
+                        payload: HelperResponse::Error {
+                            kind: ErrorKind::ParseError,
+                            error: AppError::new(
+                                ErrorKind::ParseError,
+                                format!("Invalid request payload: {}", e),
+                            ),
+                        },
                     },
                 );
                 continue;
             }
         };
 
-        let response: HelperResponse = match request {
+        let request_id = request.id;
+        let response_payload: HelperResponse = match request.payload {
             HelperRequest::Connect => {
                 if device.is_some() {
                     HelperResponse::Connected {
@@ -240,7 +252,7 @@ pub fn run() -> crate::error::Result<()> {
                         error: e,
                     },
                 },
-                Err(response) => response,
+                Err(payload) => payload,
             },
             HelperRequest::PushPeq {
                 filters,
@@ -262,15 +274,27 @@ pub fn run() -> crate::error::Result<()> {
                         error: e,
                     },
                 },
-                Err(response) => response,
+                Err(payload) => payload,
             },
             HelperRequest::Shutdown => {
-                write_response(&mut stdout_lock, &HelperResponse::Ok)?;
+                write_response(
+                    &mut stdout_lock,
+                    &IpcResponse {
+                        id: request_id,
+                        payload: HelperResponse::Ok,
+                    },
+                )?;
                 break;
             }
         };
 
-        write_response(&mut stdout_lock, &response)?;
+        write_response(
+            &mut stdout_lock,
+            &IpcResponse {
+                id: request_id,
+                payload: response_payload,
+            },
+        )?;
     }
 
     Ok(())
