@@ -1,3 +1,18 @@
+# --- OS / IDE Junk ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- AI Agents / Assistants ---
+.claude/
+.antigravitycli/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+opencode.json
+
 # --- Rust / Cargo ---
 # Official Rust ignores (from github/gitignore)
 /target/
@@ -24,4 +39,3 @@ rustc-ice-*.txt
 *.wixobj
 *.wixpdb
 *.msi
-

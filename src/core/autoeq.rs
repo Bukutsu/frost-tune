@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{Filter, FilterType, PEQData, MAX_GLOBAL_GAIN, MIN_GLOBAL_GAIN};
+use crate::core::{Filter, FilterType, PEQData};
 
 pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
     let lines: Vec<&str> = text.lines().collect();
