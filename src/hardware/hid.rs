@@ -7,6 +7,30 @@ use crate::core::{DeviceInfo, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
 
+/// Trait abstracting over HID device I/O, enabling mock devices in tests.
+pub trait HidDeviceIo {
+    fn write(&self, data: &[u8]) -> std::result::Result<usize, hidapi::HidError>;
+    fn read_timeout(
+        &self,
+        data: &mut [u8],
+        timeout_ms: i32,
+    ) -> std::result::Result<usize, hidapi::HidError>;
+}
+
+impl HidDeviceIo for hidapi::HidDevice {
+    fn write(&self, data: &[u8]) -> std::result::Result<usize, hidapi::HidError> {
+        hidapi::HidDevice::write(self, data)
+    }
+
+    fn read_timeout(
+        &self,
+        data: &mut [u8],
+        timeout_ms: i32,
+    ) -> std::result::Result<usize, hidapi::HidError> {
+        hidapi::HidDevice::read_timeout(self, data, timeout_ms)
+    }
+}
+
 pub const MAX_FILTER_READ_ATTEMPTS: u8 = 60;
 pub const MAX_GLOBAL_GAIN_ATTEMPTS: u8 = 20;
 pub const MAX_WRITE_RETRIES: u8 = 3;
@@ -72,7 +96,7 @@ pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
     devices
 }
 
-pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Result<()> {
+pub fn send_report(device: &dyn HidDeviceIo, data: &[u8], report_id: u8) -> Result<()> {
     let mut buf = [0u8; 65];
     buf[0] = report_id;
     let len = data.len().min(64);
@@ -86,7 +110,7 @@ pub fn send_report(device: &hidapi::HidDevice, data: &[u8], report_id: u8) -> Re
     }
 }
 
-pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
+pub fn flush_hid_buffer(device: &dyn HidDeviceIo) {
     let mut buf = [0u8; 64];
     let mut total_drained = 0;
     while let Ok(count) = device.read_timeout(&mut buf[..], 5) {
@@ -101,7 +125,7 @@ pub fn flush_hid_buffer(device: &hidapi::HidDevice) {
 }
 
 pub fn pull_peq_internal(
-    device: &hidapi::HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
@@ -147,7 +171,7 @@ pub fn pull_peq_internal(
 /// Read a single filter response from the device, matching by `index` and `nonce`.
 /// The protocol decides whether an incoming packet is the response we expect.
 fn read_single_filter(
-    device: &hidapi::HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     expected_index: u8,
@@ -187,7 +211,7 @@ fn read_single_filter(
 }
 
 fn read_global_gain(
-    device: &hidapi::HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     cfg: &ReadTiming,
     nonce: u8,

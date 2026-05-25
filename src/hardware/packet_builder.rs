@@ -5,14 +5,13 @@ use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
 use crate::core::Filter;
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, send_report, DeviceSession};
-use hidapi::HidDevice;
+use crate::hardware::hid::{delay_ms, send_report, DeviceSession, HidDeviceIo};
 
 /// Sends the device's init sequence (version ping / wake), drains stale USB frames,
 /// and returns a fresh `DeviceSession` with its nonce counter reset to 1.
 /// Every read and write operation must start here.
 pub fn init_device_session(
-    device: &HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
 ) -> Result<DeviceSession> {
     for packet in proto.build_init_packets() {
@@ -31,7 +30,7 @@ pub fn init_device_session(
 }
 
 pub fn write_filters_and_gain(
-    device: &HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     filters: &[Filter],
     global_gain: i8,
@@ -66,7 +65,7 @@ pub fn write_filters_and_gain(
 /// Sends the full commit sequence returned by `proto.build_commit_packets()`,
 /// applying `timing.commit_step_ms` delay after each packet.
 pub fn commit_changes(
-    device: &HidDevice,
+    device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     timing: &WriteTiming,
 ) -> Result<()> {

@@ -4,11 +4,11 @@
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::{Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, pull_peq_internal};
+use crate::hardware::hid::{delay_ms, pull_peq_internal, HidDeviceIo};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 
 pub fn pull_peq_data(
-    d: &hidapi::HidDevice,
+    d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
 ) -> Result<PEQData> {
@@ -33,7 +33,7 @@ pub fn pull_peq_data(
 }
 
 pub fn rollback_state(
-    d: &hidapi::HidDevice,
+    d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     state: &PEQData,
 ) -> Result<()> {
@@ -43,7 +43,7 @@ pub fn rollback_state(
 }
 
 pub fn rollback_and_verify(
-    d: &hidapi::HidDevice,
+    d: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     snapshot: &PEQData,
 ) -> Result<()> {
