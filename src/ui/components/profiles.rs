@@ -36,12 +36,3 @@ pub enum ProfilesMessage {
     },
     ProfileSearchInput(String),
 }
-
-#[derive(Default)]
-pub struct ProfilesComponent {
-    pub profiles: Vec<Profile>,
-    pub selected_profile_name: Option<String>,
-    pub profiles_dir_mtime: Option<std::time::SystemTime>,
-    pub profile_search: String,
-    pub new_profile_name: String,
-}

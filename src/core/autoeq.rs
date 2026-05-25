@@ -245,20 +245,7 @@ mod tests {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 20.0 dB Q 1.0";
         let (mut result, warnings) = parse_autoeq_text(text).unwrap();
 
-        let default_caps = crate::core::DeviceCapabilities {
-            num_bands: crate::core::NUM_BANDS,
-            global_gain_range: (crate::core::MIN_GLOBAL_GAIN, crate::core::MAX_GLOBAL_GAIN),
-            band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-            freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-            q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
-            supported_filter_types: crate::core::FilterTypeFlags::PEAK
-                | crate::core::FilterTypeFlags::LOW_SHELF
-                | crate::core::FilterTypeFlags::HIGH_SHELF
-                | crate::core::FilterTypeFlags::LOW_PASS
-                | crate::core::FilterTypeFlags::HIGH_PASS,
-            supports_per_band_enable: true,
-        };
-        result.clamp_to_capabilities(&default_caps);
+        result.clamp_to_capabilities(&crate::core::device::capabilities::DESKTOP_DAC_CAPS);
 
         assert_eq!(result.filters[0].gain, MAX_BAND_GAIN);
         assert!(warnings.is_empty());

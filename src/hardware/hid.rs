@@ -176,7 +176,10 @@ fn read_single_filter(
                 }
             }
             Ok(_) => {}
-            Err(_) => return None,
+            Err(e) => {
+                log::warn!("HID read error for filter {}: {}", expected_index, e);
+                return None;
+            }
         }
         attempts += 1;
     }

@@ -52,6 +52,20 @@ pub struct DeviceCapabilities {
     pub supports_per_band_enable: bool,
 }
 
+/// Default capabilities used when no device is connected (generic desktop DAC).
+///
+/// Supports all 5 filter types with the standard desktop range: 10 bands,
+/// ±10 dB band gain, ±6 dB global gain, 20–20000 Hz, Q 0.1–20.0.
+pub const DESKTOP_DAC_CAPS: DeviceCapabilities = DeviceCapabilities {
+    num_bands: 10,
+    global_gain_range: (-16, 6),
+    band_gain_range: (-10.0, 10.0),
+    freq_range: (20, 20000),
+    q_range: (0.1, 20.0),
+    supported_filter_types: FilterTypeFlags(0b0001_1111),
+    supports_per_band_enable: true,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

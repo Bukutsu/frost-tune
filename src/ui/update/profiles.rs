@@ -20,20 +20,7 @@ pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, mut peq: PEQData) -> 
     if let Some(active) = window.active_device() {
         peq.clamp_to_capabilities(&active.capabilities());
     } else {
-        let default_caps = crate::core::DeviceCapabilities {
-            num_bands: crate::core::NUM_BANDS,
-            global_gain_range: (crate::core::MIN_GLOBAL_GAIN, crate::core::MAX_GLOBAL_GAIN),
-            band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-            freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-            q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
-            supported_filter_types: crate::core::FilterTypeFlags::PEAK
-                | crate::core::FilterTypeFlags::LOW_SHELF
-                | crate::core::FilterTypeFlags::HIGH_SHELF
-                | crate::core::FilterTypeFlags::LOW_PASS
-                | crate::core::FilterTypeFlags::HIGH_PASS,
-            supports_per_band_enable: true,
-        };
-        peq.clamp_to_capabilities(&default_caps);
+        peq.clamp_to_capabilities(&crate::core::device::capabilities::DESKTOP_DAC_CAPS);
     }
 
     let num_bands = window.num_bands();
@@ -725,23 +712,9 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 if let Some(active) = window.active_device() {
                     profile.data.clamp_to_capabilities(&active.capabilities());
                 } else {
-                    let default_caps = crate::core::DeviceCapabilities {
-                        num_bands: crate::core::NUM_BANDS,
-                        global_gain_range: (
-                            crate::core::MIN_GLOBAL_GAIN,
-                            crate::core::MAX_GLOBAL_GAIN,
-                        ),
-                        band_gain_range: (crate::core::MIN_BAND_GAIN, crate::core::MAX_BAND_GAIN),
-                        freq_range: (crate::core::MIN_FREQ, crate::core::MAX_FREQ),
-                        q_range: (crate::core::MIN_Q, crate::core::MAX_Q),
-                        supported_filter_types: crate::core::FilterTypeFlags::PEAK
-                            | crate::core::FilterTypeFlags::LOW_SHELF
-                            | crate::core::FilterTypeFlags::HIGH_SHELF
-                            | crate::core::FilterTypeFlags::LOW_PASS
-                            | crate::core::FilterTypeFlags::HIGH_PASS,
-                        supports_per_band_enable: true,
-                    };
-                    profile.data.clamp_to_capabilities(&default_caps);
+                    profile.data.clamp_to_capabilities(
+                        &crate::core::device::capabilities::DESKTOP_DAC_CAPS,
+                    );
                 }
 
                 window.editor.session.import_temporary = false;

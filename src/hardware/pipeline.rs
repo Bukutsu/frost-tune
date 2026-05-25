@@ -17,7 +17,10 @@ pub fn pull_with_retry(
     strict: bool,
 ) -> Result<PEQData> {
     let wake_request = proto.build_global_gain_request(0x01);
-    let _ = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id());
+    if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
+    {
+        log::warn!("pull wake request failed: {}", e);
+    }
     delay_ms(50);
     let first_result = pull_peq_data(device, proto, strict);
 
@@ -55,18 +58,27 @@ pub fn push_with_verify(
     mut payload: PushPayload,
 ) -> Result<PEQData> {
     let caps = profile.capabilities();
-    payload.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
+    payload.clamp(
+        caps.freq_range,
+        caps.band_gain_range,
+        caps.q_range,
+        caps.global_gain_range,
+    );
     payload
         .is_valid(
             caps.num_bands,
             caps.freq_range,
             caps.band_gain_range,
             caps.q_range,
+            caps.global_gain_range,
         )
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     let wake_request = proto.build_global_gain_request(0x01);
-    let _ = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id());
+    if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
+    {
+        log::warn!("push wake request failed: {}", e);
+    }
     delay_ms(50);
     let snapshot = pull_peq_data(device, proto, true)?;
 

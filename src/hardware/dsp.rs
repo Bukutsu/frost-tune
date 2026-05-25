@@ -3,11 +3,11 @@
 
 //! DSP utilities for frequency-response visualization.
 //!
-//! The IIR filter math and packet-parsing routines used to build/parse USB payloads
-//! live in `core/device/tp35pro`. This module contains only the biquad coefficient
-//! and magnitude-response helpers used by the UI graph renderer.
+//! The canonical biquad coefficient computation lives in [`crate::core::eq::iir_math::compute_biquad_coeffs`].
+//! This module wraps it for magnitude-response calculation used by the UI graph renderer.
 
-use crate::core::{Filter, FilterType};
+use crate::core::eq::iir_math::compute_biquad_coeffs;
+use crate::core::Filter;
 use std::f64::consts::TAU;
 
 const DSP_SAMPLE_RATE: f64 = 96000.0;
@@ -32,73 +32,11 @@ impl PrecomputedFreq {
     }
 }
 
+/// Canonical biquad coefficients for a filter.
+///
+/// Delegates to [`crate::core::eq::iir_math::compute_biquad_coeffs`] — the single shared implementation.
 pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64) {
-    let freq = filter.freq as f64;
-    let gain = filter.gain;
-    let q = filter.q;
-    let a = 10_f64.powf(gain / 40.0);
-    let omega = (freq * TAU) / DSP_SAMPLE_RATE;
-    let sin_w = omega.sin();
-    let cos_w = omega.cos();
-
-    match filter.filter_type {
-        FilterType::Peak => {
-            let alpha = sin_w / (2.0 * q);
-            let b0 = 1.0 + alpha * a;
-            let b1 = -2.0 * cos_w;
-            let b2 = 1.0 - alpha * a;
-            let a0 = 1.0 + alpha / a;
-            let a1 = -2.0 * cos_w;
-            let a2 = 1.0 - alpha / a;
-            (b0, b1, b2, a0, a1, a2)
-        }
-        FilterType::LowShelf => {
-            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
-            let a_minus_1 = a - 1.0;
-            let a_plus_1 = a + 1.0;
-            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-            let b0 = a * (a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha);
-            let b1 = 2.0 * a * (a_minus_1 - a_plus_1 * cos_w);
-            let b2 = a * (a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha);
-            let a0 = a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha;
-            let a1 = -2.0 * (a_minus_1 + a_plus_1 * cos_w);
-            let a2 = a_plus_1 + a_minus_1 * cos_w - sqrt_a_alpha;
-            (b0, b1, b2, a0, a1, a2)
-        }
-        FilterType::HighShelf => {
-            let alpha = (sin_w / 2.0) * ((a + 1.0 / a) * (1.0 / q - 1.0) + 2.0).sqrt();
-            let a_minus_1 = a - 1.0;
-            let a_plus_1 = a + 1.0;
-            let sqrt_a_alpha = 2.0 * a.sqrt() * alpha;
-            let b0 = a * (a_plus_1 + a_minus_1 * cos_w + sqrt_a_alpha);
-            let b1 = -2.0 * a * (a_minus_1 + a_plus_1 * cos_w);
-            let b2 = a * (a_plus_1 + a_minus_1 * cos_w - sqrt_a_alpha);
-            let a0 = a_plus_1 - a_minus_1 * cos_w + sqrt_a_alpha;
-            let a1 = 2.0 * (a_minus_1 - a_plus_1 * cos_w);
-            let a2 = a_plus_1 - a_minus_1 * cos_w - sqrt_a_alpha;
-            (b0, b1, b2, a0, a1, a2)
-        }
-        FilterType::HighPass => {
-            let alpha = sin_w / (2.0 * q);
-            let b0 = (1.0 + cos_w) / 2.0;
-            let b1 = -(1.0 + cos_w);
-            let b2 = (1.0 + cos_w) / 2.0;
-            let a0 = 1.0 + alpha;
-            let a1 = -2.0 * cos_w;
-            let a2 = 1.0 - alpha;
-            (b0, b1, b2, a0, a1, a2)
-        }
-        FilterType::LowPass => {
-            let alpha = sin_w / (2.0 * q);
-            let b0 = (1.0 - cos_w) / 2.0;
-            let b1 = 1.0 - cos_w;
-            let b2 = (1.0 - cos_w) / 2.0;
-            let a0 = 1.0 + alpha;
-            let a1 = -2.0 * cos_w;
-            let a2 = 1.0 - alpha;
-            (b0, b1, b2, a0, a1, a2)
-        }
-    }
+    compute_biquad_coeffs(filter)
 }
 
 pub fn get_magnitude_response_with_coeffs(
@@ -176,7 +114,7 @@ pub fn calculate_total_response(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::Filter;
+    use crate::core::{Filter, FilterType};
 
     #[test]
     fn test_peak_filter_magnitude_response() {

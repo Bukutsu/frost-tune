@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::device::DeviceInfo;
-use crate::core::eq::constants::*;
+
 use crate::core::eq::{Filter, PEQData};
 use crate::error::{AppError, ErrorKind};
 use serde::{Deserialize, Serialize};
@@ -53,12 +53,18 @@ pub struct PushPayload {
 }
 
 impl PushPayload {
-    pub fn clamp(&mut self, freq_range: (u16, u16), gain_range: (f64, f64), q_range: (f64, f64)) {
+    pub fn clamp(
+        &mut self,
+        freq_range: (u16, u16),
+        gain_range: (f64, f64),
+        q_range: (f64, f64),
+        global_gain_range: (i8, i8),
+    ) {
         for filter in &mut self.filters {
             filter.clamp(freq_range, gain_range, q_range);
         }
         if let Some(gain) = self.global_gain {
-            self.global_gain = Some(gain.clamp(MIN_GLOBAL_GAIN, MAX_GLOBAL_GAIN));
+            self.global_gain = Some(gain.clamp(global_gain_range.0, global_gain_range.1));
         }
     }
 
@@ -68,6 +74,7 @@ impl PushPayload {
         freq_range: (u16, u16),
         gain_range: (f64, f64),
         q_range: (f64, f64),
+        global_gain_range: (i8, i8),
     ) -> Result<(), String> {
         if self.filters.len() != num_bands {
             return Err(format!(
@@ -94,7 +101,7 @@ impl PushPayload {
             }
         }
         if let Some(gain) = self.global_gain {
-            if !(MIN_GLOBAL_GAIN..=MAX_GLOBAL_GAIN).contains(&gain) {
+            if !(global_gain_range.0..=global_gain_range.1).contains(&gain) {
                 return Err(format!("Global gain out of range: {}", gain));
             }
         }
