@@ -5,7 +5,21 @@ use crate::error::{AppError, ErrorKind};
 use crate::models::{DeviceInfo, Filter};
 use serde::{Deserialize, Serialize};
 
-pub const IPC_VERSION: &str = "1.1.0";
+pub const IPC_VERSION: &str = "1.2.0";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IpcRequest {
+    pub id: u64,
+    #[serde(flatten)]
+    pub payload: HelperRequest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IpcResponse {
+    pub id: u64,
+    #[serde(flatten)]
+    pub payload: HelperResponse,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
