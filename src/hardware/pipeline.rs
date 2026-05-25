@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::device::protocol::DeviceProtocol;
-use crate::core::{PEQData, PushPayload};
+use crate::core::{Filter, PEQData, PushPayload};
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, HidDeviceIo};
+use crate::hardware::hid::{delay_ms, send_report, HidDeviceIo};
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
@@ -51,6 +51,76 @@ pub fn pull_with_retry(
     }
 }
 
+fn wake_device(device: &dyn HidDeviceIo, proto: &dyn DeviceProtocol) {
+    let wake = proto.build_global_gain_request(0x01);
+    if let Err(e) = send_report(device, &wake[..], proto.report_id()) {
+        log::warn!("wake request failed: {}", e);
+    }
+    delay_ms(50);
+}
+
+fn do_write_and_commit(
+    device: &dyn HidDeviceIo,
+    proto: &dyn DeviceProtocol,
+    payload: &PushPayload,
+) -> Result<()> {
+    let timing = proto.write_timing();
+    init_device_session(device, proto)?;
+    write_filters_and_gain(
+        device,
+        proto,
+        &payload.filters,
+        payload.global_gain.unwrap_or(0),
+        &timing,
+    )?;
+    commit_changes(device, proto, &timing)
+}
+
+fn verify_or_rollback(
+    device: &dyn HidDeviceIo,
+    proto: &dyn DeviceProtocol,
+    expected_filters: &[Filter],
+    expected_gain: Option<i8>,
+    snapshot: &PEQData,
+) -> Result<PEQData> {
+    for attempt in 0..3 {
+        let backoff_ms = 200_u64.saturating_mul(2u64.saturating_pow(attempt as u32));
+        delay_ms(backoff_ms);
+        match pull_peq_data(device, proto, true) {
+            Ok(read_back) => {
+                if compare_peq(&read_back, expected_filters, expected_gain.unwrap_or(0)).is_ok() {
+                    return Ok(read_back);
+                }
+            }
+            Err(e) => {
+                rollback_and_verify(device, proto, snapshot).map_err(|r| {
+                    AppError::new(
+                        ErrorKind::RollbackFailed,
+                        format!(
+                            "Verify read error: {} | rollback failed: {}",
+                            e.message, r.message
+                        ),
+                    )
+                })?;
+                return Err(e);
+            }
+        }
+    }
+    rollback_and_verify(device, proto, snapshot).map_err(|r| {
+        AppError::new(
+            ErrorKind::RollbackFailed,
+            format!(
+                "Verification failed: settings did not match | rollback failed: {}",
+                r.message
+            ),
+        )
+    })?;
+    Err(AppError::new(
+        ErrorKind::VerifyFailed,
+        "Verification failed: settings did not match",
+    ))
+}
+
 pub fn push_with_verify(
     device: &dyn HidDeviceIo,
     profile: &dyn DeviceProfile,
@@ -74,83 +144,27 @@ pub fn push_with_verify(
         )
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
-    let wake_request = proto.build_global_gain_request(0x01);
-    if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
-    {
-        log::warn!("push wake request failed: {}", e);
-    }
-    delay_ms(50);
+    wake_device(device, proto);
     let snapshot = pull_peq_data(device, proto, true)?;
 
-    let timing = proto.write_timing();
-    let write_res = (|| -> Result<()> {
-        init_device_session(device, proto)?; // wake + drain; session used by write path only
-        write_filters_and_gain(
-            device,
-            proto,
-            &payload.filters,
-            payload.global_gain.unwrap_or(0),
-            &timing,
-        )?;
-        commit_changes(device, proto, &timing)?;
-        Ok(())
-    })();
-
-    if let Err(e) = write_res {
-        if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-            return Err(AppError::new(
+    if let Err(e) = do_write_and_commit(device, proto, &payload) {
+        rollback_and_verify(device, proto, &snapshot).map_err(|r| {
+            AppError::new(
                 ErrorKind::RollbackFailed,
                 format!(
                     "Write failed: {} | rollback failed: {}",
-                    e.message, rollback_error.message
+                    e.message, r.message
                 ),
-            ));
-        }
+            )
+        })?;
         return Err(e);
     }
 
-    for attempt in 0..3 {
-        let backoff_ms = 200_u64.saturating_mul(2u64.saturating_pow(attempt as u32));
-        delay_ms(backoff_ms);
-        match pull_peq_data(device, proto, true) {
-            Ok(read_back) => {
-                if compare_peq(
-                    &read_back,
-                    &payload.filters,
-                    payload.global_gain.unwrap_or(0),
-                )
-                .is_ok()
-                {
-                    return Ok(read_back);
-                }
-            }
-            Err(e) => {
-                if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-                    return Err(AppError::new(
-                        ErrorKind::RollbackFailed,
-                        format!(
-                            "Verify read error: {} | rollback failed: {}",
-                            e.message, rollback_error.message
-                        ),
-                    ));
-                }
-                return Err(e);
-            }
-        }
-    }
-
-    if let Err(rollback_error) = rollback_and_verify(device, proto, &snapshot) {
-        return Err(AppError::new(
-            ErrorKind::RollbackFailed,
-            format!(
-                "Verification failed: settings did not match | rollback failed: {}",
-                rollback_error.message
-            ),
-        ));
-    }
-
-    Err(AppError::new(
-        ErrorKind::VerifyFailed,
-        "Verification failed: settings did not match",
-    ))
+    verify_or_rollback(
+        device,
+        proto,
+        &payload.filters,
+        payload.global_gain,
+        &snapshot,
+    )
 }
