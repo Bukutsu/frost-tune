@@ -8,7 +8,7 @@ use crate::models::{OperationResult, PEQData, PushPayload};
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 
-pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResult {
+pub async fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResult {
     match backend.as_mut() {
         Some(TransportBackend::Local {
             device,
@@ -16,7 +16,7 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
             info: _,
         }) => {
             if let Some(proto) = device_type.protocol() {
-                worker_pull_peq_local(device, proto.as_ref())
+                worker_pull_peq_local(device, proto.as_ref()).await
             } else {
                 OperationResult {
                     success: false,
@@ -30,7 +30,7 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
         }
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info: _ }) => {
-            match transport.round_trip(&HelperRequest::PullPeq { strict: false }) {
+            match transport.round_trip(&HelperRequest::PullPeq { strict: false }).await {
                 Ok(HelperResponse::Pulled { data }) => {
                     match serde_json::from_value::<PEQData>(data) {
                         Ok(peq) => OperationResult {
@@ -79,7 +79,7 @@ pub fn worker_pull_peq(backend: &mut Option<TransportBackend>) -> OperationResul
     }
 }
 
-pub fn worker_push_peq(
+pub async fn worker_push_peq(
     backend: &mut Option<TransportBackend>,
     payload: PushPayload,
 ) -> OperationResult {
@@ -90,7 +90,7 @@ pub fn worker_push_peq(
             info: _,
         }) => {
             if let Some(proto) = device_type.protocol() {
-                worker_push_peq_local(device, *device_type, proto.as_ref(), payload)
+                worker_push_peq_local(device, *device_type, proto.as_ref(), payload).await
             } else {
                 OperationResult {
                     success: false,
@@ -107,7 +107,7 @@ pub fn worker_push_peq(
             match transport.round_trip(&HelperRequest::PushPeq {
                 filters: payload.filters,
                 global_gain: payload.global_gain,
-            }) {
+            }).await {
                 Ok(HelperResponse::Pushed { data }) => {
                     match serde_json::from_value::<PEQData>(data) {
                         Ok(peq) => OperationResult {
@@ -156,10 +156,11 @@ pub fn worker_push_peq(
     }
 }
 
-fn worker_pull_peq_local(
+async fn worker_pull_peq_local(
     device: &hidapi::HidDevice,
     proto: &dyn crate::hardware::protocol::DeviceProtocol,
 ) -> OperationResult {
+    // Since we are on a dedicated thread, we can call blocking code directly.
     match crate::hardware::pipeline::pull_with_retry(device, proto, false) {
         Ok(peq) => OperationResult {
             success: true,
@@ -174,12 +175,13 @@ fn worker_pull_peq_local(
     }
 }
 
-fn worker_push_peq_local(
+async fn worker_push_peq_local(
     device: &hidapi::HidDevice,
     device_type: crate::models::Device,
     proto: &dyn crate::hardware::protocol::DeviceProtocol,
     payload: PushPayload,
 ) -> OperationResult {
+    // Since we are on a dedicated thread, we can call blocking code directly.
     match crate::hardware::pipeline::push_with_verify(device, device_type, proto, payload) {
         Ok(peq) => OperationResult {
             success: true,

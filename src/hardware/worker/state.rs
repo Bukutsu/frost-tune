@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use std::sync::mpsc;
-
 use crate::hardware::hid::find_device_info;
 use crate::hardware::worker::backend::TransportBackend;
 use crate::hardware::worker::connection::worker_connect;
@@ -65,7 +63,7 @@ impl WorkerState {
         }
     }
 
-    fn ensure_api(&mut self) {
+    async fn ensure_api(&mut self) {
         if self.api.is_some() {
             return;
         }
@@ -76,6 +74,7 @@ impl WorkerState {
         if should_retry {
             self.last_api_retry = Some(std::time::Instant::now());
             self.api_retry_count += 1;
+            
             match hidapi::HidApi::new() {
                 Ok(a) => {
                     log::info!("HID API initialized successfully");
@@ -92,7 +91,7 @@ impl WorkerState {
         }
     }
 
-    fn perform_physical_checks(&mut self) -> bool {
+    async fn perform_physical_checks(&mut self) -> bool {
         self.last_physical_check = std::time::Instant::now();
         let mut backend_reset = false;
 
@@ -101,8 +100,7 @@ impl WorkerState {
                 log::warn!("Failed to refresh USB device list: {}", e);
             }
 
-            let local_physical_device = find_device_info(api_ref);
-            let is_physically_connected = local_physical_device.is_some();
+            let is_physically_connected = find_device_info(api_ref).is_some();
             let mut clear_backend = false;
 
             if let Some(current_backend) = self.backend.as_mut() {
@@ -115,7 +113,7 @@ impl WorkerState {
                     }
                     #[cfg(target_os = "linux")]
                     TransportBackend::Elevated { transport, .. } => {
-                        let status_result = transport.round_trip(&HelperRequest::Status);
+                        let status_result = transport.round_trip(&HelperRequest::Status).await;
 
                         let elevated_failed = match &status_result {
                             Ok(HelperResponse::Status {
@@ -151,7 +149,7 @@ impl WorkerState {
                                 };
 
                                 if let Some(info) = device_info {
-                                    match ElevatedTransport::spawn() {
+                                    match ElevatedTransport::spawn().await {
                                         Ok(new_transport) => {
                                             log::info!("Elevated helper respawned successfully");
                                             self.backend = Some(TransportBackend::Elevated {
@@ -199,7 +197,7 @@ impl WorkerState {
         backend_reset
     }
 
-    fn process_command(&mut self, cmd: UsbCommand, backend_reset: bool) {
+    async fn process_command(&mut self, cmd: UsbCommand, backend_reset: bool) {
         match cmd {
             UsbCommand::Connect(target_device, target_backend, resp) => {
                 let result = if let Some(ref api_ref) = self.api {
@@ -210,7 +208,7 @@ impl WorkerState {
                         api_ref,
                         Some(preferred),
                         target_device,
-                    )
+                    ).await
                 } else {
                     crate::models::ConnectionResult {
                         success: false,
@@ -231,7 +229,7 @@ impl WorkerState {
             UsbCommand::Disconnect(resp) => {
                 #[cfg(target_os = "linux")]
                 if let Some(TransportBackend::Elevated { transport, .. }) = self.backend.as_mut() {
-                    let _ = transport.round_trip(&HelperRequest::Disconnect);
+                    let _ = transport.round_trip(&HelperRequest::Disconnect).await;
                     transport.shutdown();
                 }
                 self.backend = None;
@@ -244,7 +242,7 @@ impl WorkerState {
             }
             UsbCommand::Status(resp) => {
                 let status = if let Some(ref mut api_ref) = self.api {
-                    worker_status(&mut self.backend, api_ref, backend_reset, self.generation)
+                    worker_status(&mut self.backend, api_ref, backend_reset, self.generation).await
                 } else {
                     WorkerStatus {
                         connected: false,
@@ -259,41 +257,45 @@ impl WorkerState {
                 let _ = resp.send(status);
             }
             UsbCommand::PullPEQ(resp) => {
-                let result = worker_pull_peq(&mut self.backend);
+                let result = worker_pull_peq(&mut self.backend).await;
                 let _ = resp.send(result);
             }
             UsbCommand::PushPEQ(payload, resp) => {
-                let result = worker_push_peq(&mut self.backend, payload);
+                let result = worker_push_peq(&mut self.backend, payload).await;
                 let _ = resp.send(result);
             }
         }
     }
 
-    pub fn run_iteration(&mut self, rx: &mpsc::Receiver<UsbCommand>) -> IterationResult {
-        self.ensure_api();
+    pub async fn run_iteration(&mut self, rx: &mut tokio::sync::mpsc::Receiver<UsbCommand>) -> IterationResult {
+        self.ensure_api().await;
 
         let now = std::time::Instant::now();
         let time_since_check = now.duration_since(self.last_physical_check);
-        let mut remaining_time = self.check_interval.saturating_sub(time_since_check);
         let mut backend_reset = false;
 
         if time_since_check >= self.check_interval {
-            backend_reset = self.perform_physical_checks();
-            remaining_time = self.check_interval;
+            backend_reset = self.perform_physical_checks().await;
         }
 
-        match rx.recv_timeout(remaining_time.max(std::time::Duration::from_millis(1))) {
-            Ok(cmd) => {
-                self.process_command(cmd, backend_reset);
+        tokio::select! {
+            cmd = rx.recv() => {
+                match cmd {
+                    Some(cmd) => {
+                        self.process_command(cmd, backend_reset).await;
+                        IterationResult::Continue
+                    }
+                    None => IterationResult::Stop,
+                }
+            }
+            _ = tokio::time::sleep(self.check_interval.saturating_sub(time_since_check)) => {
                 IterationResult::Continue
             }
-            Err(mpsc::RecvTimeoutError::Timeout) => IterationResult::Continue,
-            Err(mpsc::RecvTimeoutError::Disconnected) => IterationResult::Stop,
         }
     }
 }
 
-fn worker_status(
+async fn worker_status(
     backend: &mut Option<TransportBackend>,
     api: &mut hidapi::HidApi,
     backend_reset: bool,
@@ -316,7 +318,7 @@ fn worker_status(
         },
         #[cfg(target_os = "linux")]
         Some(TransportBackend::Elevated { transport, info }) => {
-            match transport.round_trip(&HelperRequest::Status) {
+            match transport.round_trip(&HelperRequest::Status).await {
                 Ok(HelperResponse::Status {
                     connected,
                     physically_present,

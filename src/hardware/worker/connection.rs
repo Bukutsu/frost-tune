@@ -14,7 +14,7 @@ use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 // cfg-gated Linux elevation branches create early-return paths that clippy
 // flags as needless on non-Linux targets where those branches are absent.
 #[allow(clippy::needless_return)]
-pub fn worker_connect(
+pub async fn worker_connect(
     backend: &mut Option<TransportBackend>,
     preferred_backend: &mut BackendKind,
     api: &hidapi::HidApi,
@@ -34,7 +34,7 @@ pub fn worker_connect(
     // Flow 1: Elevated Preferred
     #[cfg(target_os = "linux")]
     if matches!(target_kind, BackendKind::Elevated) {
-        match try_connect_elevated() {
+        match try_connect_elevated().await {
             Ok(connected) => {
                 *preferred_backend = BackendKind::Elevated;
                 let info = connected.device_info();
@@ -107,7 +107,7 @@ pub fn worker_connect(
             {
                 if local_err.kind == ErrorKind::PermissionDenied {
                     // Try elevated automatically
-                    match try_connect_elevated() {
+                    match try_connect_elevated().await {
                         Ok(connected) => {
                             *preferred_backend = BackendKind::Elevated;
                             let info = connected.device_info();
@@ -180,9 +180,9 @@ pub fn try_connect_local(
 }
 
 #[cfg(target_os = "linux")]
-pub fn try_connect_elevated() -> AppResult<TransportBackend> {
-    let mut transport = ElevatedTransport::spawn()?;
-    match transport.round_trip(&HelperRequest::Connect)? {
+pub async fn try_connect_elevated() -> AppResult<TransportBackend> {
+    let transport = ElevatedTransport::spawn().await?;
+    match transport.round_trip(&HelperRequest::Connect).await? {
         HelperResponse::Connected { device } => {
             let info = device.ok_or_else(|| {
                 AppError::new(ErrorKind::IpcError, "Helper connected without device info")
