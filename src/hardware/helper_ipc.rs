@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::{DeviceInfo, Filter};
-use crate::error::{AppError, ErrorKind};
+use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 
-pub const IPC_VERSION: &str = "1.2.0";
+pub const IPC_VERSION: &str = "1.3.0";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpcRequest {
@@ -63,7 +63,6 @@ pub enum HelperResponse {
     },
     Error {
         error: AppError,
-        kind: ErrorKind,
     },
     Ok,
 }

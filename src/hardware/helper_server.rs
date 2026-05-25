@@ -46,7 +46,6 @@ fn require_device(
     device: &Option<hidapi::HidDevice>,
 ) -> Result<&hidapi::HidDevice, HelperResponse> {
     device.as_ref().ok_or_else(|| HelperResponse::Error {
-        kind: ErrorKind::NotConnected,
         error: AppError::new(ErrorKind::NotConnected, "Not connected"),
     })
 }
@@ -73,19 +72,16 @@ fn handle_connect(
                         HelperResponse::Connected { device: Some(info) }
                     }
                     Err(e) => HelperResponse::Error {
-                        kind: ErrorKind::PermissionDenied,
                         error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
                     },
                 }
             } else {
                 HelperResponse::Error {
-                    kind: ErrorKind::HardwareError,
                     error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
                 }
             }
         }
         None => HelperResponse::Error {
-            kind: ErrorKind::NotConnected,
             error: AppError::new(
                 ErrorKind::NotConnected,
                 "Device not found. Is it plugged in?",
@@ -140,7 +136,6 @@ pub fn run() -> crate::error::Result<()> {
                     &IpcResponse {
                         id: 0,
                         payload: HelperResponse::Error {
-                            kind: ErrorKind::IpcError,
                             error: AppError::new(
                                 ErrorKind::IpcError,
                                 format!("Failed reading request: {}", e),
@@ -162,7 +157,6 @@ pub fn run() -> crate::error::Result<()> {
                 &IpcResponse {
                     id: 0,
                     payload: HelperResponse::Error {
-                        kind: ErrorKind::IpcError,
                         error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
                     },
                 },
@@ -185,7 +179,6 @@ pub fn run() -> crate::error::Result<()> {
                     &IpcResponse {
                         id: 0,
                         payload: HelperResponse::Error {
-                            kind: ErrorKind::ParseError,
                             error: AppError::new(
                                 ErrorKind::ParseError,
                                 format!("Invalid request payload: {}", e),
@@ -239,20 +232,15 @@ pub fn run() -> crate::error::Result<()> {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {
-                                kind: ErrorKind::ParseError,
                                 error: AppError::new(
                                     ErrorKind::ParseError,
                                     format!("Serialization failed: {}", e),
                                 ),
                             },
                         },
-                        Err(e) => HelperResponse::Error {
-                            kind: e.kind,
-                            error: e,
-                        },
+                        Err(e) => HelperResponse::Error { error: e },
                     },
                     None => HelperResponse::Error {
-                        kind: ErrorKind::NotConnected,
                         error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
                 },
@@ -267,20 +255,15 @@ pub fn run() -> crate::error::Result<()> {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {
-                                kind: ErrorKind::ParseError,
                                 error: AppError::new(
                                     ErrorKind::ParseError,
                                     format!("Serialization failed: {}", e),
                                 ),
                             },
                         },
-                        Err(e) => HelperResponse::Error {
-                            kind: e.kind,
-                            error: e,
-                        },
+                        Err(e) => HelperResponse::Error { error: e },
                     },
                     None => HelperResponse::Error {
-                        kind: ErrorKind::NotConnected,
                         error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
                 },

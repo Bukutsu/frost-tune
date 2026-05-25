@@ -27,7 +27,7 @@ impl OperationResult {
             success: false,
             data: None,
             error: Some(AppError::new(
-                ErrorKind::Unknown,
+                ErrorKind::Timeout,
                 "Operation timed out after 5 seconds",
             )),
         }
@@ -38,7 +38,7 @@ impl OperationResult {
             success: false,
             data: None,
             error: Some(AppError::new(
-                ErrorKind::Unknown,
+                ErrorKind::WorkerDied,
                 "Background worker unexpectedly terminated",
             )),
         }

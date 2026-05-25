@@ -28,16 +28,16 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
         }
 
         if line.to_lowercase().contains("filter") {
-            if let Some((idx, enabled, filter_type, freq, gain, q)) = parse_filter_line(line) {
+            if let Some(parsed) = parse_filter_line(line) {
                 filters.insert(
-                    idx,
+                    parsed.index,
                     Filter {
-                        index: idx as u8,
-                        enabled,
-                        freq: freq as u16,
-                        gain,
-                        q,
-                        filter_type,
+                        index: parsed.index as u8,
+                        enabled: parsed.enabled,
+                        freq: parsed.freq as u16,
+                        gain: parsed.gain,
+                        q: parsed.q,
+                        filter_type: parsed.filter_type,
                     },
                 );
                 parsed_count += 1;
@@ -92,7 +92,16 @@ fn extract_number(s: &str) -> Option<f64> {
     s[start..end].parse().ok()
 }
 
-fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f64)> {
+struct ParsedFilterLine {
+    index: usize,
+    enabled: bool,
+    filter_type: FilterType,
+    freq: f64,
+    gain: f64,
+    q: f64,
+}
+
+fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
     let regex_match = line.find("Filter")?;
     let rest = &line[regex_match..];
     let rest_upper = rest.to_uppercase();
@@ -133,7 +142,14 @@ fn parse_filter_line(line: &str) -> Option<(usize, bool, FilterType, f64, f64, f
     let gain = extract_gain_value(rest).or_else(|| extract_number_after(rest, "Gain"))?;
     let q = extract_q_value(rest).or_else(|| extract_number_after(rest, "Q"))?;
 
-    Some((idx, on_off, filter_type, freq, gain, q))
+    Some(ParsedFilterLine {
+        index: idx,
+        enabled: on_off,
+        filter_type,
+        freq,
+        gain,
+        q,
+    })
 }
 
 fn extract_fc_value(s: &str) -> Option<f64> {

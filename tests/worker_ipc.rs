@@ -69,15 +69,14 @@ fn test_ipc_error_handling() {
     let error = AppError::new(ErrorKind::DeviceLost, "Test error").with_context("test context");
     let response = HelperResponse::Error {
         error: error.clone(),
-        kind: ErrorKind::DeviceLost,
     };
     let serialized = serde_json::to_string(&response).expect("Failed to serialize error response");
     let deserialized: HelperResponse =
         serde_json::from_str(&serialized).expect("Failed to deserialize");
     match deserialized {
-        HelperResponse::Error { error: e, kind } => {
+        HelperResponse::Error { error: e } => {
             assert_eq!(e.message, "Test error");
-            assert_eq!(kind, ErrorKind::DeviceLost);
+            assert_eq!(e.kind, ErrorKind::DeviceLost);
         }
         _ => panic!("Deserialized to wrong type"),
     }

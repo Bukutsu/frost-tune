@@ -65,6 +65,8 @@ pub enum ErrorKind {
     StorageError,
     IpcError,
     InvalidPayload,
+    Timeout,
+    WorkerDied,
     Unknown,
 }
 
@@ -89,6 +91,8 @@ impl ErrorKind {
             ErrorKind::StorageError => "Profile storage error.",
             ErrorKind::IpcError => "IPC communication error with background helper.",
             ErrorKind::InvalidPayload => "Invalid or malformed data payload.",
+            ErrorKind::Timeout => "Operation timed out.",
+            ErrorKind::WorkerDied => "Background worker terminated unexpectedly.",
             ErrorKind::Unknown => "Unknown error.",
         }
     }
