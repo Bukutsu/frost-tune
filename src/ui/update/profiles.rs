@@ -180,8 +180,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         let profile_name = profile.name.clone();
                         let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
                         window.editor.ui.selected_profile_name = Some(name);
-                        window.editor.ui.eq_source =
-                            crate::ui::components::editor::EqSource::Profile;
+                        window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
                         window.editor.session.new_profile_name = profile_name.clone();
                         window.editor.ui.profile_search.clear();
                         window.editor.session.is_autoeq_active = false;
@@ -246,7 +245,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                 window.editor.session.pending_confirm = ConfirmAction::None;
                 window.editor.session.is_dirty = true;
                 window.editor.ui.selected_profile_name = None;
-                window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Imported;
+                window.editor.ui.eq_source = crate::ui::messages::EqSource::Imported;
 
                 let mut tasks = vec![];
 
@@ -397,8 +396,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                         let profile_name = profile.name.clone();
                         let (was_truncated, _) = apply_peq_to_editor(window, profile.data.clone());
                         window.editor.ui.selected_profile_name = Some(name.clone());
-                        window.editor.ui.eq_source =
-                            crate::ui::components::editor::EqSource::Profile;
+                        window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
                         window.editor.session.new_profile_name = profile_name.clone();
                         window.editor.ui.profile_search.clear();
                         window.editor.session.is_autoeq_active = false;
@@ -541,7 +539,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     ));
                     window.editor.session.new_profile_name = name.clone();
                     window.editor.ui.selected_profile_name = Some(name.clone());
-                    window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Profile;
+                    window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
                     window.editor.session.is_dirty = false;
                     Task::batch(vec![
                         reload_profiles_task(),
@@ -558,7 +556,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.session.is_dirty = false;
                     window.editor.session.new_profile_name = name.clone();
-                    window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Profile;
+                    window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
 
                     let mut tasks = vec![reload_profiles_task()];
 
@@ -603,7 +601,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.editor.session.import_name_input = String::new();
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.ui.selected_profile_name = Some(name.clone());
-                    window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Profile;
+                    window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
 
                     let mut tasks = vec![reload_profiles_task()];
 
@@ -640,7 +638,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.session.new_profile_name = name.clone();
                     window.editor.ui.selected_profile_name = Some(name.clone());
-                    window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Profile;
+                    window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
                         Source::UI,
@@ -690,7 +688,7 @@ pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Messag
             Ok(_) => {
                 window.editor.session.is_dirty = false;
                 window.editor.ui.selected_profile_name = None;
-                window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Default;
+                window.editor.ui.eq_source = crate::ui::messages::EqSource::Default;
                 window.editor.session.new_profile_name.clear();
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,

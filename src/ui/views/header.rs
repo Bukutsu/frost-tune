@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ui::components::connection::ConnectionStatus;
-use crate::ui::components::editor::EqSource;
+use crate::ui::messages::EqSource;
 use crate::ui::messages::*;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;

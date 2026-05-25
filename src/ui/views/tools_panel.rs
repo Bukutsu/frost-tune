@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::ui::components::editor::ToolsTab;
+use crate::ui::messages::ToolsTab;
 use crate::ui::messages::*;
 use crate::ui::state::MainWindow;
 use crate::ui::theme;

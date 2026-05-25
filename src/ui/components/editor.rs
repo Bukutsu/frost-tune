@@ -124,22 +124,7 @@ impl DraftFilter {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum ToolsTab {
-    #[default]
-    Preset,
-    AutoEq,
-    Settings,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum EqSource {
-    #[default]
-    Default,
-    Pulled,
-    Imported,
-    Profile,
-}
+pub use crate::ui::messages::{EqSource, ToolsTab};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ConfirmAction {

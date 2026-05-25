@@ -268,7 +268,7 @@ pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message>
                 window.editor.session.is_autoeq_active = false;
                 window.editor.session.input_buffer.active_draft = None;
                 window.editor.ui.selected_profile_name = None;
-                window.editor.ui.eq_source = crate::ui::components::editor::EqSource::Default;
+                window.editor.ui.eq_source = crate::ui::messages::EqSource::Default;
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::UI,

@@ -33,6 +33,23 @@ pub enum SaveContext {
     Overwrite,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ToolsTab {
+    #[default]
+    Preset,
+    AutoEq,
+    Settings,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EqSource {
+    #[default]
+    Default,
+    Pulled,
+    Imported,
+    Profile,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     None,
@@ -49,7 +66,7 @@ pub enum Message {
     ConfirmExit(iced::window::Id),
     CancelExit,
     SettingsLoaded(Result<crate::storage::Settings, crate::error::AppError>),
-    ToolsTabSelected(crate::ui::components::editor::ToolsTab),
+    ToolsTabSelected(ToolsTab),
     ClearStatusMessage(usize),
     DismissConfirmDialog,
     SaveAndExit(iced::window::Id),

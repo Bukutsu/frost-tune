@@ -74,13 +74,11 @@ pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Messag
 
                     let status_msg = if let Some(name) = matched {
                         window.editor.ui.selected_profile_name = Some(name.clone());
-                        window.editor.ui.eq_source =
-                            crate::ui::components::editor::EqSource::Profile;
+                        window.editor.ui.eq_source = crate::ui::messages::EqSource::Profile;
                         format!("Device matches profile: {}", name)
                     } else {
                         window.editor.ui.selected_profile_name = None;
-                        window.editor.ui.eq_source =
-                            crate::ui::components::editor::EqSource::Pulled;
+                        window.editor.ui.eq_source = crate::ui::messages::EqSource::Pulled;
                         "Data pulled from device".to_string()
                     };
 
