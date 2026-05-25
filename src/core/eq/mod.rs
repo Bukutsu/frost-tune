@@ -85,4 +85,99 @@ mod tests {
         assert!((snap_gain_step(0.0) - 0.0).abs() < 0.01);
         assert!((snap_gain_step(10.0) - 10.0).abs() < 0.01);
     }
+
+    #[test]
+    fn test_clamp_to_capabilities_clamps_global_gain() {
+        use crate::core::device::capabilities::DeviceCapabilities;
+
+        let caps = DeviceCapabilities {
+            num_bands: 10,
+            global_gain_range: (-5, 5),
+            ..Default::default()
+        };
+        let mut peq = PEQData {
+            global_gain: 20,
+            filters: vec![Filter::enabled(0, true)],
+        };
+        peq.clamp_to_capabilities(&caps);
+        assert_eq!(peq.global_gain, 5);
+    }
+
+    #[test]
+    fn test_clamp_to_capabilities_pads_filters() {
+        use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
+
+        let caps = DeviceCapabilities {
+            num_bands: 5,
+            global_gain_range: (-16, 6),
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 20.0),
+            supported_filter_types: FilterTypeFlags::PEAK
+                | FilterTypeFlags::LOW_SHELF
+                | FilterTypeFlags::HIGH_SHELF,
+            supports_per_band_enable: true,
+        };
+        let mut peq = PEQData {
+            global_gain: 0,
+            filters: vec![Filter::enabled(0, true)],
+        };
+        peq.clamp_to_capabilities(&caps);
+        assert_eq!(peq.filters.len(), 5, "should pad to 5 filters");
+    }
+
+    #[test]
+    fn test_clamp_to_capabilities_truncates_filters() {
+        use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
+
+        let caps = DeviceCapabilities {
+            num_bands: 2,
+            global_gain_range: (-16, 6),
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 20.0),
+            supported_filter_types: FilterTypeFlags::PEAK
+                | FilterTypeFlags::LOW_SHELF
+                | FilterTypeFlags::HIGH_SHELF,
+            supports_per_band_enable: true,
+        };
+        let mut peq = PEQData {
+            global_gain: 0,
+            filters: (0..5).map(|i| Filter::enabled(i, true)).collect(),
+        };
+        peq.clamp_to_capabilities(&caps);
+        assert_eq!(peq.filters.len(), 2, "should truncate to 2 filters");
+    }
+
+    #[test]
+    fn test_clamp_to_capabilities_falls_back_unsupported_type() {
+        use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
+
+        let caps = DeviceCapabilities {
+            num_bands: 1,
+            global_gain_range: (-16, 6),
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 20.0),
+            supported_filter_types: FilterTypeFlags::PEAK,
+            supports_per_band_enable: true,
+        };
+        let mut peq = PEQData {
+            global_gain: 0,
+            filters: vec![Filter {
+                index: 0,
+                enabled: true,
+                filter_type: FilterType::LowShelf,
+                freq: 100,
+                gain: 5.0,
+                q: 1.0,
+            }],
+        };
+        peq.clamp_to_capabilities(&caps);
+        assert_eq!(
+            peq.filters[0].filter_type,
+            FilterType::Peak,
+            "unsupported type should fall back to Peak"
+        );
+    }
 }

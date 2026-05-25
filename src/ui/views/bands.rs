@@ -4,7 +4,7 @@
 use crate::core::FilterType;
 use crate::ui::messages::EqSource;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BANDS_TWO_COLUMN_BREAK, BAND_CHECKBOX_WIDTH, BAND_ENABLE_ICON_WIDTH, BAND_FILTER_BUTTON_HEIGHT,
@@ -69,7 +69,7 @@ fn render_empty_state<'a>(is_busy: bool) -> Element<'a, Message> {
         .into()
 }
 
-pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_bands(state: &AppState) -> Element<'_, Message> {
     let is_busy =
         state.connection.operation_lock.is_pulling || state.connection.operation_lock.is_pushing;
     let show_enable = state.supports_per_band_enable();
@@ -129,7 +129,7 @@ pub fn view_bands(state: &MainWindow) -> Element<'_, Message> {
 fn render_band_column<'a>(
     start_index: usize,
     bands: &'a [crate::core::Filter],
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     show_enable: bool,
 ) -> Element<'a, Message> {
@@ -301,6 +301,16 @@ fn render_input_field<'a>(
     column![input, error_row].spacing(SPACE_2).into()
 }
 
+fn filter_type_short_label(ft: FilterType) -> &'static str {
+    match ft {
+        FilterType::Peak => "PK",
+        FilterType::LowShelf => "LS",
+        FilterType::HighShelf => "HS",
+        FilterType::HighPass => "HP",
+        FilterType::LowPass => "LP",
+    }
+}
+
 fn render_type_buttons<'a>(
     i: usize,
     band: &crate::core::Filter,
@@ -313,7 +323,7 @@ fn render_type_buttons<'a>(
         .filter(|&&ft| supported.supports(ft))
         .map(|&ft| {
             let is_selected = band.filter_type == ft;
-            let label = ft.short_label();
+            let label = filter_type_short_label(ft);
             let btn = button(
                 container(
                     text(label)
@@ -382,7 +392,7 @@ fn render_type_buttons<'a>(
 fn render_freq_cell<'a>(
     i: usize,
     band: &crate::core::Filter,
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     freq_error: Option<&'a str>,
     is_active: bool,
@@ -408,7 +418,7 @@ fn render_freq_cell<'a>(
 fn render_gain_cell<'a>(
     i: usize,
     band: &crate::core::Filter,
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     gain_error: Option<&'a str>,
     is_active: bool,
@@ -416,7 +426,7 @@ fn render_gain_cell<'a>(
     let gain_range = state.gain_range();
     let slider = slider(gain_range.0..=gain_range.1, band.gain, move |v| {
         if is_busy {
-            Message::None
+            Message::NoOp
         } else {
             Message::Editor(EditorMessage::BandGainChanged(i, v))
         }
@@ -425,7 +435,7 @@ fn render_gain_cell<'a>(
     .width(Length::Fill)
     .style(theme::gain_slider_style(band.gain, is_active))
     .on_release(if is_busy {
-        Message::None
+        Message::NoOp
     } else {
         Message::Editor(EditorMessage::BandGainReleased(i))
     });
@@ -472,7 +482,7 @@ fn render_gain_cell<'a>(
 fn render_q_cell<'a>(
     i: usize,
     band: &crate::core::Filter,
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     q_error: Option<&'a str>,
     is_active: bool,
@@ -498,7 +508,7 @@ fn render_q_cell<'a>(
 fn render_band_row<'a>(
     i: usize,
     band: &'a crate::core::Filter,
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     show_enable: bool,
 ) -> Element<'a, Message> {
@@ -529,7 +539,7 @@ fn render_band_row<'a>(
                 checkbox(is_active)
                     .on_toggle(move |en| {
                         if is_busy {
-                            Message::None
+                            Message::NoOp
                         } else {
                             Message::Editor(EditorMessage::BandEnabledToggled(i, en))
                         }

@@ -3,7 +3,7 @@
 
 use crate::diagnostics::{DiagnosticEvent, LogLevel};
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_WARNING, DIAG_LOG_MAX_HEIGHT,
@@ -14,7 +14,7 @@ use crate::ui::views::{icon_button, small_action_button};
 use iced::widget::{column, container, row, scrollable, text};
 use iced::{Alignment, Element, Length};
 
-pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_diagnostics(state: &AppState) -> Element<'_, Message> {
     let events: Vec<&DiagnosticEvent> = state
         .diagnostics
         .events()
@@ -192,7 +192,7 @@ pub fn view_diagnostics(state: &MainWindow) -> Element<'_, Message> {
     .into()
 }
 
-pub fn view_diagnostics_section(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_diagnostics_section(state: &AppState) -> Element<'_, Message> {
     if state.editor.ui.show_diagnostics {
         view_diagnostics(state)
     } else {

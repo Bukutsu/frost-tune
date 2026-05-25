@@ -3,7 +3,7 @@
 
 use crate::ui::messages::ToolsTab;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     BUTTON_HEIGHT_SMALL, CHECKBOX_SIZE, COLOR_ON_SURFACE_VARIANT, ICON_BUTTON_SIZE,
@@ -39,7 +39,7 @@ fn tab_button<'a>(
     .style(move |t, s| theme::tab_button_style(t, s, is_active))
 }
 
-pub fn view_tools_panel(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_tools_panel(state: &AppState) -> Element<'_, Message> {
     let is_busy =
         state.connection.operation_lock.is_pulling || state.connection.operation_lock.is_pushing;
 

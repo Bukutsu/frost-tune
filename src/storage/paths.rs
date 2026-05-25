@@ -13,14 +13,17 @@ fn ensure_dir(path: &PathBuf, kind: ErrorKind, message: &str) -> Result<()> {
 }
 
 pub(crate) fn get_base_dir() -> Result<PathBuf> {
-    let base_dir = dirs::data_dir()
-        .ok_or_else(|| {
-            AppError::new(
-                ErrorKind::StorageError,
-                "Failed to get standard data directory",
-            )
-        })?
-        .join("frost-tune");
+    let base_dir = match std::env::var("FROST_TUNE_HOME") {
+        Ok(val) => PathBuf::from(val),
+        Err(_) => dirs::data_dir()
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorKind::StorageError,
+                    "Failed to get standard data directory. Set FROST_TUNE_HOME to override.",
+                )
+            })?
+            .join("frost-tune"),
+    };
 
     ensure_dir(
         &base_dir,

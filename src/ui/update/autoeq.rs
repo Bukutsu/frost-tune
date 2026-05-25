@@ -6,10 +6,10 @@ use crate::core::PEQData;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::ui::main_window::APP_VERSION;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::{clipboard, Task};
 
-pub fn handle_autoeq(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::AutoEq(AutoEqMessage::ExportAutoEQPressed) => {
             let peq = PEQData {

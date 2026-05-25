@@ -6,11 +6,11 @@ use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::ui::components::editor::{ConfirmAction, DraftFilter};
 use crate::ui::main_window::parse_freq_string;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::Task;
 
 fn handle_band_text_input(
-    window: &mut MainWindow,
+    window: &mut AppState,
     index: usize,
     s: String,
     setter: impl FnOnce(&mut DraftFilter, String),
@@ -34,7 +34,7 @@ fn handle_band_text_input(
     setter(draft, s);
 }
 
-fn cancel_band_draft_input(window: &mut MainWindow, index: usize) {
+fn cancel_band_draft_input(window: &mut AppState, index: usize) {
     if let Some(draft) = window.editor.session.input_buffer.active_draft.take() {
         if draft.index != index {
             window.editor.session.input_buffer.active_draft = Some(draft);
@@ -43,7 +43,7 @@ fn cancel_band_draft_input(window: &mut MainWindow, index: usize) {
 }
 
 fn commit_band_field(
-    window: &mut MainWindow,
+    window: &mut AppState,
     index: usize,
     parse_and_apply: impl FnOnce(&mut Filter, &mut DraftFilter) -> bool,
 ) -> Task<Message> {
@@ -64,7 +64,7 @@ fn commit_band_field(
     Task::none()
 }
 
-pub fn handle_editor(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::Editor(EditorMessage::BandFreqChanged(index, freq)) => {
             window.editor.push_undo();

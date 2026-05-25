@@ -97,3 +97,105 @@ impl ErrorKind {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_error_new() {
+        let err = AppError::new(ErrorKind::NotConnected, "test message");
+        assert_eq!(err.kind, ErrorKind::NotConnected);
+        assert_eq!(err.message, "test message");
+        assert_eq!(err.context, None);
+    }
+
+    #[test]
+    fn test_app_error_general() {
+        let err = AppError::general("something went wrong");
+        assert_eq!(err.kind, ErrorKind::Unknown);
+        assert_eq!(err.message, "something went wrong");
+    }
+
+    #[test]
+    fn test_app_error_with_context() {
+        let err =
+            AppError::new(ErrorKind::StorageError, "io error").with_context("failed to write file");
+        assert_eq!(err.context, Some("failed to write file".to_string()));
+    }
+
+    #[test]
+    fn test_app_error_user_message_mapping() {
+        let cases = [
+            (
+                ErrorKind::NotConnected,
+                "Device not found. Is it plugged in?",
+            ),
+            (
+                ErrorKind::PermissionDenied,
+                "Access denied. Check USB permissions.",
+            ),
+            (ErrorKind::Timeout, "Operation timed out."),
+            (
+                ErrorKind::WorkerDied,
+                "Background worker terminated unexpectedly.",
+            ),
+            (ErrorKind::Unknown, "Unknown error."),
+        ];
+        for (kind, expected) in &cases {
+            let err = AppError::new(*kind, "ignored");
+            assert_eq!(err.user_message(), *expected, "mismatch for {:?}", kind);
+        }
+    }
+
+    #[test]
+    fn test_app_error_from_string() {
+        let err: AppError = "custom error".to_string().into();
+        assert_eq!(err.kind, ErrorKind::Unknown);
+        assert_eq!(err.message, "custom error");
+    }
+
+    #[test]
+    fn test_app_error_from_str() {
+        let err: AppError = "custom error".into();
+        assert_eq!(err.kind, ErrorKind::Unknown);
+        assert_eq!(err.message, "custom error");
+    }
+
+    #[test]
+    fn test_error_kind_user_message_all_variants() {
+        // Ensure every ErrorKind variant has a non-empty user message
+        let variants = [
+            ErrorKind::NotConnected,
+            ErrorKind::PermissionDenied,
+            ErrorKind::PolkitAuthRequired,
+            ErrorKind::DeviceBusy,
+            ErrorKind::ReadTimeout,
+            ErrorKind::WriteError,
+            ErrorKind::VerifyFailed,
+            ErrorKind::RollbackFailed,
+            ErrorKind::DeviceLost,
+            ErrorKind::HardwareError,
+            ErrorKind::ParseError,
+            ErrorKind::StorageError,
+            ErrorKind::IpcError,
+            ErrorKind::InvalidPayload,
+            ErrorKind::Timeout,
+            ErrorKind::WorkerDied,
+            ErrorKind::Unknown,
+        ];
+        for kind in &variants {
+            let msg = kind.user_message();
+            assert!(!msg.is_empty(), "user_message for {:?} is empty", kind);
+        }
+    }
+
+    #[test]
+    fn test_result_type_alias() {
+        let ok: Result<i32> = Ok(42);
+        assert!(ok.is_ok());
+
+        let err: Result<i32> = Err(AppError::new(ErrorKind::Unknown, "fail"));
+        assert!(err.is_err());
+    }
+}

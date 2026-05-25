@@ -52,7 +52,7 @@ pub enum EqSource {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    None,
+    NoOp,
 
     Connection(ConnectionMessage),
     Editor(EditorMessage),

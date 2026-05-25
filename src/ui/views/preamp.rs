@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{PREAMP_LABEL_WIDTH, SPACE_12};
 use iced::widget::{container, row, slider};
 use iced::{Element, Length};
 
-pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_preamp(state: &AppState) -> Element<'_, Message> {
     let is_busy =
         state.connection.operation_lock.is_pulling || state.connection.operation_lock.is_pushing;
     let gain_range = state.global_gain_range();
@@ -24,7 +24,7 @@ pub fn view_preamp(state: &MainWindow) -> Element<'_, Message> {
             state.editor.data.global_gain as f64,
             move |v| {
                 if is_busy {
-                    Message::None
+                    Message::NoOp
                 } else {
                     Message::Editor(EditorMessage::GlobalGainChanged(v as i8))
                 }

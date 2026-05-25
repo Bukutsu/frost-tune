@@ -3,7 +3,7 @@
 
 use crate::ui::graph::EqGraph;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::tokens::{
     ELEVATION_1, LAYOUT_GRAPH_BREAKPOINT_LARGE, LAYOUT_GRAPH_BREAKPOINT_SMALL,
     LAYOUT_GRAPH_HEIGHT_LARGE, LAYOUT_GRAPH_HEIGHT_MEDIUM, LAYOUT_GRAPH_HEIGHT_SMALL, SHAPE_NONE,
@@ -13,7 +13,7 @@ use iced::widget::{canvas, container};
 use iced::{Color, Element, Length, Padding};
 
 /// Graph with a fixed height based on width — for scrollable layouts (narrow, medium).
-pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_graph(state: &AppState) -> Element<'_, Message> {
     iced::widget::responsive(move |size| {
         let height = if size.width < LAYOUT_GRAPH_BREAKPOINT_SMALL {
             LAYOUT_GRAPH_HEIGHT_SMALL
@@ -43,7 +43,7 @@ pub fn view_graph(state: &MainWindow) -> Element<'_, Message> {
 }
 
 /// Graph that expands to fill all available vertical space — for the wide layout.
-pub fn view_graph_fill(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_graph_fill(state: &AppState) -> Element<'_, Message> {
     container(
         canvas(EqGraph::new(&state.editor.ui.graph_state))
             .width(Length::Fill)

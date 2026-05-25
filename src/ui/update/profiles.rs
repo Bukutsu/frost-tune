@@ -6,7 +6,7 @@ use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::AppError;
 use crate::ui::components::editor::ConfirmAction;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::Task;
 
 fn reload_profiles_task() -> Task<Message> {
@@ -16,7 +16,7 @@ fn reload_profiles_task() -> Task<Message> {
     )
 }
 
-pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, mut peq: PEQData) -> (bool, usize) {
+pub(crate) fn apply_peq_to_editor(window: &mut AppState, mut peq: PEQData) -> (bool, usize) {
     if let Some(active) = window.active_device() {
         peq.clamp_to_capabilities(&active.capabilities());
     } else {
@@ -64,7 +64,7 @@ pub(crate) fn apply_peq_to_editor(window: &mut MainWindow, mut peq: PEQData) -> 
 }
 
 fn check_overwrite_and_save(
-    window: &mut MainWindow,
+    window: &mut AppState,
     name: String,
     data: PEQData,
     context: crate::ui::messages::SaveContext,
@@ -80,7 +80,7 @@ fn check_overwrite_and_save(
 }
 
 fn do_save_profile(
-    _window: &mut MainWindow,
+    _window: &mut AppState,
     name: String,
     data: PEQData,
     context: crate::ui::messages::SaveContext,
@@ -104,7 +104,7 @@ fn do_save_profile(
     )
 }
 
-pub fn handle_profiles(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::Profiles(ProfilesMessage::ReloadProfilesPressed) => reload_profiles_task(),
         Message::Profiles(ProfilesMessage::OpenProfilesDirPressed) => {

@@ -4,7 +4,7 @@
 use crate::ui::components::connection::ConnectionStatus;
 use crate::ui::messages::EqSource;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_SURFACE_VARIANT, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING,
@@ -19,7 +19,7 @@ fn sync_toolbar_button<'a>(
     label: &'a str,
     on_press: Message,
     action: &'a str,
-    state: &'a MainWindow,
+    state: &'a AppState,
     is_busy: bool,
     is_connected: bool,
     shortcut: &'a str,
@@ -48,7 +48,7 @@ fn sync_toolbar_button<'a>(
     }
 }
 
-pub fn view_header(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_header(state: &AppState) -> Element<'_, Message> {
     let is_busy = state.connection.operation_lock.is_pulling
         || state.connection.operation_lock.is_pushing
         || state.connection.operation_lock.is_connecting

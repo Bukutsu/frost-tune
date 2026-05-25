@@ -4,7 +4,7 @@ use crate::ui::components::connection::ConnectionComponent;
 use crate::ui::components::editor::EditorComponent;
 
 #[derive(Default)]
-pub struct MainWindow {
+pub struct AppState {
     pub connection: ConnectionComponent,
     pub editor: EditorComponent,
     pub diagnostics: DiagnosticsStore,
@@ -15,7 +15,7 @@ pub struct MainWindow {
     pub last_profile_check: Option<std::time::Instant>,
 }
 
-impl MainWindow {
+impl AppState {
     /// Resolves the currently connected device profile, or `None` if none.
     pub fn active_device(&self) -> Option<&'static dyn DeviceProfile> {
         self.connection

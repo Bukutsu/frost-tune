@@ -8,7 +8,7 @@ use crate::hardware::worker::{BackendKind, WorkerStatus};
 use crate::ui::components::connection::{ConnectionStatus, DisconnectReason};
 use crate::ui::components::editor::ConfirmAction;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::Task;
 use std::sync::Arc;
 
@@ -41,7 +41,7 @@ fn poll_worker_status(worker: Arc<crate::hardware::worker::UsbWorker>) -> Task<M
     )
 }
 
-fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
+fn maybe_reconnect(window: &mut AppState) -> Option<Task<Message>> {
     if window.connection.disconnect_reason == DisconnectReason::DeviceLost
         && !window.connection.operation_lock.is_connecting
         && window.connection.status != ConnectionStatus::Connected
@@ -86,7 +86,7 @@ fn maybe_reconnect(window: &mut MainWindow) -> Option<Task<Message>> {
     }
 }
 
-fn maybe_check_profiles(window: &mut MainWindow) -> Option<Task<Message>> {
+fn maybe_check_profiles(window: &mut AppState) -> Option<Task<Message>> {
     let profile_check_interval = if window.connection.status == ConnectionStatus::Connected {
         std::time::Duration::from_secs(10)
     } else {
@@ -109,7 +109,7 @@ fn maybe_check_profiles(window: &mut MainWindow) -> Option<Task<Message>> {
     }
 }
 
-pub fn handle_connection(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::ClearStatusMessage(id) => {
             if let Some(ref status) = window.editor.session.status_message {

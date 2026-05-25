@@ -10,7 +10,7 @@ pub mod profiles;
 use crate::ui::messages::{
     AutoEqMessage, ConnectionMessage, DiagnosticsMessage, EditorMessage, Message, ProfilesMessage,
 };
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::Task;
 
 use self::autoeq::handle_autoeq;
@@ -19,10 +19,10 @@ use self::editor::handle_editor;
 use self::hardware::handle_hardware;
 use self::profiles::handle_profiles;
 
-pub fn update(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
     let before_generation = window.editor.data.generation;
     let task = match message {
-        Message::None => Task::none(),
+        Message::NoOp => Task::none(),
         // handle_connection
         Message::ClearStatusMessage(_)
         | Message::DismissConfirmDialog

@@ -12,7 +12,7 @@ use crate::ui::messages::{
     AutoEqMessage, ConnectionMessage, EditorMessage, Message, ProfilesMessage, StatusMessage,
     StatusSeverity,
 };
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     LAYOUT_DEVICES_MAX_WIDTH, LAYOUT_WINDOW_MIN_HEIGHT, LAYOUT_WINDOW_MIN_WIDTH, SPACE_0, SPACE_16,
@@ -79,13 +79,13 @@ pub fn parse_freq_string(s: &str) -> Option<u16> {
     None
 }
 
-impl MainWindow {
+impl AppState {
     fn new_with_diagnostics(diagnostics: DiagnosticsStore) -> (Self, Task<Message>) {
         let worker = Arc::new(UsbWorker::new());
         let default_filters: Vec<Filter> =
             (0..10).map(|i| Filter::enabled(i as u8, false)).collect();
         let settings = crate::storage::load_settings();
-        let window = MainWindow {
+        let window = AppState {
             editor: EditorComponent {
                 data: crate::ui::components::editor::EditorData {
                     filters: default_filters,
@@ -110,7 +110,7 @@ impl MainWindow {
             |result| Message::Profiles(ProfilesMessage::ProfilesLoaded(result)),
         );
         let load_font_task =
-            iced::font::load(crate::ui::tokens::ICON_FONT_BYTES).map(|_| Message::None);
+            iced::font::load(crate::ui::tokens::ICON_FONT_BYTES).map(|_| Message::NoOp);
 
         (
             window,
@@ -734,10 +734,10 @@ pub fn run() -> iced::Result {
         window_settings.platform_specific.application_id = "frost-tune".to_string();
     }
 
-    iced::application(MainWindow::new, MainWindow::update, MainWindow::view)
-        .title(MainWindow::title)
-        .subscription(MainWindow::subscription)
-        .theme(MainWindow::app_theme)
+    iced::application(AppState::new, AppState::update, AppState::view)
+        .title(AppState::title)
+        .subscription(AppState::subscription)
+        .theme(AppState::app_theme)
         .window(window_settings)
         .run()
 }
@@ -767,13 +767,13 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
     }
 
     iced::application(
-        move || MainWindow::new_with_diagnostics(diagnostics.clone()),
-        MainWindow::update,
-        MainWindow::view,
+        move || AppState::new_with_diagnostics(diagnostics.clone()),
+        AppState::update,
+        AppState::view,
     )
-    .title(MainWindow::title)
-    .subscription(MainWindow::subscription)
-    .theme(MainWindow::app_theme)
+    .title(AppState::title)
+    .subscription(AppState::subscription)
+    .theme(AppState::app_theme)
     .window(window_settings)
     .run()
 }

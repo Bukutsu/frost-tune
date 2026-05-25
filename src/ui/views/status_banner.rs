@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use crate::ui::theme;
 use crate::ui::tokens::{
     COLOR_ERROR, COLOR_INFO, COLOR_ON_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, ICON_CHECK_CIRCLE,
@@ -13,7 +13,7 @@ use crate::ui::views::{icon_button, small_action_button};
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length};
 
-pub fn view_status_banner(state: &MainWindow) -> Element<'_, Message> {
+pub fn view_status_banner(state: &AppState) -> Element<'_, Message> {
     if let Some(msg) = &state.editor.session.status_message {
         let (color, icon) = match msg.severity {
             StatusSeverity::Info => (COLOR_INFO, ICON_INFO),

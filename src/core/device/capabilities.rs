@@ -52,6 +52,12 @@ pub struct DeviceCapabilities {
     pub supports_per_band_enable: bool,
 }
 
+impl Default for DeviceCapabilities {
+    fn default() -> Self {
+        DESKTOP_DAC_CAPS
+    }
+}
+
 /// Default capabilities used when no device is connected (generic desktop DAC).
 ///
 /// Supports all 5 filter types with the standard desktop range: 10 bands,

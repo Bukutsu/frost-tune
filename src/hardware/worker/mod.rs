@@ -62,58 +62,43 @@ impl UsbWorker {
         UsbWorker { tx }
     }
 
+    async fn send_command<F, R>(&self, build: F) -> Result<R, String>
+    where
+        F: FnOnce(oneshot::Sender<R>) -> UsbCommand,
+    {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(build(tx))
+            .await
+            .map_err(|_| "Worker queue is closed".to_string())?;
+        rx.await
+            .map_err(|_| "Worker response channel closed".to_string())
+    }
+
     pub async fn connect(
         &self,
         device: Option<DeviceInfo>,
         backend: Option<BackendKind>,
     ) -> Result<ConnectionResult, String> {
-        let (tx, rx) = oneshot::channel();
-        self.tx
-            .send(UsbCommand::Connect(device, backend, tx))
+        self.send_command(|tx| UsbCommand::Connect(device, backend, tx))
             .await
-            .map_err(|_| "Worker queue is closed".to_string())?;
-        rx.await
-            .map_err(|_| "Worker dropped connection channel".to_string())
     }
 
     pub async fn disconnect(&self) -> Result<OperationResult, String> {
-        let (tx, rx) = oneshot::channel();
-        self.tx
-            .send(UsbCommand::Disconnect(tx))
-            .await
-            .map_err(|_| "Worker queue is closed".to_string())?;
-        rx.await
-            .map_err(|_| "Worker dropped disconnect channel".to_string())
+        self.send_command(UsbCommand::Disconnect).await
     }
 
     pub async fn status(&self) -> Result<WorkerStatus, String> {
-        let (tx, rx) = oneshot::channel();
-        self.tx
-            .send(UsbCommand::Status(tx))
-            .await
-            .map_err(|_| "Worker queue is closed".to_string())?;
-        rx.await
-            .map_err(|_| "Worker dropped status channel".to_string())
+        self.send_command(UsbCommand::Status).await
     }
 
     pub async fn pull_peq(&self) -> Result<OperationResult, String> {
-        let (tx, rx) = oneshot::channel();
-        self.tx
-            .send(UsbCommand::PullPEQ(tx))
-            .await
-            .map_err(|_| "Worker queue is closed".to_string())?;
-        rx.await
-            .map_err(|_| "Worker dropped pull channel".to_string())
+        self.send_command(UsbCommand::PullPEQ).await
     }
 
     pub async fn push_peq(&self, payload: PushPayload) -> Result<OperationResult, String> {
-        let (tx, rx) = oneshot::channel();
-        self.tx
-            .send(UsbCommand::PushPEQ(payload, tx))
+        self.send_command(|tx| UsbCommand::PushPEQ(payload, tx))
             .await
-            .map_err(|_| "Worker queue is closed".to_string())?;
-        rx.await
-            .map_err(|_| "Worker dropped push channel".to_string())
     }
 }
 

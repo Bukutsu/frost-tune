@@ -202,12 +202,22 @@ fn contains_token(haystack: &str, token: &str) -> bool {
         .any(|w| w == token)
 }
 
+pub fn autoeq_token(filter_type: FilterType) -> &'static str {
+    match filter_type {
+        FilterType::Peak => "PK",
+        FilterType::LowShelf => "LSC",
+        FilterType::HighShelf => "HSC",
+        FilterType::HighPass => "HP",
+        FilterType::LowPass => "LP",
+    }
+}
+
 pub fn peq_to_autoeq(peq: &PEQData) -> String {
     let mut lines = vec![format!("Preamp: {} dB", peq.global_gain)];
 
     for (i, f) in peq.filters.iter().enumerate() {
         let on_off = if f.enabled { "ON" } else { "OFF" };
-        let type_str = f.filter_type.autoeq_token();
+        let type_str = autoeq_token(f.filter_type);
         lines.push(format!(
             "Filter {}: {} {} Fc {} Hz Gain {:.2} dB Q {:.3}",
             i + 1,

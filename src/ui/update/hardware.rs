@@ -6,18 +6,18 @@ use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::ErrorKind;
 use crate::ui::components::connection::ConnectionStatus;
 use crate::ui::messages::*;
-use crate::ui::state::MainWindow;
+use crate::ui::state::AppState;
 use iced::Task;
 use std::sync::Arc;
 
-fn is_hw_busy(window: &MainWindow) -> bool {
+fn is_hw_busy(window: &AppState) -> bool {
     window.connection.worker.is_none()
         || window.connection.operation_lock.is_pulling
         || window.connection.operation_lock.is_pushing
         || window.connection.operation_lock.is_connecting
 }
 
-pub fn handle_hardware(window: &mut MainWindow, message: Message) -> Task<Message> {
+pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::Editor(EditorMessage::PullPressed) => {
             if is_hw_busy(window) {
@@ -200,7 +200,7 @@ fn unwrap_operation_result(result: Result<OperationResult, String>) -> Operation
     }
 }
 
-fn perform_pull(window: &mut MainWindow) -> Task<Message> {
+fn perform_pull(window: &mut AppState) -> Task<Message> {
     window.connection.operation_lock.is_pulling = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
@@ -222,7 +222,7 @@ fn perform_pull(window: &mut MainWindow) -> Task<Message> {
     Task::batch(vec![pull_task, status_task])
 }
 
-fn perform_push(window: &mut MainWindow) -> Task<Message> {
+fn perform_push(window: &mut AppState) -> Task<Message> {
     window.connection.operation_lock.is_pushing = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
