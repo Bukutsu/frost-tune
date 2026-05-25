@@ -1,44 +1,12 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-//! Reusable IIR DSP math and quantization utility functions.
+//! Canonical biquad coefficient computation shared by USB packet building and graph rendering.
 
 use crate::core::eq::{Filter, FilterType};
 use std::f64::consts::TAU;
 
 pub const DSP_SAMPLE_RATE: f64 = 96000.0;
-pub const QUANTIZER_SCALE: f64 = 1073741824.0;
-pub const Q_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-pub const GAIN_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
-pub const U16_WRAP_AROUND: i32 = 65536;
-pub const GAIN_I16_THRESHOLD: i32 = 32767;
-pub const BYTE_BIT_SHIFT: i32 = 8;
-
-/// Clamp a rounded f64 value to i32 range to avoid undefined behavior from overflow.
-fn clamp_i32(v: f64) -> i32 {
-    (v.round() as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32
-}
-
-/// Quantizes filter parameters using a standard scale.
-pub fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
-    let i_arr = [
-        clamp_i32(d_arr[0] * QUANTIZER_SCALE),
-        clamp_i32(d_arr[1] * QUANTIZER_SCALE),
-        clamp_i32(d_arr[2] * QUANTIZER_SCALE),
-    ];
-    let i_arr2 = [
-        clamp_i32(d_arr2[0] * QUANTIZER_SCALE),
-        clamp_i32(d_arr2[1] * QUANTIZER_SCALE),
-        clamp_i32(d_arr2[2] * QUANTIZER_SCALE),
-    ];
-    [
-        i_arr2[0],
-        i_arr2[1],
-        i_arr2[2],
-        i_arr[1].wrapping_neg(),
-        i_arr[2].wrapping_neg(),
-    ]
-}
 
 /// Canonical biquad coefficient computation shared by USB packet building and graph rendering.
 ///
@@ -116,37 +84,4 @@ pub fn compute_biquad_coeffs(filter: &Filter) -> (f64, f64, f64, f64, f64, f64) 
             )
         }
     }
-}
-
-/// Computes IIR Biquad filter coefficients for Peak, LowShelf, HighShelf, HighPass, and LowPass.
-pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64) -> [u8; 20] {
-    let mut b_arr = [0u8; 20];
-    let f = Filter {
-        index: 0,
-        enabled: true,
-        freq: freq as u16,
-        gain,
-        q,
-        filter_type,
-    };
-    let (b0, b1, b2, a0, a1, a2) = compute_biquad_coeffs(&f);
-
-    let quantizer_data = quantizer(&[1.0, a1 / a0, a2 / a0], &[b0 / a0, b1 / a0, b2 / a0]);
-
-    for (i, &value) in quantizer_data.iter().enumerate() {
-        b_arr[i * 4] = (value & 0xFF) as u8;
-        b_arr[i * 4 + 1] = ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8;
-        b_arr[i * 4 + 2] = ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8;
-        b_arr[i * 4 + 3] = ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8;
-    }
-
-    b_arr
-}
-
-/// Converts a 32-bit integer to a 2-byte array (little-endian).
-pub fn convert_to_2byte_array(value: i32) -> [u8; 2] {
-    [
-        (value & 0xFF) as u8,
-        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
-    ]
 }

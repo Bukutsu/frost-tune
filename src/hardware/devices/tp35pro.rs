@@ -10,10 +10,7 @@ use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::device::profile::DeviceProfile;
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
-pub use crate::core::eq::iir_math::{
-    compute_iir_filter, convert_to_2byte_array, BYTE_BIT_SHIFT, GAIN_FLOAT_TO_U16_DIVISOR,
-    GAIN_I16_THRESHOLD, Q_FLOAT_TO_U16_DIVISOR, U16_WRAP_AROUND,
-};
+use crate::core::eq::iir_math::compute_biquad_coeffs;
 use crate::core::eq::{Filter, FilterType};
 
 // ─── Wire constants ───────────────────────────────────────────────────────────
@@ -59,7 +56,69 @@ const FILTER_RESPONSE_MIN_LEN: usize = 34;
 // Minimum response length for a valid global gain packet (offset 4 for gain byte).
 const GLOBAL_GAIN_RESPONSE_MIN_LEN: usize = 6;
 
-// DSP IIR math is re-exported from crate::hardware::dsp::iir_math
+// ─── TP35-specific DSP math (wire-format quantization, not shared across devices) ──
+
+pub const QUANTIZER_SCALE: f64 = 1073741824.0;
+pub const Q_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
+pub const GAIN_FLOAT_TO_U16_DIVISOR: f64 = 256.0;
+pub const U16_WRAP_AROUND: i32 = 65536;
+pub const GAIN_I16_THRESHOLD: i32 = 32767;
+pub const BYTE_BIT_SHIFT: i32 = 8;
+
+fn clamp_i32(v: f64) -> i32 {
+    (v.round() as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
+fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
+    let i_arr = [
+        clamp_i32(d_arr[0] * QUANTIZER_SCALE),
+        clamp_i32(d_arr[1] * QUANTIZER_SCALE),
+        clamp_i32(d_arr[2] * QUANTIZER_SCALE),
+    ];
+    let i_arr2 = [
+        clamp_i32(d_arr2[0] * QUANTIZER_SCALE),
+        clamp_i32(d_arr2[1] * QUANTIZER_SCALE),
+        clamp_i32(d_arr2[2] * QUANTIZER_SCALE),
+    ];
+    [
+        i_arr2[0],
+        i_arr2[1],
+        i_arr2[2],
+        i_arr[1].wrapping_neg(),
+        i_arr[2].wrapping_neg(),
+    ]
+}
+
+pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64) -> [u8; 20] {
+    let mut b_arr = [0u8; 20];
+    let f = Filter {
+        index: 0,
+        enabled: true,
+        freq: freq as u16,
+        gain,
+        q,
+        filter_type,
+    };
+    let (b0, b1, b2, a0, a1, a2) = compute_biquad_coeffs(&f);
+
+    let quantizer_data = quantizer(&[1.0, a1 / a0, a2 / a0], &[b0 / a0, b1 / a0, b2 / a0]);
+
+    for (i, &value) in quantizer_data.iter().enumerate() {
+        b_arr[i * 4] = (value & 0xFF) as u8;
+        b_arr[i * 4 + 1] = ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8;
+        b_arr[i * 4 + 2] = ((value >> (BYTE_BIT_SHIFT * 2)) & 0xFF) as u8;
+        b_arr[i * 4 + 3] = ((value >> (BYTE_BIT_SHIFT * 3)) & 0xFF) as u8;
+    }
+
+    b_arr
+}
+
+pub fn convert_to_2byte_array(value: i32) -> [u8; 2] {
+    [
+        (value & 0xFF) as u8,
+        ((value >> BYTE_BIT_SHIFT) & 0xFF) as u8,
+    ]
+}
 
 /// Parses a TP35 Pro filter response payload (report-ID byte already stripped).
 pub fn parse_filter_packet(packet: &[u8]) -> Option<Filter> {
