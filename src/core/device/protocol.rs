@@ -6,7 +6,7 @@
 //! See `CONTRIBUTING_DEVICES.md` for a step-by-step guide and annotated skeleton.
 
 use crate::core::device::timing::{ReadTiming, WriteTiming};
-use crate::core::eq::Filter;
+use crate::core::eq::{Filter, PEQData};
 
 /// Hardware-specific packet building and response matching for a USB DAC.
 ///
@@ -57,6 +57,13 @@ pub trait DeviceProtocol: Send + Sync {
     /// `data` is the same slice that passed `matches_filter_response`.
     fn parse_filter_response(&self, data: &[u8]) -> Option<Filter>;
 
+    /// Return `true` if the parsed `PEQData` represents the hardware's uninitialized
+    /// or empty state, which often necessitates a retry during connection wake-up.
+    /// Defaults to `false` for devices that don't have a distinct known "empty" state.
+    fn is_default_state(&self, _peq: &PEQData) -> bool {
+        false
+    }
+
     // ── Filter write ─────────────────────────────────────────────────────────
 
     /// Packet payload to write `filter` into band slot `index` in the device's
@@ -102,11 +109,7 @@ pub trait DeviceProtocol: Send + Sync {
     ///
     /// The default implementation builds a sequence that writes flat filters for all
     /// supported bands and sets global gain to 0.
-    fn build_reset_packets(
-        &self,
-        num_bands: usize,
-        dsp_sample_rate: f64,
-    ) -> Vec<Vec<u8>> {
+    fn build_reset_packets(&self, num_bands: usize, dsp_sample_rate: f64) -> Vec<Vec<u8>> {
         let mut packets = Vec::with_capacity(num_bands + 1);
         for i in 0..num_bands {
             let filter = Filter::enabled(i as u8, false);

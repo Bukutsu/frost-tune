@@ -10,6 +10,9 @@ pub struct ReadTiming {
     pub post_filter_read_ms: u64,
     pub post_global_gain_ms: u64,
     pub read_timeout_ms: u32,
+    pub wake_delay_ms: u64,
+    pub pull_retry_delay_ms: u64,
+    pub verify_backoff_base_ms: u64,
 }
 
 impl Default for ReadTiming {
@@ -21,6 +24,9 @@ impl Default for ReadTiming {
             post_filter_read_ms: 40,
             post_global_gain_ms: 25,
             read_timeout_ms: 60,
+            wake_delay_ms: 50,
+            pull_retry_delay_ms: 100,
+            verify_backoff_base_ms: 200,
         }
     }
 }

@@ -17,13 +17,19 @@ pub fn load_settings() -> Settings {
         .map(|base| base.join("settings.json"))
         .and_then(|path| {
             if path.exists() {
-                let content = fs::read_to_string(path).map_err(|e| {
+                let content = fs::read_to_string(&path).map_err(|e| {
                     AppError::new(
                         ErrorKind::StorageError,
                         format!("Failed to read settings file: {}", e),
                     )
                 })?;
                 let settings = serde_json::from_str(&content).map_err(|e| {
+                    let bad_path = path.with_extension("json.bad");
+                    let _ = fs::rename(&path, &bad_path);
+                    log::error!(
+                        "Corrupted settings.json detected. Renamed to settings.json.bad. Error: {}",
+                        e
+                    );
                     AppError::new(
                         ErrorKind::StorageError,
                         format!("Failed to parse settings: {}", e),
@@ -34,7 +40,10 @@ pub fn load_settings() -> Settings {
                 Ok(Settings::default())
             }
         })
-        .unwrap_or_else(|_| Settings::default())
+        .unwrap_or_else(|e| {
+            log::warn!("Using default settings due to error: {:?}", e);
+            Settings::default()
+        })
 }
 
 pub fn save_settings(settings: Settings) -> Result<()> {

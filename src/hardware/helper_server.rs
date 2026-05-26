@@ -25,7 +25,13 @@ fn pull_logic(
     let proto = profile.protocol();
     let num_bands = profile.capabilities().num_bands;
     let dummy_check = || false;
-    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict, num_bands, &dummy_check)
+    crate::hardware::pipeline::pull_with_retry(
+        device,
+        proto.as_ref(),
+        strict,
+        num_bands,
+        &dummy_check,
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -78,23 +84,8 @@ fn handle_reset(
     profile: &'static dyn DeviceProfile,
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
-    let caps = profile.capabilities();
-    let num_bands = caps.num_bands;
-    let dsp_sample_rate = caps.dsp_sample_rate;
-
-    let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
-    let timing = proto.write_timing();
-
-    for packet in packets {
-        crate::hardware::hid::send_report(device, &packet, proto.report_id())?;
-        crate::hardware::hid::delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
-    }
-    proto.build_commit_packets().iter().for_each(|p| {
-        let _ = crate::hardware::hid::send_report(device, p, proto.report_id());
-    });
-
     let dummy_check = || false;
-    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), true, num_bands, &dummy_check)
+    crate::hardware::pipeline::reset_with_verify(device, profile, proto.as_ref(), &dummy_check)
 }
 
 #[cfg(target_os = "linux")]
@@ -231,9 +222,7 @@ pub fn run() -> crate::error::Result<()> {
                     },
                 },
             );
-            let mut buf = vec![];
-            let _ = stdin_lock.read_until(b'\n', &mut buf);
-            continue;
+            break; // Abort connection on oversized payload to prevent OOM
         }
 
         let line = line.trim();

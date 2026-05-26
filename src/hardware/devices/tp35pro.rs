@@ -11,7 +11,7 @@ use crate::core::device::profile::DeviceProfile;
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
 use crate::core::eq::iir_math::compute_biquad_coeffs;
-use crate::core::eq::{Filter, FilterType};
+use crate::core::eq::{Filter, FilterType, PEQData};
 
 // ─── Wire constants ───────────────────────────────────────────────────────────
 
@@ -175,6 +175,13 @@ impl DeviceProtocol for TP35ProProtocol {
         }
     }
 
+    fn is_default_state(&self, peq: &PEQData) -> bool {
+        let all_disabled = peq.filters.iter().all(|f| !f.enabled);
+        let has_default_gain = peq.global_gain == 0;
+        let all_default_freq = peq.filters.iter().all(|f| f.freq == 100);
+        all_disabled && has_default_gain && all_default_freq
+    }
+
     fn build_init_packets(&self) -> Vec<Vec<u8>> {
         vec![vec![READ, CMD_VERSION, END]]
     }
@@ -307,6 +314,9 @@ impl DeviceProfile for TP35ProProfile {
                 | FilterTypeFlags::HIGH_PASS,
             supports_per_band_enable: false,
             dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         }
     }
 

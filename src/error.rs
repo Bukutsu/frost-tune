@@ -30,8 +30,8 @@ impl AppError {
         self
     }
 
-    pub fn user_message(&self) -> &'static str {
-        self.kind.user_message()
+    pub fn user_message(&self) -> String {
+        self.kind.to_string()
     }
 }
 
@@ -49,55 +49,44 @@ impl From<&str> for AppError {
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorKind {
+    #[error("Device not found. Is it plugged in?")]
     NotConnected,
+    #[error("Access denied. Check USB permissions.")]
     PermissionDenied,
+    #[error("Authentication required to access USB DAC on Linux. Approve the polkit prompt.")]
     PolkitAuthRequired,
+    #[error("Device is busy. Another app may be connected.")]
     DeviceBusy,
+    #[error("USB read timeout. Try again.")]
     ReadTimeout,
+    #[error("USB write failed.")]
     WriteError,
+    #[error("Verification failed. Changes not applied.")]
     VerifyFailed,
+    #[error("Failed to restore previous settings. Device may be in an inconsistent state.")]
     RollbackFailed,
+    #[error("Device disconnected during operation.")]
     DeviceLost,
+    #[error("Hardware protocol error.")]
     HardwareError,
+    #[error("Failed to parse data.")]
     ParseError,
+    #[error("Profile storage error.")]
     StorageError,
+    #[error("IPC communication error with background helper.")]
     IpcError,
+    #[error("Invalid or malformed data payload.")]
     InvalidPayload,
+    #[error("Operation timed out.")]
     Timeout,
+    #[error("Operation cancelled or interrupted.")]
     OperationCancelled,
+    #[error("Background worker terminated unexpectedly.")]
     WorkerDied,
+    #[error("Unknown error.")]
     Unknown,
-}
-
-impl ErrorKind {
-    pub fn user_message(&self) -> &'static str {
-        match self {
-            ErrorKind::NotConnected => "Device not found. Is it plugged in?",
-            ErrorKind::PermissionDenied => "Access denied. Check USB permissions.",
-            ErrorKind::PolkitAuthRequired => {
-                "Authentication required to access USB DAC on Linux. Approve the polkit prompt."
-            }
-            ErrorKind::DeviceBusy => "Device is busy. Another app may be connected.",
-            ErrorKind::ReadTimeout => "USB read timeout. Try again.",
-            ErrorKind::WriteError => "USB write failed.",
-            ErrorKind::VerifyFailed => "Verification failed. Changes not applied.",
-            ErrorKind::RollbackFailed => {
-                "Failed to restore previous settings. Device may be in an inconsistent state."
-            }
-            ErrorKind::DeviceLost => "Device disconnected during operation.",
-            ErrorKind::HardwareError => "Hardware protocol error.",
-            ErrorKind::ParseError => "Failed to parse data.",
-            ErrorKind::StorageError => "Profile storage error.",
-            ErrorKind::IpcError => "IPC communication error with background helper.",
-            ErrorKind::InvalidPayload => "Invalid or malformed data payload.",
-            ErrorKind::Timeout => "Operation timed out.",
-            ErrorKind::OperationCancelled => "Operation cancelled or interrupted.",
-            ErrorKind::WorkerDied => "Background worker terminated unexpectedly.",
-            ErrorKind::Unknown => "Unknown error.",
-        }
-    }
 }
 
 #[cfg(test)]
@@ -146,7 +135,12 @@ mod tests {
         ];
         for (kind, expected) in &cases {
             let err = AppError::new(*kind, "ignored");
-            assert_eq!(err.user_message(), *expected, "mismatch for {:?}", kind);
+            assert_eq!(
+                err.user_message().as_str(),
+                *expected,
+                "mismatch for {:?}",
+                kind
+            );
         }
     }
 
@@ -183,11 +177,12 @@ mod tests {
             ErrorKind::IpcError,
             ErrorKind::InvalidPayload,
             ErrorKind::Timeout,
+            ErrorKind::OperationCancelled,
             ErrorKind::WorkerDied,
             ErrorKind::Unknown,
         ];
         for kind in &variants {
-            let msg = kind.user_message();
+            let msg = kind.to_string();
             assert!(!msg.is_empty(), "user_message for {:?} is empty", kind);
         }
     }

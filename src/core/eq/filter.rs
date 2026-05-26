@@ -173,19 +173,37 @@ fn filter_matches_within(a: &Filter, b: &Filter, gain_tol: f64, q_tol: f64) -> b
 }
 
 pub fn snap_freq_to_iso(freq: u16) -> u16 {
-    ISO_FREQUENCIES
-        .iter()
-        .min_by_key(|&&f| (f as i32 - freq as i32).abs())
-        .copied()
-        .unwrap_or(freq.clamp(MIN_FREQ, MAX_FREQ))
+    let idx = ISO_FREQUENCIES.partition_point(|&f| f < freq);
+    if idx == 0 {
+        ISO_FREQUENCIES[0]
+    } else if idx >= ISO_FREQUENCIES.len() {
+        ISO_FREQUENCIES[ISO_FREQUENCIES.len() - 1]
+    } else {
+        let left = ISO_FREQUENCIES[idx - 1];
+        let right = ISO_FREQUENCIES[idx];
+        if (freq - left) <= (right - freq) {
+            left
+        } else {
+            right
+        }
+    }
 }
 
 pub fn snap_q_to_iso(q: f64) -> f64 {
-    ISO_Q_VALUES
-        .iter()
-        .min_by_key(|&&v| ((v - q) * 100.0).abs() as i32)
-        .copied()
-        .unwrap_or(q.clamp(MIN_Q, MAX_Q))
+    let idx = ISO_Q_VALUES.partition_point(|&v| v < q);
+    if idx == 0 {
+        ISO_Q_VALUES[0]
+    } else if idx >= ISO_Q_VALUES.len() {
+        ISO_Q_VALUES[ISO_Q_VALUES.len() - 1]
+    } else {
+        let left = ISO_Q_VALUES[idx - 1];
+        let right = ISO_Q_VALUES[idx];
+        if (q - left) <= (right - q) {
+            left
+        } else {
+            right
+        }
+    }
 }
 
 pub fn snap_gain_step(gain: f64) -> f64 {

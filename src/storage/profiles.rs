@@ -114,6 +114,8 @@ pub async fn save_profile(name: &str, data: &PEQData) -> Result<()> {
         )
     })?;
 
+    // Directory sync is only meaningful/supported on Unix-like operating systems
+    #[cfg(unix)]
     if let Ok(dir_file) = fs::File::open(&dir).await {
         let _ = dir_file.sync_all().await;
     }
@@ -129,16 +131,14 @@ pub async fn delete_profile(name: &str) -> Result<()> {
     let sanitized_name = sanitize_name(name);
     let path = dir.join(format!("{}.txt", sanitized_name));
 
-    if path.exists() {
-        fs::remove_file(path).await.map_err(|e| {
-            AppError::new(
-                ErrorKind::StorageError,
-                format!("Failed to delete profile: {}", e),
-            )
-        })?;
+    match fs::remove_file(path).await {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(AppError::new(
+            ErrorKind::StorageError,
+            format!("Failed to delete profile: {}", e),
+        )),
     }
-
-    Ok(())
 }
 
 pub async fn import_profile(path: &Path) -> Result<Profile> {

@@ -51,6 +51,9 @@ pub struct DeviceCapabilities {
     pub supported_filter_types: FilterTypeFlags,
     pub supports_per_band_enable: bool,
     pub dsp_sample_rate: f64,
+    pub gain_tolerance: f64,
+    pub freq_tolerance: i32,
+    pub q_tolerance: f64,
 }
 
 impl Default for DeviceCapabilities {
@@ -72,6 +75,9 @@ pub const DESKTOP_DAC_CAPS: DeviceCapabilities = DeviceCapabilities {
     supported_filter_types: FilterTypeFlags(0b0001_1111),
     supports_per_band_enable: true,
     dsp_sample_rate: 96000.0,
+    gain_tolerance: 0.15,
+    freq_tolerance: 1,
+    q_tolerance: 0.05,
 };
 
 #[cfg(test)]

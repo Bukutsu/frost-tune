@@ -186,6 +186,19 @@ impl ElevatedTransport {
     }
 }
 
+impl crate::hardware::transport::Transport for ElevatedTransport {
+    fn round_trip<'a>(
+        &'a self,
+        request: &'a HelperRequest,
+    ) -> iced::futures::future::BoxFuture<'a, Result<HelperResponse>> {
+        Box::pin(async move { self.round_trip(request).await })
+    }
+
+    fn shutdown(&mut self) {
+        self.shutdown();
+    }
+}
+
 struct CommandSpec {
     program: PathBuf,
     args: Vec<String>,
@@ -234,12 +247,11 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
         ));
     }
 
-    let uid = nix::unistd::Uid::current().as_raw();
     let exe_owner = metadata.uid();
-    if exe_owner != 0 && exe_owner != uid {
+    if exe_owner != 0 {
         return Err(AppError::new(
             ErrorKind::IpcError,
-            "Executable is not owned by current user or root.",
+            "Executable must be owned by root to prevent TOCTOU attacks when elevating.",
         ));
     }
 

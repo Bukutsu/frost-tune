@@ -17,6 +17,8 @@ use local_thread::{run_local_worker, LocalCommand, LocalStatus};
 use crate::hardware::elevated_transport::ElevatedTransport;
 #[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
+#[cfg(target_os = "linux")]
+use crate::hardware::transport::Transport;
 
 #[derive(Debug, Clone)]
 pub struct WorkerStatus {
@@ -119,7 +121,7 @@ enum ActiveBackend {
     Local,
     #[cfg(target_os = "linux")]
     Elevated {
-        transport: Box<ElevatedTransport>,
+        transport: Box<dyn Transport>,
         device_info: Option<DeviceInfo>,
     },
 }

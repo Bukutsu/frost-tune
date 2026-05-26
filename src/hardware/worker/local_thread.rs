@@ -1,6 +1,4 @@
-// Copyright (c) 2026 Bukutsu
-// SPDX-License-Identifier: MIT
-
+use std::cell::RefCell;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
@@ -8,7 +6,7 @@ use tokio::sync::oneshot;
 use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::hid::{find_device_info, list_devices};
-use crate::hardware::pipeline::{pull_with_retry, push_with_verify};
+use crate::hardware::pipeline::{pull_with_retry, push_with_verify, reset_with_verify};
 use crate::hardware::{get_profile, DeviceProfile};
 
 pub enum LocalCommand {
@@ -54,8 +52,8 @@ pub struct LocalWorkerState {
     pub info: Option<DeviceInfo>,
     pub generation: u64,
 
-    pub rx: mpsc::Receiver<LocalCommand>,
-    pub pending_command: Option<LocalCommand>,
+    pub rx: RefCell<mpsc::Receiver<LocalCommand>>,
+    pub pending_command: RefCell<Option<LocalCommand>>,
 }
 
 impl LocalWorkerState {
@@ -73,21 +71,21 @@ impl LocalWorkerState {
             info: None,
             generation: 0,
 
-            rx,
-            pending_command: None,
+            rx: RefCell::new(rx),
+            pending_command: RefCell::new(None),
         }
     }
 
     /// Checks if a new command has arrived that should interrupt the current operation.
     /// Returns true if the operation should be cancelled.
-    pub fn should_cancel(&mut self) -> bool {
-        if self.pending_command.is_some() {
+    pub fn should_cancel(&self) -> bool {
+        if self.pending_command.borrow().is_some() {
             return true;
         }
 
-        match self.rx.try_recv() {
+        match self.rx.borrow_mut().try_recv() {
             Ok(cmd) => {
-                self.pending_command = Some(cmd);
+                *self.pending_command.borrow_mut() = Some(cmd);
                 true
             }
             Err(mpsc::TryRecvError::Empty) => false,
@@ -304,8 +302,7 @@ impl LocalWorkerState {
     }
 
     fn handle_pull(&mut self) -> OperationResult {
-        let worker_ptr = self as *mut Self;
-        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+        let check_in = || self.should_cancel();
 
         let device = match &self.device {
             Some(d) => d,
@@ -349,8 +346,7 @@ impl LocalWorkerState {
     }
 
     fn handle_push(&mut self, payload: PushPayload) -> OperationResult {
-        let worker_ptr = self as *mut Self;
-        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+        let check_in = || self.should_cancel();
 
         let device = match &self.device {
             Some(d) => d,
@@ -393,8 +389,7 @@ impl LocalWorkerState {
     }
 
     fn handle_reset(&mut self) -> OperationResult {
-        let worker_ptr = self as *mut Self;
-        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+        let check_in = || self.should_cancel();
 
         let device = match &self.device {
             Some(d) => d,
@@ -421,35 +416,8 @@ impl LocalWorkerState {
             }
         };
         let proto = profile.protocol();
-        let caps = profile.capabilities();
-        let num_bands = caps.num_bands;
-        let dsp_sample_rate = caps.dsp_sample_rate;
 
-        let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
-        let timing = proto.write_timing();
-
-        for packet in packets {
-            if check_in() {
-                return OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(AppError::new(ErrorKind::OperationCancelled, "Cancelled")),
-                };
-            }
-            if let Err(e) = crate::hardware::hid::send_report(device, &packet, proto.report_id()) {
-                return OperationResult {
-                    success: false,
-                    data: None,
-                    error: Some(e),
-                };
-            }
-            crate::hardware::hid::delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
-        }
-        proto.build_commit_packets().iter().for_each(|p| {
-            let _ = crate::hardware::hid::send_report(device, p, proto.report_id());
-        });
-
-        match pull_with_retry(device, proto.as_ref(), true, num_bands, &check_in) {
+        match reset_with_verify(device, profile, proto.as_ref(), &check_in) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),
@@ -478,14 +446,16 @@ pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
             backend_reset = state.perform_physical_checks();
         }
 
-        if let Some(cmd) = state.pending_command.take() {
+        let pending = state.pending_command.borrow_mut().take();
+        if let Some(cmd) = pending {
             state.process_command(cmd, backend_reset);
             continue;
         }
 
         let timeout = state.check_interval.saturating_sub(time_since_check);
 
-        match state.rx.recv_timeout(timeout) {
+        let recv_result = state.rx.borrow_mut().recv_timeout(timeout);
+        match recv_result {
             Ok(cmd) => {
                 state.process_command(cmd, backend_reset);
             }

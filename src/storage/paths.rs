@@ -57,14 +57,12 @@ pub fn get_profiles_dir_mtime() -> Option<std::time::SystemTime> {
 pub fn get_profiles_dir_display() -> String {
     get_profiles_dir()
         .map(|p| {
-            let path_str = p.to_string_lossy().into_owned();
             if let Some(home) = dirs::home_dir() {
-                let home_str = home.to_string_lossy();
-                if path_str.starts_with(home_str.as_ref()) {
-                    return path_str.replacen(home_str.as_ref(), "~", 1);
+                if let Ok(stripped) = p.strip_prefix(&home) {
+                    return format!("~{}{}", std::path::MAIN_SEPARATOR, stripped.display());
                 }
             }
-            path_str
+            p.to_string_lossy().into_owned()
         })
         .unwrap_or_else(|_| "~/.local/share/frost-tune/profiles".to_string())
 }

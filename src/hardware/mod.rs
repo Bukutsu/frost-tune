@@ -26,8 +26,10 @@ pub mod operations;
 pub mod packet_builder;
 pub mod pipeline;
 pub mod registry;
+pub mod transport;
 pub mod worker;
 
 pub use dsp::*;
 pub use registry::*;
+pub use transport::*;
 pub use worker::*;

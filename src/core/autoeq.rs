@@ -12,8 +12,14 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_num = line_idx + 1;
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
+        let mut line = line.trim();
+
+        // Strip inline comments before parsing parameters
+        if let Some((before, _)) = line.split_once('#') {
+            line = before.trim();
+        }
+
+        if line.is_empty() {
             continue;
         }
 
@@ -29,6 +35,14 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
 
         if line.to_lowercase().contains("filter") {
             if let Some(parsed) = parse_filter_line(line) {
+                if parsed.index >= 32 {
+                    warnings.push(format!(
+                        "Line {}: Filter index {} exceeds maximum allowed bands (32)",
+                        line_num,
+                        parsed.index + 1
+                    ));
+                    continue;
+                }
                 filters.insert(
                     parsed.index,
                     Filter {
@@ -180,8 +194,14 @@ fn extract_q_value(s: &str) -> Option<f64> {
     {
         extract_number(&s[pos..])
     } else if let Some(pos) = lower.rfind('q') {
-        // Fallback to last 'q' in the line, which is usually the Q parameter
-        extract_number(&s[pos..])
+        // Ensure the matched 'q' is not part of a token like "lsq", "hsq"
+        let slice_before = &lower[..pos];
+        let is_filter_type_q = slice_before.ends_with("ls") || slice_before.ends_with("hs");
+        if !is_filter_type_q {
+            extract_number(&s[pos..])
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -189,11 +209,22 @@ fn extract_q_value(s: &str) -> Option<f64> {
 
 fn extract_number_after(s: &str, keyword: &str) -> Option<f64> {
     let lower = s.to_lowercase();
-    if let Some(pos) = lower.find(keyword) {
-        extract_number(&s[pos + keyword.len()..])
-    } else {
-        None
+    let keyword_lower = keyword.to_lowercase();
+    let mut search_start = 0;
+    while let Some(pos) = lower[search_start..].find(&keyword_lower) {
+        let actual_pos = search_start + pos;
+        if keyword_lower == "q" {
+            // Ensure the matched 'q' is not part of a token like "lsq", "hsq"
+            let slice_before = &lower[..actual_pos];
+            let is_filter_type_q = slice_before.ends_with("ls") || slice_before.ends_with("hs");
+            if is_filter_type_q {
+                search_start = actual_pos + 1;
+                continue;
+            }
+        }
+        return extract_number(&s[actual_pos + keyword.len()..]);
     }
+    None
 }
 
 fn contains_token(haystack: &str, token: &str) -> bool {
@@ -347,5 +378,45 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
         assert_eq!(result.filters[2].freq, 1000);
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("Failed to parse"));
+    }
+
+    #[test]
+    fn test_parse_lsq_missing_q_fallback() {
+        // Shelf type with missing Q should NOT succeed and parse Q as 80.0
+        let text = "Filter 1: ON LSQ Fc 80 Hz Gain -3.0 dB";
+        let result = parse_autoeq_text(text);
+        assert!(
+            result.is_err(),
+            "Missing Q should fail to parse rather than parsing frequency as Q"
+        );
+    }
+
+    #[test]
+    fn test_parse_inline_comments() {
+        let text = "Preamp: -3 dB # Set preamplifier gain\nFilter 1: ON PK Fc 1000 Hz Gain 1.5 dB Q 1.4 # peak filter";
+        let (result, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.global_gain, -3);
+        assert_eq!(result.filters[0].freq, 1000);
+        assert!((result.filters[0].gain - 1.5).abs() < 0.01);
+        assert!((result.filters[0].q - 1.4).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_number_after_case_insensitive_fallback() {
+        // Test case-insensitive fallback logic inside extract_number_after
+        let text = "Filter 1: ON PK fc 500 gain 2.0 q 1.2";
+        let (result, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters[0].freq, 500);
+        assert!((result.filters[0].gain - 2.0).abs() < 0.01);
+        assert!((result.filters[0].q - 1.2).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_oversized_filter_index_dos_mitigation() {
+        let text = "Filter 1: ON PK Fc 100 Hz Gain 1.0 dB Q 1.0\nFilter 9999: ON PK Fc 1000 Hz Gain 2.0 dB Q 1.0";
+        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters.len(), 1); // Should only have Filter 1
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("exceeds maximum allowed bands"));
     }
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::device::protocol::DeviceProtocol;
-use crate::core::{Filter, PEQData, PushPayload};
+use crate::core::{DeviceCapabilities, Filter, PEQData, PushPayload};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, send_report, HidDeviceIo};
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
@@ -27,16 +27,11 @@ pub fn pull_with_retry(
     {
         log::warn!("pull wake request failed: {}", e);
     }
-    delay_ms(WAKE_DELAY_MS);
+    delay_ms(proto.read_timing().wake_delay_ms);
     let first_result = pull_peq_data(device, proto, strict, num_bands, check_in);
 
     let needs_retry = match &first_result {
-        Ok(peq) => {
-            let all_disabled = peq.filters.iter().all(|f| !f.enabled);
-            let has_default_gain = peq.global_gain == 0;
-            let all_default_freq = peq.filters.iter().all(|f| f.freq == 100);
-            all_disabled && has_default_gain && all_default_freq
-        }
+        Ok(peq) => proto.is_default_state(peq),
         Err(_) => true,
     };
 
@@ -44,7 +39,7 @@ pub fn pull_with_retry(
         if check_in() {
             return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
         }
-        delay_ms(RETRY_DELAY_PULL_MS);
+        delay_ms(proto.read_timing().pull_retry_delay_ms);
         match pull_peq_data(device, proto, strict, num_bands, check_in) {
             Ok(peq) => Ok(peq),
             Err(e) => {
@@ -61,17 +56,14 @@ pub fn pull_with_retry(
 }
 
 const WAKE_NONCE: u8 = 0x01;
-const WAKE_DELAY_MS: u64 = 50;
-const RETRY_DELAY_PULL_MS: u64 = 100;
 const VERIFY_RETRY_COUNT: usize = 3;
-const VERIFY_BACKOFF_BASE_MS: u64 = 200;
 
 fn wake_device(device: &dyn HidDeviceIo, proto: &dyn DeviceProtocol) {
     let wake = proto.build_global_gain_request(WAKE_NONCE);
     if let Err(e) = send_report(device, &wake[..], proto.report_id()) {
         log::warn!("wake request failed: {}", e);
     }
-    delay_ms(WAKE_DELAY_MS);
+    delay_ms(proto.read_timing().wake_delay_ms);
 }
 
 fn do_write_and_commit(
@@ -95,6 +87,7 @@ fn do_write_and_commit(
     commit_changes(device, proto, &timing)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify_or_rollback(
     device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
@@ -103,14 +96,23 @@ fn verify_or_rollback(
     snapshot: &PEQData,
     num_bands: usize,
     dsp_sample_rate: f64,
+    caps: &DeviceCapabilities,
     check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
+    let backoff_base = proto.read_timing().verify_backoff_base_ms;
     for attempt in 0..VERIFY_RETRY_COUNT {
-        let backoff_ms = VERIFY_BACKOFF_BASE_MS.saturating_mul(2u64.saturating_pow(attempt as u32));
+        let backoff_ms = backoff_base.saturating_mul(2u64.saturating_pow(attempt as u32));
         delay_ms(backoff_ms);
         match pull_peq_data(device, proto, true, num_bands, check_in) {
             Ok(read_back) => {
-                if compare_peq(&read_back, expected_filters, expected_gain.unwrap_or(0)).is_ok() {
+                if compare_peq(
+                    &read_back,
+                    expected_filters,
+                    expected_gain.unwrap_or(0),
+                    caps,
+                )
+                .is_ok()
+                {
                     return Ok(read_back);
                 }
             }
@@ -121,6 +123,7 @@ fn verify_or_rollback(
                     snapshot,
                     num_bands,
                     dsp_sample_rate,
+                    caps,
                     check_in,
                 )
                 .map_err(|r| {
@@ -136,17 +139,24 @@ fn verify_or_rollback(
             }
         }
     }
-    rollback_and_verify(device, proto, snapshot, num_bands, dsp_sample_rate, check_in).map_err(
-        |r| {
-            AppError::new(
-                ErrorKind::RollbackFailed,
-                format!(
-                    "Verification failed: settings did not match | rollback failed: {}",
-                    r.message
-                ),
-            )
-        },
-    )?;
+    rollback_and_verify(
+        device,
+        proto,
+        snapshot,
+        num_bands,
+        dsp_sample_rate,
+        caps,
+        check_in,
+    )
+    .map_err(|r| {
+        AppError::new(
+            ErrorKind::RollbackFailed,
+            format!(
+                "Verification failed: settings did not match | rollback failed: {}",
+                r.message
+            ),
+        )
+    })?;
     Err(AppError::new(
         ErrorKind::VerifyFailed,
         "Verification failed: settings did not match",
@@ -192,6 +202,7 @@ pub fn push_with_verify(
             &snapshot,
             num_bands,
             dsp_sample_rate,
+            &caps,
             check_in,
         )
         .map_err(|r| {
@@ -214,6 +225,34 @@ pub fn push_with_verify(
         &snapshot,
         num_bands,
         dsp_sample_rate,
+        &caps,
         check_in,
     )
+}
+
+pub fn reset_with_verify(
+    device: &dyn HidDeviceIo,
+    profile: &dyn DeviceProfile,
+    proto: &dyn DeviceProtocol,
+    check_in: &dyn Fn() -> bool,
+) -> Result<PEQData> {
+    let caps = profile.capabilities();
+    let num_bands = caps.num_bands;
+    let dsp_sample_rate = caps.dsp_sample_rate;
+
+    let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
+    let timing = proto.write_timing();
+
+    for packet in packets {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
+        send_report(device, &packet, proto.report_id())?;
+        delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
+    }
+    proto.build_commit_packets().iter().for_each(|p| {
+        let _ = send_report(device, p, proto.report_id());
+    });
+
+    pull_with_retry(device, proto, true, num_bands, check_in)
 }

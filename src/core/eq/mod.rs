@@ -100,6 +100,9 @@ mod tests {
             supported_filter_types: FilterTypeFlags::PEAK,
             supports_per_band_enable: true,
             dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         };
         let mut peq = PEQData {
             global_gain: 20,
@@ -124,6 +127,9 @@ mod tests {
                 | FilterTypeFlags::HIGH_SHELF,
             supports_per_band_enable: true,
             dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         };
         let mut peq = PEQData {
             global_gain: 0,
@@ -148,6 +154,9 @@ mod tests {
                 | FilterTypeFlags::HIGH_SHELF,
             supports_per_band_enable: true,
             dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         };
         let mut peq = PEQData {
             global_gain: 0,
@@ -170,6 +179,9 @@ mod tests {
             supported_filter_types: FilterTypeFlags::PEAK,
             supports_per_band_enable: true,
             dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         };
         let mut peq = PEQData {
             global_gain: 0,

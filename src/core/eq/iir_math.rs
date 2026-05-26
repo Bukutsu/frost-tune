@@ -12,7 +12,9 @@ pub fn compute_biquad_coeffs(
     filter: &Filter,
     dsp_sample_rate: f64,
 ) -> (f64, f64, f64, f64, f64, f64) {
-    let freq = filter.freq as f64;
+    // Clamp the frequency to at most 49% of the sample rate to prevent Nyquist boundary collapse
+    let max_safe_freq = 0.49 * dsp_sample_rate;
+    let freq = (filter.freq as f64).clamp(20.0, max_safe_freq);
     let gain = filter.gain;
     let q = filter.q;
     let a_val = 10_f64.powf(gain / 40.0);
@@ -33,7 +35,9 @@ pub fn compute_biquad_coeffs(
             )
         }
         FilterType::LowShelf => {
-            let alpha = (sin_w / 2.0) * ((a_val + 1.0 / a_val) * (1.0 / q - 1.0) + 2.0).sqrt();
+            // Clamp the term inside the square root to >= 0.0 to prevent NaN for high Q/gain shelf filters
+            let sqrt_term = ((a_val + 1.0 / a_val) * (1.0 / q - 1.0) + 2.0).max(0.0);
+            let alpha = (sin_w / 2.0) * sqrt_term.sqrt();
             let a_minus_1 = a_val - 1.0;
             let a_plus_1 = a_val + 1.0;
             let sqrt_a_alpha = 2.0 * a_val.sqrt() * alpha;
@@ -47,7 +51,9 @@ pub fn compute_biquad_coeffs(
             )
         }
         FilterType::HighShelf => {
-            let alpha = (sin_w / 2.0) * ((a_val + 1.0 / a_val) * (1.0 / q - 1.0) + 2.0).sqrt();
+            // Clamp the term inside the square root to >= 0.0 to prevent NaN for high Q/gain shelf filters
+            let sqrt_term = ((a_val + 1.0 / a_val) * (1.0 / q - 1.0) + 2.0).max(0.0);
+            let alpha = (sin_w / 2.0) * sqrt_term.sqrt();
             let a_minus_1 = a_val - 1.0;
             let a_plus_1 = a_val + 1.0;
             let sqrt_a_alpha = 2.0 * a_val.sqrt() * alpha;
@@ -179,6 +185,50 @@ mod tests {
         let coeffs = compute_biquad_coeffs(&filter, 96000.0);
         for &c in &[coeffs.0, coeffs.1, coeffs.2, coeffs.3, coeffs.4, coeffs.5] {
             assert!(c.is_finite());
+        }
+        assert!(coeffs.3 != 0.0);
+    }
+
+    #[test]
+    fn test_low_shelf_high_q_stability() {
+        // High Q with max gain under old formula would trigger negative square roots (NaN)
+        let filter = Filter {
+            index: 0,
+            enabled: true,
+            filter_type: FilterType::LowShelf,
+            freq: 100,
+            gain: 10.0,
+            q: 10.0,
+        };
+        let coeffs = compute_biquad_coeffs(&filter, 96000.0);
+        for &c in &[coeffs.0, coeffs.1, coeffs.2, coeffs.3, coeffs.4, coeffs.5] {
+            assert!(
+                c.is_finite(),
+                "coefficient {} must be finite for high-Q shelf",
+                c
+            );
+        }
+        assert!(coeffs.3 != 0.0);
+    }
+
+    #[test]
+    fn test_nyquist_frequency_clamping() {
+        // Frequency above Nyquist (23kHz for 44.1kHz sample rate)
+        let filter = Filter {
+            index: 0,
+            enabled: true,
+            filter_type: FilterType::Peak,
+            freq: 23000,
+            gain: 5.0,
+            q: 1.0,
+        };
+        let coeffs = compute_biquad_coeffs(&filter, 44100.0);
+        for &c in &[coeffs.0, coeffs.1, coeffs.2, coeffs.3, coeffs.4, coeffs.5] {
+            assert!(
+                c.is_finite(),
+                "coefficient {} must be finite near/above Nyquist",
+                c
+            );
         }
         assert!(coeffs.3 != 0.0);
     }

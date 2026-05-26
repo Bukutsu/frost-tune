@@ -90,6 +90,9 @@ impl DiagnosticsStore {
             }
         }
 
+        let line = format_diagnostic_log_line(&event);
+        let _ = crate::storage::append_diagnostics_log(&line);
+
         if self.events.len() >= MAX_EVENTS {
             self.events.pop_front();
         }

@@ -2,16 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::device::protocol::DeviceProtocol;
-use crate::core::{Filter, PEQData};
+use crate::core::{DeviceCapabilities, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::hid::{delay_ms, pull_peq_internal, HidDeviceIo};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 
 const PEQ_RETRY_COUNT: usize = 3;
-const PEQ_RETRY_DELAY_MS: u64 = 200;
-const GAIN_COMPARE_TOLERANCE: f64 = 0.15;
-const FREQ_COMPARE_TOLERANCE: i32 = 1;
-const Q_COMPARE_TOLERANCE: f64 = 0.05;
 
 pub fn pull_peq_data(
     d: &dyn HidDeviceIo,
@@ -40,7 +36,7 @@ pub fn pull_peq_data(
             }
         }
         if attempt < PEQ_RETRY_COUNT - 1 {
-            delay_ms(PEQ_RETRY_DELAY_MS);
+            delay_ms(proto.read_timing().pull_retry_delay_ms);
         }
     }
     Err(last_err)
@@ -77,6 +73,7 @@ pub fn rollback_and_verify(
     snapshot: &PEQData,
     num_bands: usize,
     dsp_sample_rate: f64,
+    caps: &DeviceCapabilities,
     check_in: &dyn Fn() -> bool,
 ) -> Result<()> {
     log::info!("Starting hardware state rollback and verification...");
@@ -92,7 +89,7 @@ pub fn rollback_and_verify(
         AppError::new(ErrorKind::RollbackFailed, msg)
     })?;
 
-    compare_peq(&restored, &snapshot.filters, snapshot.global_gain).map_err(|e| {
+    compare_peq(&restored, &snapshot.filters, snapshot.global_gain, caps).map_err(|e| {
         let msg = format!("rollback verify mismatch: {}", e.message);
         log::error!("{}", msg);
         AppError::new(ErrorKind::RollbackFailed, msg)
@@ -102,7 +99,12 @@ pub fn rollback_and_verify(
     Ok(())
 }
 
-pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()> {
+pub fn compare_peq(
+    actual: &PEQData,
+    filters: &[Filter],
+    gain: i8,
+    caps: &DeviceCapabilities,
+) -> Result<()> {
     if actual.global_gain != gain {
         return Err(AppError::new(
             ErrorKind::VerifyFailed,
@@ -123,7 +125,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
         ));
     }
     for (a, f) in actual.filters.iter().zip(filters.iter()) {
-        if (a.gain - f.gain).abs() > GAIN_COMPARE_TOLERANCE {
+        if (a.gain - f.gain).abs() > caps.gain_tolerance {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
@@ -132,7 +134,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
                 ),
             ));
         }
-        if (a.freq as i32 - f.freq as i32).abs() > FREQ_COMPARE_TOLERANCE {
+        if (a.freq as i32 - f.freq as i32).abs() > caps.freq_tolerance {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
@@ -141,7 +143,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
                 ),
             ));
         }
-        if (a.q - f.q).abs() > Q_COMPARE_TOLERANCE {
+        if (a.q - f.q).abs() > caps.q_tolerance {
             return Err(AppError::new(
                 ErrorKind::VerifyFailed,
                 format!(
@@ -163,6 +165,7 @@ pub fn compare_peq(actual: &PEQData, filters: &[Filter], gain: i8) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::device::capabilities::DESKTOP_DAC_CAPS;
     use crate::core::{Filter, PEQData};
 
     fn make_filter(
@@ -195,7 +198,7 @@ mod tests {
             filters: filters.clone(),
             global_gain: 0,
         };
-        assert!(compare_peq(&data, &filters, 0).is_ok());
+        assert!(compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS).is_ok());
     }
 
     #[test]
@@ -212,7 +215,7 @@ mod tests {
             global_gain: 0,
         };
         data.filters[0].gain = 6.0;
-        let result = compare_peq(&data, &filters, 0);
+        let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().kind,
@@ -234,7 +237,7 @@ mod tests {
             global_gain: 0,
         };
         data.filters[0].freq = 2000;
-        let result = compare_peq(&data, &filters, 0);
+        let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
     }
 
@@ -252,7 +255,7 @@ mod tests {
             global_gain: 0,
         };
         data.filters[0].q = 2.0;
-        let result = compare_peq(&data, &filters, 0);
+        let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
     }
 
@@ -269,7 +272,7 @@ mod tests {
             filters: filters.clone(),
             global_gain: -3,
         };
-        let result = compare_peq(&data, &filters, 0);
+        let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
     }
 
@@ -287,7 +290,7 @@ mod tests {
             global_gain: 0,
         };
         data.filters[0].filter_type = crate::core::FilterType::LowShelf;
-        let result = compare_peq(&data, &filters, 0);
+        let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
     }
 }

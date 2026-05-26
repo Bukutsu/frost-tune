@@ -40,6 +40,7 @@ pub fn get_biquad_coefficients(
     compute_biquad_coeffs(filter, dsp_sample_rate)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn get_magnitude_response_with_coeffs(
     b0: f64,
     b1: f64,
