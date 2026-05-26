@@ -247,12 +247,19 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
         ));
     }
 
-    let exe_owner = metadata.uid();
-    if exe_owner != 0 {
-        return Err(AppError::new(
-            ErrorKind::IpcError,
-            "Executable must be owned by root to prevent TOCTOU attacks when elevating.",
-        ));
+    #[cfg(not(debug_assertions))]
+    {
+        let exe_owner = metadata.uid();
+        if exe_owner != 0 {
+            return Err(AppError::new(
+                ErrorKind::IpcError,
+                "Executable must be owned by root to prevent TOCTOU attacks when elevating.",
+            ));
+        }
+    }
+    #[cfg(debug_assertions)]
+    {
+        log::info!("Skipping elevated executable root-ownership check in debug mode.");
     }
 
     let parent = path.parent().ok_or_else(|| {

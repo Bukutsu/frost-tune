@@ -201,10 +201,7 @@ impl UsbWorkerState {
                     .as_ref()
                     .is_some_and(|e| e.kind == ErrorKind::PermissionDenied)
                 {
-                    let elevated = self.connect_elevated(target_device).await;
-                    if elevated.success {
-                        return elevated;
-                    }
+                    return self.connect_elevated(target_device).await;
                 }
 
                 return res;
