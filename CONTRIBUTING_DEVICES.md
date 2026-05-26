@@ -218,7 +218,12 @@ impl DeviceProtocol for MyDeviceProtocol {
         })
     }
 
-    fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
+    fn build_filter_write_packet(
+        &self,
+        index: u8,
+        filter: &Filter,
+        _dsp_sample_rate: f64,
+    ) -> Vec<u8> {
         let filter_type_byte: u8 = filter_type_to_device_byte(filter.filter_type);
         let gain_raw = (filter.gain * 10.0).round() as i16;
         let q_raw = (filter.q * 100.0).round() as u16;
@@ -336,6 +341,10 @@ impl DeviceProfile for MyDeviceProfile {
                 | FilterTypeFlags::LOW_SHELF
                 | FilterTypeFlags::HIGH_SHELF,
             supports_per_band_enable: true,
+            dsp_sample_rate: 96000.0,
+            gain_tolerance: 0.15,
+            freq_tolerance: 1,
+            q_tolerance: 0.05,
         }
     }
 
@@ -354,7 +363,12 @@ toggles per band. When you set it `true`, your `build_filter_write_packet` **mus
 also honour `filter.enabled`:
 
 ```rust
-fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
+fn build_filter_write_packet(
+    &self,
+    index: u8,
+    filter: &Filter,
+    _dsp_sample_rate: f64,
+) -> Vec<u8> {
     // If the device has an on-wire enable bit:
     let enable_byte: u8 = if filter.enabled { 0x01 } else { 0x00 };
     vec![WRITE, CMD_WRITE_FILTER, index, enable_byte, ...]
