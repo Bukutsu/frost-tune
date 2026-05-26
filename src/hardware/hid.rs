@@ -7,27 +7,77 @@ use crate::core::{DeviceInfo, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::packet_builder::init_device_session;
 
-/// Trait abstracting over HID device I/O, enabling mock devices in tests.
-pub trait HidDeviceIo {
-    fn write(&self, data: &[u8]) -> std::result::Result<usize, hidapi::HidError>;
-    fn read_timeout(
-        &self,
-        data: &mut [u8],
-        timeout_ms: i32,
-    ) -> std::result::Result<usize, hidapi::HidError>;
-}
-
-impl HidDeviceIo for hidapi::HidDevice {
-    fn write(&self, data: &[u8]) -> std::result::Result<usize, hidapi::HidError> {
+impl crate::hardware::PhysicalInterface for hidapi::HidDevice {
+    fn write(&self, data: &[u8]) -> Result<usize> {
         hidapi::HidDevice::write(self, data)
+            .map_err(|e| AppError::new(ErrorKind::WriteError, format!("HID Write failed: {}", e)))
     }
 
-    fn read_timeout(
+    fn read_timeout(&self, data: &mut [u8], timeout_ms: u32) -> Result<usize> {
+        hidapi::HidDevice::read_timeout(self, data, timeout_ms as i32)
+            .map_err(|e| AppError::new(ErrorKind::ReadTimeout, format!("HID Read failed: {}", e)))
+    }
+
+    fn flush(&self) -> Result<()> {
+        let mut buf = [0u8; 64];
+        let mut total_drained = 0;
+        while let Ok(count) = hidapi::HidDevice::read_timeout(self, &mut buf[..], DRAIN_TIMEOUT_MS)
+        {
+            if count == 0 {
+                break;
+            }
+            total_drained += 1;
+            if total_drained > MAX_DRAIN_ITERATIONS {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+pub struct HidDiscoveryProvider;
+
+impl crate::hardware::DiscoveryProvider for HidDiscoveryProvider {
+    fn list_devices(&self) -> Result<Vec<DeviceInfo>> {
+        let api = hidapi::HidApi::new().map_err(|e| {
+            AppError::new(
+                ErrorKind::HardwareError,
+                format!("Failed to init HID API: {}", e),
+            )
+        })?;
+        Ok(list_devices(&api))
+    }
+
+    fn open_device(
         &self,
-        data: &mut [u8],
-        timeout_ms: i32,
-    ) -> std::result::Result<usize, hidapi::HidError> {
-        hidapi::HidDevice::read_timeout(self, data, timeout_ms)
+        info: &DeviceInfo,
+    ) -> Result<Box<dyn crate::hardware::PhysicalInterface>> {
+        let api = hidapi::HidApi::new().map_err(|e| {
+            AppError::new(
+                ErrorKind::HardwareError,
+                format!("Failed to init HID API: {}", e),
+            )
+        })?;
+        let path_str = &info.path;
+        let path = std::ffi::CString::new(path_str.as_str()).map_err(|e| {
+            AppError::new(
+                ErrorKind::InvalidPayload,
+                format!("Invalid device path: {}", e),
+            )
+        })?;
+        let device = api.open_path(&path).map_err(|e| {
+            AppError::new(
+                ErrorKind::PermissionDenied,
+                format!("Failed to open HID device: {}", e),
+            )
+        })?;
+        device.set_blocking_mode(true).map_err(|e| {
+            AppError::new(
+                ErrorKind::HardwareError,
+                format!("Failed to set blocking mode: {}", e),
+            )
+        })?;
+        Ok(Box::new(device))
     }
 }
 
@@ -109,41 +159,35 @@ pub fn list_devices(api: &hidapi::HidApi) -> Vec<DeviceInfo> {
     devices
 }
 
-pub fn send_report(device: &dyn HidDeviceIo, data: &[u8], report_id: u8) -> Result<()> {
-    let mut buf = [0u8; 65];
-    buf[0] = report_id;
-    let len = data.len().min(64);
-    buf[1..1 + len].copy_from_slice(&data[..len]);
-    match device.write(&buf[..]) {
+pub fn send_report(
+    device: &dyn crate::hardware::PhysicalInterface,
+    data: &[u8],
+    framer: &dyn crate::hardware::PacketFramer,
+) -> Result<()> {
+    let framed = framer.frame_packet(data);
+    match device.write(&framed) {
         Ok(_) => Ok(()),
         Err(e) => Err(AppError::new(
             ErrorKind::WriteError,
-            format!("HID Write failed: {}", e),
+            format!("HID Write failed: {}", e.message),
         )),
     }
 }
 
-pub fn flush_hid_buffer(device: &dyn HidDeviceIo) {
-    let mut buf = [0u8; 64];
-    let mut total_drained = 0;
-    while let Ok(count) = device.read_timeout(&mut buf[..], DRAIN_TIMEOUT_MS) {
-        if count == 0 {
-            break;
-        }
-        total_drained += 1;
-        if total_drained > MAX_DRAIN_ITERATIONS {
-            break;
-        }
-    }
+pub fn flush_hid_buffer(device: &dyn crate::hardware::PhysicalInterface) {
+    let _ = device.flush();
 }
+
 pub fn pull_peq_internal(
-    device: &dyn HidDeviceIo,
+    device: &dyn crate::hardware::PhysicalInterface,
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
     check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     let cfg = proto.read_timing();
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
     let mut session = init_device_session(device, proto)?;
 
     let mut filter_results: Vec<Option<Filter>> = Vec::with_capacity(num_bands);
@@ -156,9 +200,9 @@ pub fn pull_peq_internal(
 
         let nonce = session.next_nonce();
         let request = proto.build_filter_read_request(i, nonce);
-        send_report(device, &request, proto.report_id())?;
+        send_report(device, &request, framer)?;
 
-        let result = read_single_filter(device, proto, &cfg, i, nonce);
+        let result = read_single_filter(device, proto, framer, &cfg, i, nonce);
         if strict && result.is_none() {
             return Err(AppError::new(
                 ErrorKind::ReadTimeout,
@@ -176,7 +220,7 @@ pub fn pull_peq_internal(
     validate_filter_reads(strict, had_mismatch)?;
 
     let global_nonce = session.next_nonce();
-    let global_gain = read_global_gain(device, proto, &cfg, global_nonce)?;
+    let global_gain = read_global_gain(device, proto, framer, &cfg, global_nonce)?;
     let filters = assemble_filters(num_bands, filter_results);
 
     Ok(PEQData {
@@ -188,50 +232,48 @@ pub fn pull_peq_internal(
 /// Read a single filter response from the device, matching by `index` and `nonce`.
 /// The protocol decides whether an incoming packet is the response we expect.
 fn read_single_filter(
-    device: &dyn HidDeviceIo,
+    device: &dyn crate::hardware::PhysicalInterface,
     proto: &dyn DeviceProtocol,
+    framer: &dyn crate::hardware::PacketFramer,
     cfg: &ReadTiming,
     expected_index: u8,
     nonce: u8,
 ) -> Option<Filter> {
     let mut attempts = 0;
     let mut mismatches = 0;
-    // Worst-case per filter: MAX_FILTER_READ_ATTEMPTS(60) × read_timeout_ms(60ms) ×
-    // mismatch limit (8) ≈ 28.8s. Designed for noisy USB pipes where the device
-    // may echo stale frames before delivering the correct response.
     while attempts < MAX_FILTER_READ_ATTEMPTS {
         let mut buf = [0u8; 64];
-        match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
+        match device.read_timeout(&mut buf[..], cfg.read_timeout_ms) {
             Ok(count) if count > 0 => {
-                let offset = if buf[0] == proto.report_id() { 1 } else { 0 };
-                let data = &buf[offset..count];
-
-                if proto.matches_filter_response(data, expected_index, nonce) {
-                    return proto.parse_filter_response(data);
-                } else if count > offset {
-                    mismatches += 1;
-                    if mismatches <= 2 || mismatches == MAX_MISMATCH_COUNT {
-                        // Log first two mismatches (to confirm the pattern) and the
-                        // final mismatch (to confirm we exhausted attempts). Hidden
-                        // behind RUST_LOG=trace so normal users never see this.
-                        log::trace!(
-                            "Filter read mismatch: expected index={} nonce={:#04x}, \
-                             got {:02x?} (first {} bytes)",
-                            expected_index,
-                            nonce,
-                            &data[..data.len().min(8)],
-                            data.len().min(8)
-                        );
+                if let Ok(data) = framer.unframe_packet(&buf[..count]) {
+                    if proto.matches_filter_response(&data, expected_index, nonce) {
+                        return proto.parse_filter_response(&data);
+                    } else if !data.is_empty() {
+                        mismatches += 1;
+                        if mismatches <= 2 || mismatches == MAX_MISMATCH_COUNT {
+                            log::trace!(
+                                "Filter read mismatch: expected index={} nonce={:#04x}, \
+                                 got {:02x?} (first {} bytes)",
+                                expected_index,
+                                nonce,
+                                &data[..data.len().min(8)],
+                                data.len().min(8)
+                            );
+                        }
+                        if mismatches > MAX_MISMATCH_COUNT {
+                            return None;
+                        }
+                        continue;
                     }
-                    if mismatches > MAX_MISMATCH_COUNT {
-                        return None;
-                    }
-                    continue;
                 }
             }
             Ok(_) => {}
             Err(e) => {
-                log::warn!("HID read error for filter {}: {}", expected_index, e);
+                log::warn!(
+                    "HID read error for filter {}: {}",
+                    expected_index,
+                    e.message
+                );
                 return None;
             }
         }
@@ -241,26 +283,27 @@ fn read_single_filter(
 }
 
 fn read_global_gain(
-    device: &dyn HidDeviceIo,
+    device: &dyn crate::hardware::PhysicalInterface,
     proto: &dyn DeviceProtocol,
+    framer: &dyn crate::hardware::PacketFramer,
     cfg: &ReadTiming,
     nonce: u8,
 ) -> Result<i8> {
     delay_ms(cfg.post_filter_read_ms);
     let request = proto.build_global_gain_request(nonce);
-    send_report(device, &request, proto.report_id())?;
+    send_report(device, &request, framer)?;
     delay_ms(cfg.post_global_gain_ms);
 
     let mut attempts = 0;
     while attempts < MAX_GLOBAL_GAIN_ATTEMPTS {
         let mut buf = [0u8; 64];
-        match device.read_timeout(&mut buf[..], cfg.read_timeout_ms as i32) {
+        match device.read_timeout(&mut buf[..], cfg.read_timeout_ms) {
             Ok(count) if count > 0 => {
-                let offset = if buf[0] == proto.report_id() { 1 } else { 0 };
-                let data = &buf[offset..count];
-                if proto.matches_global_gain_response(data, nonce) {
-                    if let Some(gain) = proto.parse_global_gain_response(data) {
-                        return Ok(gain);
+                if let Ok(data) = framer.unframe_packet(&buf[..count]) {
+                    if proto.matches_global_gain_response(&data, nonce) {
+                        if let Some(gain) = proto.parse_global_gain_response(&data) {
+                            return Ok(gain);
+                        }
                     }
                 }
             }

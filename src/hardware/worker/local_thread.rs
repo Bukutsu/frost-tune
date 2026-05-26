@@ -5,7 +5,7 @@ use tokio::sync::oneshot;
 
 use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
 use crate::error::{AppError, ErrorKind};
-use crate::hardware::hid::{find_device_info, list_devices};
+use crate::hardware::device_io::{DiscoveryProvider, PhysicalInterface};
 use crate::hardware::pipeline::{pull_with_retry, push_with_verify, reset_with_verify};
 use crate::hardware::{get_profile, DeviceProfile};
 
@@ -29,25 +29,13 @@ pub struct LocalStatus {
     pub fatal_error: Option<String>,
 }
 
-fn exponential_backoff_elapsed(attempts: u32, last: Option<Instant>, max_secs: u64) -> bool {
-    match last {
-        None => true,
-        Some(last) => {
-            let backoff = Duration::from_secs((2u64.saturating_pow(attempts)).min(max_secs));
-            Instant::now().duration_since(last) >= backoff
-        }
-    }
-}
-
 pub struct LocalWorkerState {
-    pub api: Option<hidapi::HidApi>,
-    pub api_retry_count: u32,
-    pub last_api_retry: Option<Instant>,
+    pub discovery_providers: Vec<Box<dyn DiscoveryProvider>>,
     pub fatal_error: Option<String>,
     pub last_physical_check: Instant,
     pub check_interval: Duration,
 
-    pub device: Option<hidapi::HidDevice>,
+    pub device: Option<Box<dyn PhysicalInterface>>,
     pub device_profile: Option<&'static dyn DeviceProfile>,
     pub info: Option<DeviceInfo>,
     pub generation: u64,
@@ -59,9 +47,7 @@ pub struct LocalWorkerState {
 impl LocalWorkerState {
     pub fn new(rx: mpsc::Receiver<LocalCommand>) -> Self {
         Self {
-            api: None,
-            api_retry_count: 0,
-            last_api_retry: None,
+            discovery_providers: vec![Box::new(crate::hardware::hid::HidDiscoveryProvider)],
             fatal_error: None,
             last_physical_check: Instant::now(),
             check_interval: Duration::from_millis(1000),
@@ -93,49 +79,24 @@ impl LocalWorkerState {
         }
     }
 
-    fn ensure_api(&mut self) {
-        if self.api.is_some() {
-            return;
-        }
-
-        if exponential_backoff_elapsed(self.api_retry_count, self.last_api_retry, 30) {
-            self.last_api_retry = Some(Instant::now());
-            self.api_retry_count += 1;
-
-            match hidapi::HidApi::new() {
-                Ok(a) => {
-                    log::info!("HID API initialized successfully");
-                    self.api = Some(a);
-                    self.fatal_error = None;
-                    self.api_retry_count = 0;
-                }
-                Err(e) => {
-                    let msg = format!("Failed to initialize HID API: {}", e);
-                    log::error!("{} (attempt {})", msg, self.api_retry_count);
-                    self.fatal_error = Some(msg);
-                }
-            }
-        }
-    }
-
     fn perform_physical_checks(&mut self) -> bool {
         self.last_physical_check = Instant::now();
         let mut backend_reset = false;
 
-        if let Some(ref mut api_ref) = self.api {
-            if let Err(e) = api_ref.refresh_devices() {
-                log::warn!("Failed to refresh USB device list: {}", e);
+        let mut physically_connected = false;
+        for provider in &self.discovery_providers {
+            if let Ok(devices) = provider.list_devices() {
+                if let Some(ref current_info) = self.info {
+                    if devices.iter().any(|d| d.path == current_info.path) {
+                        physically_connected = true;
+                        break;
+                    }
+                }
             }
+        }
 
-            let is_physically_connected = find_device_info(api_ref).is_some();
-            if self.device.is_some() && !is_physically_connected {
-                log::warn!("DAC physically disconnected (local backend)");
-                self.device = None;
-                self.info = None;
-                self.generation = self.generation.saturating_add(1);
-                backend_reset = true;
-            }
-        } else if self.device.is_some() {
+        if self.device.is_some() && !physically_connected {
+            log::warn!("DAC physically disconnected (local backend)");
             self.device = None;
             self.info = None;
             self.generation = self.generation.saturating_add(1);
@@ -184,38 +145,27 @@ impl LocalWorkerState {
     }
 
     fn handle_connect(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
-        let api_ref = match &mut self.api {
-            Some(api) => api,
-            None => {
-                return ConnectionResult {
-                    success: false,
-                    device: target_device,
-                    error: Some(AppError::new(
-                        ErrorKind::Unknown,
-                        self.fatal_error
-                            .clone()
-                            .unwrap_or_else(|| "HID API unavailable".into()),
-                    )),
-                };
-            }
-        };
-
-        if let Err(e) = api_ref.refresh_devices() {
-            log::warn!("Failed to refresh devices before connect: {}", e);
-        }
-
-        let target_vid_pid = if let Some(ref target) = target_device {
-            Some((target.vendor_id, target.product_id))
+        let resolved_target = if let Some(target) = target_device {
+            Some(target)
         } else {
-            find_device_info(api_ref).map(|dev| (dev.vendor_id(), dev.product_id()))
+            let mut first_discovered = None;
+            for provider in &self.discovery_providers {
+                if let Ok(devices) = provider.list_devices() {
+                    if let Some(first) = devices.first() {
+                        first_discovered = Some(first.clone());
+                        break;
+                    }
+                }
+            }
+            first_discovered
         };
 
-        let (vid, pid) = match target_vid_pid {
-            Some((v, p)) => (v, p),
+        let target = match resolved_target {
+            Some(t) => t,
             None => {
                 return ConnectionResult {
                     success: false,
-                    device: target_device,
+                    device: None,
                     error: Some(AppError::new(
                         ErrorKind::NotConnected,
                         "No supported device found",
@@ -224,80 +174,76 @@ impl LocalWorkerState {
             }
         };
 
-        match api_ref.open(vid, pid) {
-            Ok(device) => {
-                if let Err(e) = device.set_blocking_mode(true) {
-                    log::warn!("Failed to set blocking mode: {}", e);
-                }
+        let profile = get_profile(target.vendor_id, target.product_id);
+        if profile.is_none() {
+            return ConnectionResult {
+                success: false,
+                device: Some(target),
+                error: Some(AppError::new(
+                    ErrorKind::HardwareError,
+                    "Unsupported DAC device",
+                )),
+            };
+        }
 
-                let info = list_devices(api_ref)
-                    .into_iter()
-                    .find(|d| d.vendor_id == vid && d.product_id == pid)
-                    .unwrap_or_else(|| DeviceInfo {
-                        vendor_id: vid,
-                        product_id: pid,
-                        path: "unknown".into(),
-                        manufacturer: None,
-                        product_string: None,
-                    });
+        for provider in &self.discovery_providers {
+            if let Ok(devices) = provider.list_devices() {
+                if devices.iter().any(|d| d.path == target.path) {
+                    match provider.open_device(&target) {
+                        Ok(opened_dev) => {
+                            self.device = Some(opened_dev);
+                            self.info = Some(target.clone());
+                            self.device_profile = profile;
 
-                let profile = get_profile(vid, pid);
-
-                self.device = Some(device);
-                self.info = Some(info.clone());
-                self.device_profile = profile;
-
-                ConnectionResult {
-                    success: true,
-                    device: Some(info),
-                    error: None,
-                }
-            }
-            Err(e) => {
-                let msg = format!("Failed to open HID device: {}", e);
-                let kind = if msg.to_lowercase().contains("permission denied")
-                    || msg.to_lowercase().contains("access denied")
-                {
-                    ErrorKind::PermissionDenied
-                } else {
-                    ErrorKind::HardwareError
-                };
-                ConnectionResult {
-                    success: false,
-                    device: target_device,
-                    error: Some(AppError::new(kind, msg)),
+                            return ConnectionResult {
+                                success: true,
+                                device: Some(target),
+                                error: None,
+                            };
+                        }
+                        Err(e) => {
+                            return ConnectionResult {
+                                success: false,
+                                device: Some(target),
+                                error: Some(e),
+                            };
+                        }
+                    }
                 }
             }
+        }
+
+        ConnectionResult {
+            success: false,
+            device: Some(target),
+            error: Some(AppError::new(
+                ErrorKind::NotConnected,
+                "Device not found or failed to open",
+            )),
         }
     }
 
     fn handle_status(&mut self, backend_reset: bool) -> LocalStatus {
-        if let Some(ref mut api_ref) = self.api {
-            let available_devices = list_devices(api_ref);
-            let physically_present = !available_devices.is_empty();
+        let mut available_devices = Vec::new();
+        for provider in &self.discovery_providers {
+            if let Ok(mut devs) = provider.list_devices() {
+                available_devices.append(&mut devs);
+            }
+        }
 
-            LocalStatus {
-                connected: self.device.is_some(),
-                physically_present,
-                device: self
-                    .info
-                    .clone()
-                    .or_else(|| available_devices.first().cloned()),
-                available_devices,
-                backend_reset,
-                generation: self.generation,
-                fatal_error: None,
-            }
-        } else {
-            LocalStatus {
-                connected: false,
-                physically_present: false,
-                device: None,
-                available_devices: Vec::new(),
-                backend_reset,
-                generation: self.generation,
-                fatal_error: self.fatal_error.clone(),
-            }
+        let physically_present = !available_devices.is_empty();
+
+        LocalStatus {
+            connected: self.device.is_some(),
+            physically_present,
+            device: self
+                .info
+                .clone()
+                .or_else(|| available_devices.first().cloned()),
+            available_devices,
+            backend_reset,
+            generation: self.generation,
+            fatal_error: self.fatal_error.clone(),
         }
     }
 
@@ -305,7 +251,7 @@ impl LocalWorkerState {
         let check_in = || self.should_cancel();
 
         let device = match &self.device {
-            Some(d) => d,
+            Some(d) => d.as_ref(),
             None => {
                 return OperationResult {
                     success: false,
@@ -349,7 +295,7 @@ impl LocalWorkerState {
         let check_in = || self.should_cancel();
 
         let device = match &self.device {
-            Some(d) => d,
+            Some(d) => d.as_ref(),
             None => {
                 return OperationResult {
                     success: false,
@@ -392,7 +338,7 @@ impl LocalWorkerState {
         let check_in = || self.should_cancel();
 
         let device = match &self.device {
-            Some(d) => d,
+            Some(d) => d.as_ref(),
             None => {
                 return OperationResult {
                     success: false,
@@ -436,8 +382,6 @@ pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
     let mut state = LocalWorkerState::new(rx);
 
     loop {
-        state.ensure_api();
-
         let now = Instant::now();
         let time_since_check = now.duration_since(state.last_physical_check);
         let mut backend_reset = false;

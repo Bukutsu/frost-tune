@@ -4,13 +4,14 @@
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::{DeviceCapabilities, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, pull_peq_internal, HidDeviceIo};
+use crate::hardware::device_io::PhysicalInterface;
+use crate::hardware::hid::{delay_ms, pull_peq_internal};
 use crate::hardware::packet_builder::{commit_changes, write_filters_and_gain};
 
 const PEQ_RETRY_COUNT: usize = 3;
 
 pub fn pull_peq_data(
-    d: &dyn HidDeviceIo,
+    d: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
@@ -43,7 +44,7 @@ pub fn pull_peq_data(
 }
 
 pub fn rollback_state(
-    d: &dyn HidDeviceIo,
+    d: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     state: &PEQData,
     num_bands: usize,
@@ -68,7 +69,7 @@ pub fn rollback_state(
 }
 
 pub fn rollback_and_verify(
-    d: &dyn HidDeviceIo,
+    d: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     snapshot: &PEQData,
     num_bands: usize,

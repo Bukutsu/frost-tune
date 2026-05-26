@@ -4,7 +4,8 @@
 #[cfg(target_os = "linux")]
 use crate::core::{DeviceInfo, Filter, PEQData, PushPayload};
 #[cfg(target_os = "linux")]
-use crate::hardware::hid::{device_info_from_hid, find_device_info};
+use crate::hardware::device_io::{DiscoveryProvider, PhysicalInterface};
+#[cfg(target_os = "linux")]
 use crate::hardware::DeviceProfile;
 
 #[cfg(target_os = "linux")]
@@ -18,7 +19,7 @@ use std::io::{self, BufRead, Read, Write};
 
 #[cfg(target_os = "linux")]
 fn pull_logic(
-    device: &hidapi::HidDevice,
+    device: &dyn PhysicalInterface,
     profile: &'static dyn DeviceProfile,
     strict: bool,
 ) -> crate::error::Result<PEQData> {
@@ -36,7 +37,7 @@ fn pull_logic(
 
 #[cfg(target_os = "linux")]
 fn push_logic(
-    device: &hidapi::HidDevice,
+    device: &dyn PhysicalInterface,
     profile: &'static dyn DeviceProfile,
     filters: Vec<Filter>,
     global_gain: Option<i8>,
@@ -80,7 +81,7 @@ fn push_logic(
 
 #[cfg(target_os = "linux")]
 fn handle_reset(
-    device: &hidapi::HidDevice,
+    device: &dyn PhysicalInterface,
     profile: &'static dyn DeviceProfile,
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
@@ -90,64 +91,58 @@ fn handle_reset(
 
 #[cfg(target_os = "linux")]
 fn require_device(
-    device: &Option<hidapi::HidDevice>,
-) -> Result<&hidapi::HidDevice, HelperResponse> {
-    device.as_ref().ok_or_else(|| HelperResponse::Error {
+    device: &Option<Box<dyn PhysicalInterface>>,
+) -> Result<&dyn PhysicalInterface, HelperResponse> {
+    device.as_deref().ok_or_else(|| HelperResponse::Error {
         error: AppError::new(ErrorKind::NotConnected, "Not connected"),
     })
 }
 
 #[cfg(target_os = "linux")]
 fn handle_connect(
-    api: &mut hidapi::HidApi,
     target: Option<DeviceInfo>,
-    device: &mut Option<hidapi::HidDevice>,
+    device: &mut Option<Box<dyn PhysicalInterface>>,
     device_info: &mut Option<DeviceInfo>,
     device_profile: &mut Option<&'static dyn DeviceProfile>,
 ) -> HelperResponse {
-    let _ = api.refresh_devices();
-
-    let found_device = if let Some(target) = target {
-        api.device_list()
-            .find(|d| {
-                d.vendor_id() == target.vendor_id
-                    && d.product_id() == target.product_id
-                    && d.path().to_string_lossy() == target.path
-            })
-            .cloned()
+    let provider = crate::hardware::hid::HidDiscoveryProvider;
+    let resolved_target = if let Some(target) = target {
+        Some(target)
     } else {
-        find_device_info(api)
+        match provider.list_devices() {
+            Ok(devices) => devices.first().cloned(),
+            Err(e) => return HelperResponse::Error { error: e },
+        }
     };
 
-    match found_device {
-        Some(ref found) => {
-            if let Some(profile) =
-                crate::hardware::get_profile(found.vendor_id(), found.product_id())
-            {
-                match found.open_device(api) {
-                    Ok(opened) => {
-                        let info = device_info_from_hid(found);
-                        *device = Some(opened);
-                        *device_profile = Some(profile);
-                        *device_info = Some(info.clone());
-                        HelperResponse::Connected { device: Some(info) }
-                    }
-                    Err(e) => HelperResponse::Error {
-                        error: AppError::new(ErrorKind::PermissionDenied, e.to_string()),
-                    },
-                }
-            } else {
-                HelperResponse::Error {
-                    error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
+    let target = match resolved_target {
+        Some(t) => t,
+        None => {
+            return HelperResponse::Error {
+                error: AppError::new(
+                    ErrorKind::NotConnected,
+                    "Device not found. Is it plugged in?",
+                ),
+            };
+        }
+    };
+
+    if let Some(profile) = crate::hardware::get_profile(target.vendor_id, target.product_id) {
+        match provider.open_device(&target) {
+            Ok(opened) => {
+                *device = Some(opened);
+                *device_profile = Some(profile);
+                *device_info = Some(target.clone());
+                HelperResponse::Connected {
+                    device: Some(target),
                 }
             }
+            Err(e) => HelperResponse::Error { error: e },
         }
-        None => HelperResponse::Error {
-            error: AppError::new(
-                ErrorKind::NotConnected,
-                "Device not found. Is it plugged in?",
-            ),
-        },
+    } else {
+        HelperResponse::Error {
+            error: AppError::new(ErrorKind::HardwareError, "Unsupported DAC device"),
+        }
     }
 }
 
@@ -176,9 +171,8 @@ fn write_response(
 
 #[cfg(target_os = "linux")]
 pub fn run() -> crate::error::Result<()> {
-    let mut api = hidapi::HidApi::new()
-        .map_err(|e| AppError::general(format!("Failed to init HID API: {}", e)))?;
-    let mut device: Option<hidapi::HidDevice> = None;
+    let provider = crate::hardware::hid::HidDiscoveryProvider;
+    let mut device: Option<Box<dyn PhysicalInterface>> = None;
     let mut device_info: Option<DeviceInfo> = None;
     let mut device_profile: Option<&'static dyn DeviceProfile> = None;
 
@@ -257,13 +251,7 @@ pub fn run() -> crate::error::Result<()> {
                         device: device_info.clone(),
                     }
                 } else {
-                    handle_connect(
-                        &mut api,
-                        target,
-                        &mut device,
-                        &mut device_info,
-                        &mut device_profile,
-                    )
+                    handle_connect(target, &mut device, &mut device_info, &mut device_profile)
                 }
             }
             HelperRequest::Disconnect => {
@@ -273,9 +261,13 @@ pub fn run() -> crate::error::Result<()> {
                 HelperResponse::Disconnected
             }
             HelperRequest::Status => {
-                let _ = api.refresh_devices();
-                let physical = find_device_info(&api);
-                let physically_present = physical.is_some();
+                let available_devices = provider.list_devices().unwrap_or_default();
+                let physically_present = if let Some(ref current) = device_info {
+                    available_devices.iter().any(|d| d.path == current.path)
+                } else {
+                    !available_devices.is_empty()
+                };
+
                 if device.is_some() && !physically_present {
                     device = None;
                     device_info = None;
@@ -284,7 +276,7 @@ pub fn run() -> crate::error::Result<()> {
                 HelperResponse::Status {
                     connected: device.is_some(),
                     physically_present,
-                    device: physical.as_ref().map(device_info_from_hid),
+                    device: device_info.clone(),
                 }
             }
             HelperRequest::Version => HelperResponse::Version {

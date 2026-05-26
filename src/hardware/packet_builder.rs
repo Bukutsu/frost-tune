@@ -5,21 +5,25 @@ use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
 use crate::core::Filter;
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, send_report, DeviceSession, HidDeviceIo};
+use crate::hardware::device_io::PhysicalInterface;
+use crate::hardware::hid::{delay_ms, send_report, DeviceSession};
 
 const INIT_POST_DELAY_MS: u64 = 50;
-const DRAIN_READ_TIMEOUT_MS: i32 = 20;
+const DRAIN_READ_TIMEOUT_MS: u32 = 20;
 const MAX_DRAIN_ITERATIONS: usize = 100;
 
 /// Sends the device's init sequence (version ping / wake), drains stale USB frames,
 /// and returns a fresh `DeviceSession` with its nonce counter reset to 1.
 /// Every read and write operation must start here.
 pub fn init_device_session(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
 ) -> Result<DeviceSession> {
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+
     for packet in proto.build_init_packets() {
-        send_report(device, &packet, proto.report_id())?;
+        send_report(device, &packet, framer)?;
     }
     delay_ms(INIT_POST_DELAY_MS);
     let mut drain = [0u8; 64];
@@ -34,7 +38,7 @@ pub fn init_device_session(
 }
 
 pub fn write_filters_and_gain(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     filters: &[Filter],
     global_gain: i8,
@@ -53,16 +57,19 @@ pub fn write_filters_and_gain(
         ));
     }
 
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+
     for (i, filter) in filters.iter().enumerate() {
         let packet = proto.build_filter_write_packet(i as u8, filter, dsp_sample_rate);
-        send_report(device, &packet, proto.report_id())?;
+        send_report(device, &packet, framer)?;
         delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
     }
 
     delay_ms(timing.batch_ms);
 
     let gain_packet = proto.build_global_gain_write_packet(global_gain);
-    send_report(device, &gain_packet, proto.report_id())?;
+    send_report(device, &gain_packet, framer)?;
     delay_ms(timing.global_gain_ms);
 
     Ok(())
@@ -71,12 +78,15 @@ pub fn write_filters_and_gain(
 /// Sends the full commit sequence returned by `proto.build_commit_packets()`,
 /// applying `timing.commit_step_ms` delay after each packet.
 pub fn commit_changes(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     timing: &WriteTiming,
 ) -> Result<()> {
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+
     for packet in proto.build_commit_packets() {
-        send_report(device, &packet, proto.report_id())?;
+        send_report(device, &packet, framer)?;
         delay_ms(timing.commit_step_ms);
     }
     Ok(())

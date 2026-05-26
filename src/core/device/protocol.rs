@@ -118,4 +118,11 @@ pub trait DeviceProtocol: Send + Sync {
         packets.push(self.build_global_gain_write_packet(0));
         packets
     }
+
+    /// Instantiate a packet framer for this protocol's transport.
+    fn framer(&self) -> Box<dyn crate::core::device::io::PacketFramer> {
+        Box::new(crate::core::device::io::HidPacketFramer::new(
+            self.report_id(),
+        ))
+    }
 }

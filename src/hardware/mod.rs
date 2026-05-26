@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+pub mod device_io;
 /// # Hardware Interaction Layer
 ///
 /// This module provides the infrastructure for discovering, authenticating, and communicating
@@ -29,6 +30,7 @@ pub mod registry;
 pub mod transport;
 pub mod worker;
 
+pub use device_io::*;
 pub use dsp::*;
 pub use registry::*;
 pub use transport::*;

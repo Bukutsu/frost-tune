@@ -4,7 +4,8 @@
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::{DeviceCapabilities, Filter, PEQData, PushPayload};
 use crate::error::{AppError, ErrorKind, Result};
-use crate::hardware::hid::{delay_ms, send_report, HidDeviceIo};
+use crate::hardware::device_io::PhysicalInterface;
+use crate::hardware::hid::{delay_ms, send_report};
 use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
@@ -12,7 +13,7 @@ use crate::hardware::packet_builder::{
 use crate::hardware::DeviceProfile;
 
 pub fn pull_with_retry(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
@@ -23,9 +24,10 @@ pub fn pull_with_retry(
     }
 
     let wake_request = proto.build_global_gain_request(WAKE_NONCE);
-    if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
-    {
-        log::warn!("pull wake request failed: {}", e);
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+    if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], framer) {
+        log::warn!("pull wake request failed: {}", e.message);
     }
     delay_ms(proto.read_timing().wake_delay_ms);
     let first_result = pull_peq_data(device, proto, strict, num_bands, check_in);
@@ -58,16 +60,18 @@ pub fn pull_with_retry(
 const WAKE_NONCE: u8 = 0x01;
 const VERIFY_RETRY_COUNT: usize = 3;
 
-fn wake_device(device: &dyn HidDeviceIo, proto: &dyn DeviceProtocol) {
+fn wake_device(device: &dyn PhysicalInterface, proto: &dyn DeviceProtocol) {
     let wake = proto.build_global_gain_request(WAKE_NONCE);
-    if let Err(e) = send_report(device, &wake[..], proto.report_id()) {
-        log::warn!("wake request failed: {}", e);
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+    if let Err(e) = send_report(device, &wake[..], framer) {
+        log::warn!("wake request failed: {}", e.message);
     }
     delay_ms(proto.read_timing().wake_delay_ms);
 }
 
 fn do_write_and_commit(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     payload: &PushPayload,
     num_bands: usize,
@@ -89,7 +93,7 @@ fn do_write_and_commit(
 
 #[allow(clippy::too_many_arguments)]
 fn verify_or_rollback(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     proto: &dyn DeviceProtocol,
     expected_filters: &[Filter],
     expected_gain: Option<i8>,
@@ -162,8 +166,9 @@ fn verify_or_rollback(
         "Verification failed: settings did not match",
     ))
 }
+
 pub fn push_with_verify(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     profile: &dyn DeviceProfile,
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
@@ -231,7 +236,7 @@ pub fn push_with_verify(
 }
 
 pub fn reset_with_verify(
-    device: &dyn HidDeviceIo,
+    device: &dyn PhysicalInterface,
     profile: &dyn DeviceProfile,
     proto: &dyn DeviceProtocol,
     check_in: &dyn Fn() -> bool,
@@ -243,15 +248,18 @@ pub fn reset_with_verify(
     let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
     let timing = proto.write_timing();
 
+    let framer_box = proto.framer();
+    let framer = framer_box.as_ref();
+
     for packet in packets {
         if check_in() {
             return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
         }
-        send_report(device, &packet, proto.report_id())?;
+        send_report(device, &packet, framer)?;
         delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
     }
     proto.build_commit_packets().iter().for_each(|p| {
-        let _ = send_report(device, p, proto.report_id());
+        let _ = send_report(device, p, framer);
     });
 
     pull_with_retry(device, proto, true, num_bands, check_in)

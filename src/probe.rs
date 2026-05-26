@@ -10,7 +10,7 @@
 //! current user (e.g. via udev rules or `pkexec frost-tune probe ...`).
 
 use crate::core::FilterType;
-use crate::hardware::hid::{pull_peq_internal, HidDeviceIo};
+use crate::hardware::hid::pull_peq_internal;
 use crate::hardware::packet_builder::init_device_session;
 use crate::hardware::registry;
 
@@ -18,22 +18,6 @@ pub struct ProbeOptions {
     pub vid: u16,
     pub pid: u16,
     pub hex: bool,
-}
-
-#[derive(Debug)]
-struct RawHidDevice(hidapi::HidDevice);
-
-impl HidDeviceIo for RawHidDevice {
-    fn write(&self, data: &[u8]) -> std::result::Result<usize, hidapi::HidError> {
-        hidapi::HidDevice::write(&self.0, data)
-    }
-    fn read_timeout(
-        &self,
-        data: &mut [u8],
-        timeout_ms: i32,
-    ) -> std::result::Result<usize, hidapi::HidError> {
-        hidapi::HidDevice::read_timeout(&self.0, data, timeout_ms)
-    }
 }
 
 pub fn run(opts: ProbeOptions) -> Result<(), String> {
@@ -75,7 +59,6 @@ pub fn run(opts: ProbeOptions) -> Result<(), String> {
 
     let proto = profile.protocol();
     let caps = profile.capabilities();
-    let wrapper = RawHidDevice(device);
 
     eprintln!(
         "Connected to {} ({:04x}:{:04x})",
@@ -105,7 +88,7 @@ pub fn run(opts: ProbeOptions) -> Result<(), String> {
         }
     }
 
-    init_device_session(&wrapper, proto.as_ref())
+    init_device_session(&device, proto.as_ref())
         .map_err(|e| format!("Init session failed: {}", e.message))?;
 
     if opts.hex {
@@ -114,14 +97,8 @@ pub fn run(opts: ProbeOptions) -> Result<(), String> {
 
     eprintln!("\nPulling PEQ data...");
     let dummy_check = || false;
-    let peq = pull_peq_internal(
-        &wrapper,
-        proto.as_ref(),
-        false,
-        caps.num_bands,
-        &dummy_check,
-    )
-    .map_err(|e| format!("Failed to read PEQ state: {}", e.message))?;
+    let peq = pull_peq_internal(&device, proto.as_ref(), false, caps.num_bands, &dummy_check)
+        .map_err(|e| format!("Failed to read PEQ state: {}", e.message))?;
 
     println!("\n=== {} ===", profile.name());
     println!("Global Gain: {} dB", peq.global_gain);
