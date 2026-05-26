@@ -325,8 +325,29 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
             // Persist immediately; ignore I/O errors so the toggle still flips in-memory.
             Task::perform(
                 async move {
+                    let settings = crate::storage::load_settings();
                     crate::storage::save_settings(crate::storage::Settings {
                         auto_pull_on_connect: enabled,
+                        skip_push_verification: settings.skip_push_verification,
+                    })
+                    .map_err(|e| {
+                        crate::error::AppError::new(
+                            crate::error::ErrorKind::StorageError,
+                            e.to_string(),
+                        )
+                    })
+                },
+                |result| Message::Editor(EditorMessage::SettingsSaved { result }),
+            )
+        }
+        Message::Editor(EditorMessage::ToggleSkipPushVerification(enabled)) => {
+            window.editor.ui.skip_push_verification = enabled;
+            Task::perform(
+                async move {
+                    let settings = crate::storage::load_settings();
+                    crate::storage::save_settings(crate::storage::Settings {
+                        auto_pull_on_connect: settings.auto_pull_on_connect,
+                        skip_push_verification: enabled,
                     })
                     .map_err(|e| {
                         crate::error::AppError::new(

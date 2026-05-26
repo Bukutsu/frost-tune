@@ -41,7 +41,7 @@ pub enum UsbCommand {
     Disconnect(oneshot::Sender<OperationResult>),
     Status(oneshot::Sender<WorkerStatus>),
     PullPEQ(oneshot::Sender<OperationResult>),
-    PushPEQ(PushPayload, oneshot::Sender<OperationResult>),
+    PushPEQ(PushPayload, bool, oneshot::Sender<OperationResult>),
     ResetPEQ(oneshot::Sender<OperationResult>),
 }
 
@@ -100,8 +100,12 @@ impl UsbWorker {
         self.send_command(UsbCommand::PullPEQ).await
     }
 
-    pub async fn push_peq(&self, payload: PushPayload) -> Result<OperationResult, String> {
-        self.send_command(|tx| UsbCommand::PushPEQ(payload, tx))
+    pub async fn push_peq(
+        &self,
+        payload: PushPayload,
+        skip_verify: bool,
+    ) -> Result<OperationResult, String> {
+        self.send_command(|tx| UsbCommand::PushPEQ(payload, skip_verify, tx))
             .await
     }
 
@@ -158,8 +162,8 @@ impl UsbWorkerState {
             UsbCommand::PullPEQ(resp) => {
                 let _ = resp.send(self.handle_pull().await);
             }
-            UsbCommand::PushPEQ(payload, resp) => {
-                let _ = resp.send(self.handle_push(payload).await);
+            UsbCommand::PushPEQ(payload, skip_verify, resp) => {
+                let _ = resp.send(self.handle_push(payload, skip_verify).await);
             }
             UsbCommand::ResetPEQ(resp) => {
                 let _ = resp.send(self.handle_reset().await);
@@ -422,7 +426,7 @@ impl UsbWorkerState {
         })
     }
 
-    async fn handle_push(&mut self, payload: PushPayload) -> OperationResult {
+    async fn handle_push(&mut self, payload: PushPayload, skip_verify: bool) -> OperationResult {
         #[cfg(target_os = "linux")]
         {
             let elevated_result =
@@ -432,6 +436,7 @@ impl UsbWorkerState {
                             .round_trip(&HelperRequest::PushPeq {
                                 filters: payload.filters.clone(),
                                 global_gain: payload.global_gain,
+                                skip_verify,
                             })
                             .await,
                     )
@@ -471,7 +476,9 @@ impl UsbWorkerState {
         }
 
         let (ltx, lrx) = oneshot::channel();
-        let _ = self.local_tx.send(LocalCommand::PushPEQ(payload, ltx));
+        let _ = self
+            .local_tx
+            .send(LocalCommand::PushPEQ(payload, skip_verify, ltx));
         lrx.await.unwrap_or(OperationResult {
             success: false,
             data: None,

@@ -367,12 +367,20 @@ pub fn view_tools_panel(state: &AppState) -> Element<'_, Message> {
     ];
 
     let settings_body = container(
-        column![checkbox(state.editor.ui.auto_pull_on_connect)
-            .label("Auto-pull EQ from device on connect")
-            .on_toggle(|val| Message::Editor(EditorMessage::ToggleAutoPullOnConnect(val)))
-            .size(CHECKBOX_SIZE)
-            .text_size(crate::ui::tokens::TYPE_CAPTION)
-            .style(theme::checkbox_style),]
+        column![
+            checkbox(state.editor.ui.auto_pull_on_connect)
+                .label("Auto-pull EQ from device on connect")
+                .on_toggle(|val| Message::Editor(EditorMessage::ToggleAutoPullOnConnect(val)))
+                .size(CHECKBOX_SIZE)
+                .text_size(crate::ui::tokens::TYPE_CAPTION)
+                .style(theme::checkbox_style),
+            checkbox(state.editor.ui.skip_push_verification)
+                .label("Skip push verification (faster, less safe)")
+                .on_toggle(|val| Message::Editor(EditorMessage::ToggleSkipPushVerification(val)))
+                .size(CHECKBOX_SIZE)
+                .text_size(crate::ui::tokens::TYPE_CAPTION)
+                .style(theme::checkbox_style),
+        ]
         .spacing(SPACE_12),
     )
     .padding(SPACE_16);

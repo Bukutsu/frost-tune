@@ -38,6 +38,7 @@ pub enum HelperRequest {
     PushPeq {
         filters: Vec<Filter>,
         global_gain: Option<i8>,
+        skip_verify: bool,
     },
     ResetPeq,
     Shutdown,

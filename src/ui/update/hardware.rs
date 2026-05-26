@@ -267,13 +267,14 @@ fn perform_push(window: &mut AppState) -> Task<Message> {
     ));
     let filters = window.editor.data.filters.clone();
     let global_gain = window.editor.data.global_gain;
+    let skip_verify = window.editor.ui.skip_push_verification;
     let push_task = Task::perform(
         async move {
             let payload = PushPayload {
                 filters,
                 global_gain: Some(global_gain),
             };
-            let result = worker.push_peq(payload).await;
+            let result = worker.push_peq(payload, skip_verify).await;
             unwrap_operation_result(result)
         },
         |res| Message::Editor(EditorMessage::WorkerPushed(res)),

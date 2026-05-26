@@ -42,6 +42,7 @@ fn push_logic(
     profile: &'static dyn DeviceProfile,
     filters: Vec<Filter>,
     global_gain: Option<i8>,
+    skip_verify: bool,
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
     let caps = profile.capabilities();
@@ -76,6 +77,7 @@ fn push_logic(
         profile,
         proto.as_ref(),
         payload,
+        skip_verify,
         &dummy_check,
     )
 }
@@ -351,9 +353,10 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
             HelperRequest::PushPeq {
                 filters,
                 global_gain,
+                skip_verify,
             } => match require_device(&device) {
                 Ok(d) => match device_profile {
-                    Some(dp) => match push_logic(d, dp, filters, global_gain) {
+                    Some(dp) => match push_logic(d, dp, filters, global_gain, skip_verify) {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pushed { data: value },
                             Err(e) => HelperResponse::Error {

@@ -74,6 +74,7 @@ pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
         | Message::Editor(EditorMessage::Redo)
         | Message::Editor(EditorMessage::ToggleSnapToIso(_))
         | Message::Editor(EditorMessage::ToggleAutoPullOnConnect(..))
+        | Message::Editor(EditorMessage::ToggleSkipPushVerification(..))
         | Message::Editor(EditorMessage::SettingsSaved { .. }) => handle_editor(window, message),
 
         // handle_autoeq
@@ -128,6 +129,7 @@ pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::SettingsLoaded(Ok(settings)) => {
             window.editor.ui.auto_pull_on_connect = settings.auto_pull_on_connect;
+            window.editor.ui.skip_push_verification = settings.skip_push_verification;
             iced::Task::none()
         }
         Message::SettingsLoaded(Err(e)) => {

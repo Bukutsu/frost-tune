@@ -65,6 +65,7 @@ impl AppState {
                 ui: EditorUI {
                     snap_to_iso_enabled: true,
                     auto_pull_on_connect: settings.auto_pull_on_connect,
+                    skip_push_verification: settings.skip_push_verification,
                     ..Default::default()
                 },
                 ..Default::default()

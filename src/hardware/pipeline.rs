@@ -173,6 +173,7 @@ pub fn push_with_verify(
     profile: &dyn DeviceProfile,
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
+    skip_verify: bool,
     check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     let caps = profile.capabilities();
@@ -221,6 +222,13 @@ pub fn push_with_verify(
             )
         })?;
         return Err(e);
+    }
+
+    if skip_verify {
+        return Ok(PEQData {
+            filters: payload.filters.clone(),
+            global_gain: payload.global_gain.unwrap_or(snapshot.global_gain),
+        });
     }
 
     verify_or_rollback(

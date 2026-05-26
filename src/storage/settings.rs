@@ -10,6 +10,7 @@ use super::paths::get_base_dir;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Settings {
     pub auto_pull_on_connect: bool,
+    pub skip_push_verification: bool,
 }
 
 pub fn load_settings() -> Settings {

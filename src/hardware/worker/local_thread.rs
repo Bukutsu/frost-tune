@@ -15,7 +15,7 @@ pub enum LocalCommand {
     Disconnect(oneshot::Sender<OperationResult>),
     Status(oneshot::Sender<LocalStatus>),
     PullPEQ(oneshot::Sender<OperationResult>),
-    PushPEQ(PushPayload, oneshot::Sender<OperationResult>),
+    PushPEQ(PushPayload, bool, oneshot::Sender<OperationResult>),
     ResetPEQ(oneshot::Sender<OperationResult>),
 }
 
@@ -134,8 +134,8 @@ impl LocalWorkerState {
                 let result = self.handle_pull();
                 let _ = resp.send(result);
             }
-            LocalCommand::PushPEQ(payload, resp) => {
-                let result = self.handle_push(payload);
+            LocalCommand::PushPEQ(payload, skip_verify, resp) => {
+                let result = self.handle_push(payload, skip_verify);
                 let _ = resp.send(result);
             }
             LocalCommand::ResetPEQ(resp) => {
@@ -292,7 +292,7 @@ impl LocalWorkerState {
         }
     }
 
-    fn handle_push(&mut self, payload: PushPayload) -> OperationResult {
+    fn handle_push(&mut self, payload: PushPayload, skip_verify: bool) -> OperationResult {
         let check_in = || self.should_cancel();
 
         let device = match &self.device {
@@ -321,7 +321,14 @@ impl LocalWorkerState {
         };
         let proto = profile.protocol();
 
-        match push_with_verify(device, profile, proto.as_ref(), payload, &check_in) {
+        match push_with_verify(
+            device,
+            profile,
+            proto.as_ref(),
+            payload,
+            skip_verify,
+            &check_in,
+        ) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),

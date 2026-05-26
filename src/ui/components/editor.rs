@@ -36,6 +36,7 @@ pub enum EditorMessage {
     Redo,
     ToggleSnapToIso(bool),
     ToggleAutoPullOnConnect(bool),
+    ToggleSkipPushVerification(bool),
     SettingsSaved {
         result: Result<(), crate::error::AppError>,
     },
@@ -244,6 +245,7 @@ pub struct EditorUI {
     pub active_tools_tab: ToolsTab,
     pub graph_state: GraphState,
     pub auto_pull_on_connect: bool,
+    pub skip_push_verification: bool,
     pub eq_source: EqSource,
 }
 
