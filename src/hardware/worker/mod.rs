@@ -4,8 +4,9 @@
 use std::sync::mpsc as std_mpsc;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
+use crate::core::DeviceInfo;
 use crate::error::{AppError, ErrorKind};
+use crate::hardware::{ConnectionResult, OperationResult, PushPayload};
 
 pub mod backend;
 pub mod local_thread;

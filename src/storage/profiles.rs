@@ -129,6 +129,14 @@ pub async fn save_profile(name: &str, data: &PEQData) -> Result<()> {
 pub async fn delete_profile(name: &str) -> Result<()> {
     let dir = get_profiles_dir()?;
     let sanitized_name = sanitize_name(name);
+
+    if sanitized_name.is_empty() {
+        return Err(AppError::new(
+            ErrorKind::StorageError,
+            "Invalid profile name",
+        ));
+    }
+
     let path = dir.join(format!("{}.txt", sanitized_name));
 
     match fs::remove_file(path).await {

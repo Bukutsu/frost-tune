@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{ConnectionResult, OperationResult};
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::worker::{BackendKind, WorkerStatus};
+use crate::hardware::{ConnectionResult, OperationResult};
 use crate::ui::components::connection::{ConnectionStatus, DisconnectReason};
 use crate::ui::components::editor::ConfirmAction;
 use crate::ui::messages::*;

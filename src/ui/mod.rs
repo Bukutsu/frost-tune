@@ -3,9 +3,12 @@
 
 pub mod components;
 pub mod graph;
+pub mod layout;
 pub mod main_window;
 pub mod messages;
+pub mod modals;
 pub mod state;
+pub mod subscriptions;
 pub mod theme;
 pub mod tokens;
 pub mod update;

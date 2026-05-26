@@ -23,6 +23,7 @@ pub mod helper_ipc;
 #[cfg(target_os = "linux")]
 pub mod helper_server;
 pub mod hid;
+pub mod ipc_types;
 pub mod operations;
 pub mod packet_builder;
 pub mod pipeline;
@@ -32,6 +33,7 @@ pub mod worker;
 
 pub use device_io::*;
 pub use dsp::*;
+pub use ipc_types::*;
 pub use registry::*;
 pub use transport::*;
 pub use worker::*;

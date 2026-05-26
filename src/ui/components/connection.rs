@@ -1,8 +1,9 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{ConnectionResult, DeviceInfo, OperationResult};
+use crate::core::DeviceInfo;
 use crate::hardware::worker::{UsbWorker, WorkerStatus};
+use crate::hardware::{ConnectionResult, OperationResult};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Default)]

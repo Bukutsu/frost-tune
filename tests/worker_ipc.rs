@@ -165,3 +165,38 @@ fn test_ipc_version_mismatch_detection() {
         _ => panic!("Wrong response type"),
     }
 }
+
+#[test]
+fn test_ipc_request_response_roundtrip() {
+    use frost_tune::hardware::helper_ipc::{IpcRequest, IpcResponse};
+
+    let req = IpcRequest {
+        id: 42,
+        payload: HelperRequest::Version,
+    };
+    let serialized_req = serde_json::to_string(&req).expect("Failed to serialize IpcRequest");
+    let deserialized_req: IpcRequest =
+        serde_json::from_str(&serialized_req).expect("Failed to deserialize IpcRequest");
+    assert_eq!(deserialized_req.id, 42);
+    match deserialized_req.payload {
+        HelperRequest::Version => {}
+        _ => panic!("Expected HelperRequest::Version"),
+    }
+
+    let resp = IpcResponse {
+        id: 100,
+        payload: HelperResponse::Version {
+            version: IPC_VERSION.to_string(),
+        },
+    };
+    let serialized_resp = serde_json::to_string(&resp).expect("Failed to serialize IpcResponse");
+    let deserialized_resp: IpcResponse =
+        serde_json::from_str(&serialized_resp).expect("Failed to deserialize IpcResponse");
+    assert_eq!(deserialized_resp.id, 100);
+    match deserialized_resp.payload {
+        HelperResponse::Version { version } => {
+            assert_eq!(version, IPC_VERSION);
+        }
+        _ => panic!("Expected HelperResponse::Version"),
+    }
+}

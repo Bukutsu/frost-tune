@@ -53,7 +53,7 @@ impl ElevatedTransport {
         let pending_task_ref = Arc::clone(&pending);
 
         // Task for writing to helper stdin
-        let mut framed_stdin = FramedWrite::new(stdin, LinesCodec::new());
+        let mut framed_stdin = FramedWrite::new(stdin, LinesCodec::new_with_max_length(65536));
         tokio::spawn(async move {
             while let Some(request) = request_rx.recv().await {
                 if let Ok(line) = serde_json::to_string(&request) {
@@ -66,7 +66,7 @@ impl ElevatedTransport {
         });
 
         // Task for reading from helper stdout
-        let mut framed_stdout = FramedRead::new(stdout, LinesCodec::new());
+        let mut framed_stdout = FramedRead::new(stdout, LinesCodec::new_with_max_length(65536));
         tokio::spawn(async move {
             while let Some(result) = framed_stdout.next().await {
                 match result {
@@ -259,7 +259,7 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
     }
     #[cfg(debug_assertions)]
     {
-        log::info!("Skipping elevated executable root-ownership check in debug mode.");
+        log::warn!("WARNING: Skipping elevated executable root-ownership check in debug mode. This compromises security if distributed.");
     }
 
     let parent = path.parent().ok_or_else(|| {

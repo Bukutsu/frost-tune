@@ -1,4 +1,5 @@
 use crate::core::Filter;
+use crate::hardware::OperationResult;
 use iced::widget::canvas::Cache;
 
 #[derive(Debug, Clone)]
@@ -7,8 +8,8 @@ pub enum EditorMessage {
     ConfirmPullPressed,
     PushPressed,
     ConfirmPushPressed,
-    WorkerPulled(crate::core::OperationResult),
-    WorkerPushed(crate::core::OperationResult),
+    WorkerPulled(OperationResult),
+    WorkerPushed(OperationResult),
     BandGainChanged(usize, f64),
     BandFreqChanged(usize, u16),
     BandQChanged(usize, f64),

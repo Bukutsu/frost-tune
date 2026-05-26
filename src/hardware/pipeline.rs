@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::device::protocol::DeviceProtocol;
-use crate::core::{DeviceCapabilities, Filter, PEQData, PushPayload};
+use crate::core::{DeviceCapabilities, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::device_io::PhysicalInterface;
 use crate::hardware::hid::{delay_ms, send_report};
@@ -11,6 +11,7 @@ use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
 };
 use crate::hardware::DeviceProfile;
+use crate::hardware::PushPayload;
 
 pub fn pull_with_retry(
     device: &dyn PhysicalInterface,

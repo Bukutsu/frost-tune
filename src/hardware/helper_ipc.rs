@@ -22,7 +22,7 @@ pub struct IpcResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HelperRequest {
     Connect {
         device: Option<DeviceInfo>,
@@ -43,7 +43,7 @@ pub enum HelperRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum HelperResponse {
     Connected {
         device: Option<DeviceInfo>,

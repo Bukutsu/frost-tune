@@ -1,9 +1,9 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
-use crate::core::{OperationResult, PushPayload};
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::error::ErrorKind;
+use crate::hardware::{OperationResult, PushPayload};
 use crate::ui::components::connection::ConnectionStatus;
 use crate::ui::messages::*;
 use crate::ui::state::AppState;

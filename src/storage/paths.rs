@@ -13,9 +13,15 @@ fn ensure_dir(path: &PathBuf, kind: ErrorKind, message: &str) -> Result<()> {
 }
 
 pub(crate) fn get_base_dir() -> Result<PathBuf> {
-    let base_dir = match std::env::var("FROST_TUNE_HOME") {
-        Ok(val) => PathBuf::from(val),
-        Err(_) => dirs::data_dir()
+    let env_home = if nix::unistd::Uid::current().is_root() {
+        None
+    } else {
+        std::env::var("FROST_TUNE_HOME").ok()
+    };
+
+    let base_dir = match env_home {
+        Some(val) => PathBuf::from(val),
+        None => dirs::data_dir()
             .ok_or_else(|| {
                 AppError::new(
                     ErrorKind::StorageError,

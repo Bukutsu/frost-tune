@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #[cfg(target_os = "linux")]
-use crate::core::{DeviceInfo, Filter, PEQData, PushPayload};
+use crate::core::{DeviceInfo, Filter, PEQData};
 #[cfg(target_os = "linux")]
 use crate::hardware::device_io::{DiscoveryProvider, PhysicalInterface};
 #[cfg(target_os = "linux")]
 use crate::hardware::DeviceProfile;
+use crate::hardware::PushPayload;
 
 #[cfg(target_os = "linux")]
 use crate::error::{AppError, ErrorKind};

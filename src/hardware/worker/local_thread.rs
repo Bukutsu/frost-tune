@@ -3,11 +3,12 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
-use crate::core::{ConnectionResult, DeviceInfo, OperationResult, PushPayload};
+use crate::core::DeviceInfo;
 use crate::error::{AppError, ErrorKind};
 use crate::hardware::device_io::{DiscoveryProvider, PhysicalInterface};
 use crate::hardware::pipeline::{pull_with_retry, push_with_verify, reset_with_verify};
 use crate::hardware::{get_profile, DeviceProfile};
+use crate::hardware::{ConnectionResult, OperationResult, PushPayload};
 
 pub enum LocalCommand {
     Connect(Option<DeviceInfo>, oneshot::Sender<ConnectionResult>),
