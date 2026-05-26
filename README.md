@@ -42,7 +42,16 @@ Frost-Tune talks to compatible USB DACs over HID, edits 10-band parametric EQ, a
 - Read-back verification with rollback
 - Offline — no account, no cloud
 
-**Supported devices:** EPZ TP35 Pro, Moondrop Dawn Pro (untested), Truthear KEYX (untested). More can be added via `DeviceProtocol`.
+### Supported Devices
+
+| Manufacturer | Model | Status | Family / Protocol |
+| :--- | :--- | :--- | :--- |
+| **EPZ** | TP35 Pro | Tested (Verified) | Walkplay Family |
+| **Moondrop** | Dawn Pro | Untested | Walkplay Family |
+| **Truthear** | KEYX | Untested | Walkplay Family |
+
+> [!NOTE]
+> More devices can be added via the `DeviceProtocol` trait. See `CONTRIBUTING_DEVICES.md` for a comprehensive step-by-step guide.
 
 **Built with:** Rust, Iced, Tokio
 
