@@ -55,6 +55,20 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                 crate::ui::components::editor::ConfirmAction::None;
             perform_push(window)
         }
+        Message::Editor(EditorMessage::ForceResetPressed) => {
+            if is_hw_busy(window) {
+                return Task::none();
+            }
+
+            window.editor.session.pending_confirm =
+                crate::ui::components::editor::ConfirmAction::ForceReset;
+            Task::none()
+        }
+        Message::Editor(EditorMessage::ConfirmForceResetPressed) => {
+            window.editor.session.pending_confirm =
+                crate::ui::components::editor::ConfirmAction::None;
+            perform_force_reset(window)
+        }
         Message::Editor(EditorMessage::WorkerPulled(result)) => {
             window.connection.operation_lock.is_pulling = false;
             if result.success {
@@ -91,6 +105,15 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                 }
                 Task::none()
             } else if let Some(err) = result.error {
+                if err.kind == ErrorKind::OperationCancelled {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::Worker,
+                        "Pull operation was interrupted",
+                    ));
+                    return Task::none();
+                }
+
                 let msg = if err.kind == ErrorKind::NotConnected
                     || err.kind == ErrorKind::PolkitAuthRequired
                 {
@@ -137,6 +160,15 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                 }
                 Task::none()
             } else if let Some(err) = result.error {
+                if err.kind == ErrorKind::OperationCancelled {
+                    window.diagnostics.push(DiagnosticEvent::new(
+                        LogLevel::Info,
+                        Source::Worker,
+                        "Push operation was interrupted",
+                    ));
+                    return Task::none();
+                }
+
                 let base_msg = if err.kind == ErrorKind::NotConnected {
                     window.connection.status =
                         ConnectionStatus::Error("Device lost during operation".into());
@@ -247,5 +279,27 @@ fn perform_push(window: &mut AppState) -> Task<Message> {
         |res| Message::Editor(EditorMessage::WorkerPushed(res)),
     );
     let status_task = window.set_status("Writing to device...", StatusSeverity::Info);
+    Task::batch(vec![push_task, status_task])
+}
+
+fn perform_force_reset(window: &mut AppState) -> Task<Message> {
+    window.connection.operation_lock.is_pushing = true;
+    window.diagnostics.push(DiagnosticEvent::new(
+        LogLevel::Warn,
+        Source::UI,
+        "Force Reset triggered",
+    ));
+    let worker = match window.connection.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
+    let push_task = Task::perform(
+        async move {
+            let result = worker.reset_peq().await;
+            unwrap_operation_result(result)
+        },
+        |res| Message::Editor(EditorMessage::WorkerPushed(res)),
+    );
+    let status_task = window.set_status("Resetting device to flat...", StatusSeverity::Warning);
     Task::batch(vec![push_task, status_task])
 }

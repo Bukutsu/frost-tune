@@ -50,6 +50,7 @@ pub struct DeviceCapabilities {
     pub q_range: (f64, f64),
     pub supported_filter_types: FilterTypeFlags,
     pub supports_per_band_enable: bool,
+    pub dsp_sample_rate: f64,
 }
 
 impl Default for DeviceCapabilities {
@@ -61,7 +62,7 @@ impl Default for DeviceCapabilities {
 /// Default capabilities used when no device is connected (generic desktop DAC).
 ///
 /// Supports all 5 filter types with the standard desktop range: 10 bands,
-/// ±10 dB band gain, ±6 dB global gain, 20–20000 Hz, Q 0.1–20.0.
+/// ±10 dB band gain, ±6 dB global gain, 20–20000 Hz, Q 0.1–20.0, 96 kHz DSP.
 pub const DESKTOP_DAC_CAPS: DeviceCapabilities = DeviceCapabilities {
     num_bands: 10,
     global_gain_range: (-16, 6),
@@ -70,6 +71,7 @@ pub const DESKTOP_DAC_CAPS: DeviceCapabilities = DeviceCapabilities {
     q_range: (0.1, 20.0),
     supported_filter_types: FilterTypeFlags(0b0001_1111),
     supports_per_band_enable: true,
+    dsp_sample_rate: 96000.0,
 };
 
 #[cfg(test)]

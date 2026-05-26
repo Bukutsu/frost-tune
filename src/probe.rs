@@ -113,8 +113,9 @@ pub fn run(opts: ProbeOptions) -> Result<(), String> {
     }
 
     eprintln!("\nPulling PEQ data...");
-    let peq = pull_peq_internal(&wrapper, proto.as_ref(), false, caps.num_bands)
-        .map_err(|e| format!("Failed to pull PEQ data: {}", e.message))?;
+    let dummy_check = || false;
+    let peq = pull_peq_internal(&wrapper, proto.as_ref(), false, caps.num_bands, &dummy_check)
+        .map_err(|e| format!("Failed to read PEQ state: {}", e.message))?;
 
     println!("\n=== {} ===", profile.name());
     println!("Global Gain: {} dB", peq.global_gain);

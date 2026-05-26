@@ -10,8 +10,6 @@ use crate::core::eq::iir_math::compute_biquad_coeffs;
 use crate::core::Filter;
 use std::f64::consts::TAU;
 
-const DSP_SAMPLE_RATE: f64 = 96000.0;
-
 #[derive(Debug, Clone, Copy)]
 pub struct PrecomputedFreq {
     pub cos_w: f64,
@@ -21,8 +19,8 @@ pub struct PrecomputedFreq {
 }
 
 impl PrecomputedFreq {
-    pub fn new(f: f64) -> Self {
-        let w = (f * TAU) / DSP_SAMPLE_RATE;
+    pub fn new(f: f64, dsp_sample_rate: f64) -> Self {
+        let w = (f * TAU) / dsp_sample_rate;
         Self {
             cos_w: w.cos(),
             cos_2w: (2.0 * w).cos(),
@@ -35,8 +33,11 @@ impl PrecomputedFreq {
 /// Canonical biquad coefficients for a filter.
 ///
 /// Delegates to [`crate::core::eq::iir_math::compute_biquad_coeffs`] — the single shared implementation.
-pub fn get_biquad_coefficients(filter: &Filter) -> (f64, f64, f64, f64, f64, f64) {
-    compute_biquad_coeffs(filter)
+pub fn get_biquad_coefficients(
+    filter: &Filter,
+    dsp_sample_rate: f64,
+) -> (f64, f64, f64, f64, f64, f64) {
+    compute_biquad_coeffs(filter, dsp_sample_rate)
 }
 
 pub fn get_magnitude_response_with_coeffs(
@@ -47,8 +48,9 @@ pub fn get_magnitude_response_with_coeffs(
     a1: f64,
     a2: f64,
     f: f64,
+    dsp_sample_rate: f64,
 ) -> f64 {
-    let pf = PrecomputedFreq::new(f);
+    let pf = PrecomputedFreq::new(f, dsp_sample_rate);
     get_magnitude_response_with_precomputed(b0, b1, b2, a0, a1, a2, &pf)
 }
 
@@ -74,18 +76,19 @@ pub fn get_magnitude_response_with_precomputed(
 
 type BiquadCoeffs = (f64, f64, f64, f64, f64, f64);
 
-pub fn get_magnitude_response(filter: &Filter, f: f64) -> f64 {
+pub fn get_magnitude_response(filter: &Filter, f: f64, dsp_sample_rate: f64) -> f64 {
     if filter.freq == 0 || !filter.enabled {
         return 0.0;
     }
-    let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter);
-    get_magnitude_response_with_coeffs(b0, b1, b2, a0, a1, a2, f)
+    let (b0, b1, b2, a0, a1, a2) = get_biquad_coefficients(filter, dsp_sample_rate);
+    get_magnitude_response_with_coeffs(b0, b1, b2, a0, a1, a2, f, dsp_sample_rate)
 }
 
 pub fn calculate_total_response(
     filters: &[Filter],
     global_gain: i8,
     freqs: &[PrecomputedFreq],
+    dsp_sample_rate: f64,
 ) -> Vec<f64> {
     let precomputed_coeffs: Vec<Option<BiquadCoeffs>> = filters
         .iter()
@@ -93,7 +96,7 @@ pub fn calculate_total_response(
             if f.freq == 0 || !f.enabled {
                 None
             } else {
-                Some(get_biquad_coefficients(f))
+                Some(get_biquad_coefficients(f, dsp_sample_rate))
             }
         })
         .collect();
@@ -126,10 +129,10 @@ mod tests {
             q: 1.0,
             filter_type: FilterType::Peak,
         };
-        let mag = get_magnitude_response(&filter, 1000.0);
+        let mag = get_magnitude_response(&filter, 1000.0, 96000.0);
         assert!((mag - 6.0).abs() < 0.1);
 
-        let mag_far = get_magnitude_response(&filter, 100.0);
+        let mag_far = get_magnitude_response(&filter, 100.0, 96000.0);
         assert!(mag_far.abs() < 0.5);
     }
 
@@ -143,10 +146,10 @@ mod tests {
             q: 1.0,
             filter_type: FilterType::LowShelf,
         };
-        let mag_low = get_magnitude_response(&filter, 20.0);
+        let mag_low = get_magnitude_response(&filter, 20.0, 96000.0);
         assert!((mag_low - 6.0).abs() < 0.5);
 
-        let mag_high = get_magnitude_response(&filter, 10000.0);
+        let mag_high = get_magnitude_response(&filter, 10000.0, 96000.0);
         assert!(mag_high.abs() < 0.1);
     }
 
@@ -170,11 +173,11 @@ mod tests {
                 filter_type: FilterType::Peak,
             },
         ];
-        let freqs = vec![PrecomputedFreq::new(1000.0)];
-        let total = calculate_total_response(&filters, 0, &freqs);
+        let freqs = vec![PrecomputedFreq::new(1000.0, 96000.0)];
+        let total = calculate_total_response(&filters, 0, &freqs, 96000.0);
         assert!((total[0] - 4.0).abs() < 0.1);
 
-        let total_with_preamp = calculate_total_response(&filters, -3, &freqs);
+        let total_with_preamp = calculate_total_response(&filters, -3, &freqs, 96000.0);
         assert!((total_with_preamp[0] - 1.0).abs() < 0.1);
     }
 }

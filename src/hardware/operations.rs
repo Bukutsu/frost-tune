@@ -18,16 +18,23 @@ pub fn pull_peq_data(
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     let mut last_err = AppError::new(ErrorKind::ReadTimeout, "Timeout");
     for attempt in 0..PEQ_RETRY_COUNT {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
         if attempt > 0 {
             log::info!("Retrying PEQ pull, attempt {}...", attempt + 1);
         }
         crate::hardware::hid::flush_hid_buffer(d);
-        match pull_peq_internal(d, proto, strict, num_bands) {
+        match pull_peq_internal(d, proto, strict, num_bands, check_in) {
             Ok(data) => return Ok(data),
             Err(e) => {
+                if e.kind == ErrorKind::OperationCancelled {
+                    return Err(e);
+                }
                 log::warn!("PEQ pull attempt {} failed: {}", attempt + 1, e.message);
                 last_err = e;
             }
@@ -44,7 +51,13 @@ pub fn rollback_state(
     proto: &dyn DeviceProtocol,
     state: &PEQData,
     num_bands: usize,
+    dsp_sample_rate: f64,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<()> {
+    if check_in() {
+        return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+    }
+
     let timing = proto.write_timing();
     write_filters_and_gain(
         d,
@@ -53,6 +66,7 @@ pub fn rollback_state(
         state.global_gain,
         &timing,
         num_bands,
+        dsp_sample_rate,
     )?;
     commit_changes(d, proto, &timing)
 }
@@ -62,15 +76,17 @@ pub fn rollback_and_verify(
     proto: &dyn DeviceProtocol,
     snapshot: &PEQData,
     num_bands: usize,
+    dsp_sample_rate: f64,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<()> {
     log::info!("Starting hardware state rollback and verification...");
-    rollback_state(d, proto, snapshot, num_bands).map_err(|e| {
+    rollback_state(d, proto, snapshot, num_bands, dsp_sample_rate, check_in).map_err(|e| {
         let msg = format!("rollback write failed: {}", e.message);
         log::error!("{}", msg);
         AppError::new(ErrorKind::RollbackFailed, msg)
     })?;
 
-    let restored = pull_peq_data(d, proto, true, num_bands).map_err(|e| {
+    let restored = pull_peq_data(d, proto, true, num_bands, check_in).map_err(|e| {
         let msg = format!("rollback verify read failed: {}", e.message);
         log::error!("{}", msg);
         AppError::new(ErrorKind::RollbackFailed, msg)

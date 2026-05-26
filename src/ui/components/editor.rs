@@ -29,6 +29,8 @@ pub enum EditorMessage {
     GlobalGainChanged(i8),
     ResetFiltersPressed,
     ConfirmResetFilters,
+    ForceResetPressed,
+    ConfirmForceResetPressed,
     Undo,
     Redo,
     ToggleSnapToIso(bool),
@@ -142,6 +144,7 @@ pub enum ConfirmAction {
     },
     PullDevice,
     PushToDevice,
+    ForceReset,
     LoadProfile {
         name: String,
     },

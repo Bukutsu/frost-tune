@@ -39,6 +39,7 @@ pub enum UsbCommand {
     Status(oneshot::Sender<WorkerStatus>),
     PullPEQ(oneshot::Sender<OperationResult>),
     PushPEQ(PushPayload, oneshot::Sender<OperationResult>),
+    ResetPEQ(oneshot::Sender<OperationResult>),
 }
 
 pub struct UsbWorker {
@@ -100,6 +101,10 @@ impl UsbWorker {
         self.send_command(|tx| UsbCommand::PushPEQ(payload, tx))
             .await
     }
+
+    pub async fn reset_peq(&self) -> Result<OperationResult, String> {
+        self.send_command(UsbCommand::ResetPEQ).await
+    }
 }
 
 impl Default for UsbWorker {
@@ -153,6 +158,9 @@ impl UsbWorkerState {
             UsbCommand::PushPEQ(payload, resp) => {
                 let _ = resp.send(self.handle_push(payload).await);
             }
+            UsbCommand::ResetPEQ(resp) => {
+                let _ = resp.send(self.handle_reset().await);
+            }
         }
     }
 
@@ -165,7 +173,7 @@ impl UsbWorkerState {
 
         #[cfg(target_os = "linux")]
         if target == BackendKind::Elevated {
-            return self.connect_elevated().await;
+            return self.connect_elevated(target_device).await;
         }
 
         self.connect_local(target_device).await
@@ -175,7 +183,7 @@ impl UsbWorkerState {
         let (ltx, lrx) = oneshot::channel();
         if self
             .local_tx
-            .send(LocalCommand::Connect(target_device, ltx))
+            .send(LocalCommand::Connect(target_device.clone(), ltx))
             .is_ok()
         {
             if let Ok(res) = lrx.await {
@@ -191,7 +199,7 @@ impl UsbWorkerState {
                     .as_ref()
                     .is_some_and(|e| e.kind == ErrorKind::PermissionDenied)
                 {
-                    let elevated = self.connect_elevated().await;
+                    let elevated = self.connect_elevated(target_device).await;
                     if elevated.success {
                         return elevated;
                     }
@@ -208,10 +216,13 @@ impl UsbWorkerState {
     }
 
     #[cfg(target_os = "linux")]
-    async fn connect_elevated(&mut self) -> ConnectionResult {
+    async fn connect_elevated(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
         if let Ok(transport) = ElevatedTransport::spawn().await {
-            if let Ok(HelperResponse::Connected { device: Some(info) }) =
-                transport.round_trip(&HelperRequest::Connect).await
+            if let Ok(HelperResponse::Connected { device: Some(info) }) = transport
+                .round_trip(&HelperRequest::Connect {
+                    device: target_device,
+                })
+                .await
             {
                 let (ltx, _) = oneshot::channel();
                 let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
@@ -442,6 +453,56 @@ impl UsbWorkerState {
 
         let (ltx, lrx) = oneshot::channel();
         let _ = self.local_tx.send(LocalCommand::PushPEQ(payload, ltx));
+        lrx.await.unwrap_or(OperationResult {
+            success: false,
+            data: None,
+            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
+        })
+    }
+
+    async fn handle_reset(&mut self) -> OperationResult {
+        #[cfg(target_os = "linux")]
+        {
+            let elevated_result =
+                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
+                    Some(transport.round_trip(&HelperRequest::ResetPeq).await)
+                } else {
+                    None
+                };
+
+            if let Some(response) = elevated_result {
+                return match response {
+                    Ok(HelperResponse::Pulled { data }) => match serde_json::from_value(data) {
+                        Ok(peq) => OperationResult {
+                            success: true,
+                            data: Some(peq),
+                            error: None,
+                        },
+                        Err(e) => OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::ParseError, e.to_string())),
+                        },
+                    },
+                    Ok(HelperResponse::Error { error, .. }) => OperationResult {
+                        success: false,
+                        data: None,
+                        error: Some(error),
+                    },
+                    _ => {
+                        self.backend = None;
+                        OperationResult {
+                            success: false,
+                            data: None,
+                            error: Some(AppError::new(ErrorKind::IpcError, "Elevated helper died")),
+                        }
+                    }
+                };
+            }
+        }
+
+        let (ltx, lrx) = oneshot::channel();
+        let _ = self.local_tx.send(LocalCommand::ResetPEQ(ltx));
         lrx.await.unwrap_or(OperationResult {
             success: false,
             data: None,

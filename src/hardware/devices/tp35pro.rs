@@ -89,7 +89,13 @@ fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {
     ]
 }
 
-pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64) -> [u8; 20] {
+pub fn compute_iir_filter(
+    filter_type: FilterType,
+    freq: f64,
+    gain: f64,
+    q: f64,
+    dsp_sample_rate: f64,
+) -> [u8; 20] {
     let mut b_arr = [0u8; 20];
     let f = Filter {
         index: 0,
@@ -99,7 +105,7 @@ pub fn compute_iir_filter(filter_type: FilterType, freq: f64, gain: f64, q: f64)
         q,
         filter_type,
     };
-    let (b0, b1, b2, a0, a1, a2) = compute_biquad_coeffs(&f);
+    let (b0, b1, b2, a0, a1, a2) = compute_biquad_coeffs(&f, dsp_sample_rate);
 
     let quantizer_data = quantizer(&[1.0, a1 / a0, a2 / a0], &[b0 / a0, b1 / a0, b2 / a0]);
 
@@ -189,12 +195,18 @@ impl DeviceProtocol for TP35ProProtocol {
         parse_filter_packet(data)
     }
 
-    fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8> {
+    fn build_filter_write_packet(
+        &self,
+        index: u8,
+        filter: &Filter,
+        dsp_sample_rate: f64,
+    ) -> Vec<u8> {
         let b_arr = compute_iir_filter(
             filter.filter_type,
             filter.freq as f64,
             filter.gain,
             filter.q,
+            dsp_sample_rate,
         );
         let filter_type_byte: u8 = filter.filter_type.into();
 
@@ -294,6 +306,7 @@ impl DeviceProfile for TP35ProProfile {
                 | FilterTypeFlags::LOW_PASS
                 | FilterTypeFlags::HIGH_PASS,
             supports_per_band_enable: false,
+            dsp_sample_rate: 96000.0,
         }
     }
 
@@ -322,7 +335,7 @@ mod tests {
     fn build_filter_write_packet_structure() {
         let proto = TP35ProProtocol;
         let filter = make_filter(0, 1000, 5.0, 1.0);
-        let packet = proto.build_filter_write_packet(0, &filter);
+        let packet = proto.build_filter_write_packet(0, &filter, 96000.0);
         assert_eq!(packet[OFFSET_CMD_TYPE], WRITE);
         assert_eq!(packet[OFFSET_CMD], CMD_PEQ_VALUES);
         assert_eq!(packet[OFFSET_INDEX], 0);
@@ -409,16 +422,16 @@ mod tests {
     #[test]
     fn compute_iir_filter_produces_20_bytes() {
         assert_eq!(
-            compute_iir_filter(FilterType::Peak, 1000.0, 5.0, 1.0).len(),
+            compute_iir_filter(FilterType::Peak, 1000.0, 5.0, 1.0, 96000.0).len(),
             20
         );
     }
 
     #[test]
     fn compute_iir_filter_lowpass_highpass_valid() {
-        let lp_arr = compute_iir_filter(FilterType::LowPass, 1000.0, 0.0, 0.707);
+        let lp_arr = compute_iir_filter(FilterType::LowPass, 1000.0, 0.0, 0.707, 96000.0);
         assert_eq!(lp_arr.len(), 20);
-        let hp_arr = compute_iir_filter(FilterType::HighPass, 1000.0, 0.0, 0.707);
+        let hp_arr = compute_iir_filter(FilterType::HighPass, 1000.0, 0.0, 0.707, 96000.0);
         assert_eq!(hp_arr.len(), 20);
     }
 

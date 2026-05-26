@@ -38,7 +38,7 @@ fn test_tp35pro_filter_packet_round_trip() {
         gain: 2.5,
         q: 1.414,
     };
-    let packet = proto.build_filter_write_packet(0, &filter);
+    let packet = proto.build_filter_write_packet(0, &filter, 96000.0);
     assert_eq!(packet.len(), 37);
     assert_eq!(packet[0], WRITE);
     assert_eq!(packet[1], CMD_PEQ_VALUES);
@@ -55,7 +55,7 @@ fn test_tp35pro_filter_packet_round_trip_lowpass_highpass() {
         gain: 0.0,
         q: 0.707,
     };
-    let lp_packet = proto.build_filter_write_packet(0, &lp_filter);
+    let lp_packet = proto.build_filter_write_packet(0, &lp_filter, 96000.0);
     assert_eq!(lp_packet.len(), 37);
     assert_eq!(lp_packet[0], WRITE);
     assert_eq!(lp_packet[1], CMD_PEQ_VALUES);
@@ -69,7 +69,7 @@ fn test_tp35pro_filter_packet_round_trip_lowpass_highpass() {
         gain: 0.0,
         q: 0.707,
     };
-    let hp_packet = proto.build_filter_write_packet(1, &hp_filter);
+    let hp_packet = proto.build_filter_write_packet(1, &hp_filter, 96000.0);
     assert_eq!(hp_packet.len(), 37);
     assert_eq!(hp_packet[0], WRITE);
     assert_eq!(hp_packet[1], CMD_PEQ_VALUES);

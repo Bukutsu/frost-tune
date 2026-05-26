@@ -16,14 +16,19 @@ pub fn pull_with_retry(
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
+    if check_in() {
+        return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+    }
+
     let wake_request = proto.build_global_gain_request(WAKE_NONCE);
     if let Err(e) = crate::hardware::hid::send_report(device, &wake_request[..], proto.report_id())
     {
         log::warn!("pull wake request failed: {}", e);
     }
     delay_ms(WAKE_DELAY_MS);
-    let first_result = pull_peq_data(device, proto, strict, num_bands);
+    let first_result = pull_peq_data(device, proto, strict, num_bands, check_in);
 
     let needs_retry = match &first_result {
         Ok(peq) => {
@@ -36,8 +41,11 @@ pub fn pull_with_retry(
     };
 
     if needs_retry {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
         delay_ms(RETRY_DELAY_PULL_MS);
-        match pull_peq_data(device, proto, strict, num_bands) {
+        match pull_peq_data(device, proto, strict, num_bands, check_in) {
             Ok(peq) => Ok(peq),
             Err(e) => {
                 if first_result.is_ok() {
@@ -71,6 +79,7 @@ fn do_write_and_commit(
     proto: &dyn DeviceProtocol,
     payload: &PushPayload,
     num_bands: usize,
+    dsp_sample_rate: f64,
 ) -> Result<()> {
     let timing = proto.write_timing();
     init_device_session(device, proto)?;
@@ -81,6 +90,7 @@ fn do_write_and_commit(
         payload.global_gain.unwrap_or(0),
         &timing,
         num_bands,
+        dsp_sample_rate,
     )?;
     commit_changes(device, proto, &timing)
 }
@@ -92,18 +102,28 @@ fn verify_or_rollback(
     expected_gain: Option<i8>,
     snapshot: &PEQData,
     num_bands: usize,
+    dsp_sample_rate: f64,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     for attempt in 0..VERIFY_RETRY_COUNT {
         let backoff_ms = VERIFY_BACKOFF_BASE_MS.saturating_mul(2u64.saturating_pow(attempt as u32));
         delay_ms(backoff_ms);
-        match pull_peq_data(device, proto, true, num_bands) {
+        match pull_peq_data(device, proto, true, num_bands, check_in) {
             Ok(read_back) => {
                 if compare_peq(&read_back, expected_filters, expected_gain.unwrap_or(0)).is_ok() {
                     return Ok(read_back);
                 }
             }
             Err(e) => {
-                rollback_and_verify(device, proto, snapshot, num_bands).map_err(|r| {
+                rollback_and_verify(
+                    device,
+                    proto,
+                    snapshot,
+                    num_bands,
+                    dsp_sample_rate,
+                    check_in,
+                )
+                .map_err(|r| {
                     AppError::new(
                         ErrorKind::RollbackFailed,
                         format!(
@@ -116,29 +136,32 @@ fn verify_or_rollback(
             }
         }
     }
-    rollback_and_verify(device, proto, snapshot, num_bands).map_err(|r| {
-        AppError::new(
-            ErrorKind::RollbackFailed,
-            format!(
-                "Verification failed: settings did not match | rollback failed: {}",
-                r.message
-            ),
-        )
-    })?;
+    rollback_and_verify(device, proto, snapshot, num_bands, dsp_sample_rate, check_in).map_err(
+        |r| {
+            AppError::new(
+                ErrorKind::RollbackFailed,
+                format!(
+                    "Verification failed: settings did not match | rollback failed: {}",
+                    r.message
+                ),
+            )
+        },
+    )?;
     Err(AppError::new(
         ErrorKind::VerifyFailed,
         "Verification failed: settings did not match",
     ))
 }
-
 pub fn push_with_verify(
     device: &dyn HidDeviceIo,
     profile: &dyn DeviceProfile,
     proto: &dyn DeviceProtocol,
     mut payload: PushPayload,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     let caps = profile.capabilities();
     let num_bands = caps.num_bands;
+    let dsp_sample_rate = caps.dsp_sample_rate;
     payload.clamp(
         caps.freq_range,
         caps.band_gain_range,
@@ -156,10 +179,22 @@ pub fn push_with_verify(
         .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
 
     wake_device(device, proto);
-    let snapshot = pull_peq_data(device, proto, true, num_bands)?;
+    let snapshot = pull_peq_data(device, proto, true, num_bands, check_in)?;
 
-    if let Err(e) = do_write_and_commit(device, proto, &payload, num_bands) {
-        rollback_and_verify(device, proto, &snapshot, num_bands).map_err(|r| {
+    if check_in() {
+        return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+    }
+
+    if let Err(e) = do_write_and_commit(device, proto, &payload, num_bands, dsp_sample_rate) {
+        rollback_and_verify(
+            device,
+            proto,
+            &snapshot,
+            num_bands,
+            dsp_sample_rate,
+            check_in,
+        )
+        .map_err(|r| {
             AppError::new(
                 ErrorKind::RollbackFailed,
                 format!(
@@ -178,5 +213,7 @@ pub fn push_with_verify(
         payload.global_gain,
         &snapshot,
         num_bands,
+        dsp_sample_rate,
+        check_in,
     )
 }

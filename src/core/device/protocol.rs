@@ -61,7 +61,12 @@ pub trait DeviceProtocol: Send + Sync {
 
     /// Packet payload to write `filter` into band slot `index` in the device's
     /// volatile memory (not yet persisted to flash).
-    fn build_filter_write_packet(&self, index: u8, filter: &Filter) -> Vec<u8>;
+    fn build_filter_write_packet(
+        &self,
+        index: u8,
+        filter: &Filter,
+        dsp_sample_rate: f64,
+    ) -> Vec<u8>;
 
     // ── Global gain read ─────────────────────────────────────────────────────
 
@@ -88,5 +93,26 @@ pub trait DeviceProtocol: Send + Sync {
     /// needs commit packets.
     fn build_commit_packets(&self) -> Vec<Vec<u8>> {
         Vec::new()
+    }
+
+    // ── Recovery ─────────────────────────────────────────────────────────────
+
+    /// Ordered sequence of packets that reset the device to a "Safe" state (flat EQ,
+    /// zero gain). Used for recovery when a normal transaction fails catastrophically.
+    ///
+    /// The default implementation builds a sequence that writes flat filters for all
+    /// supported bands and sets global gain to 0.
+    fn build_reset_packets(
+        &self,
+        num_bands: usize,
+        dsp_sample_rate: f64,
+    ) -> Vec<Vec<u8>> {
+        let mut packets = Vec::with_capacity(num_bands + 1);
+        for i in 0..num_bands {
+            let filter = Filter::enabled(i as u8, false);
+            packets.push(self.build_filter_write_packet(i as u8, &filter, dsp_sample_rate));
+        }
+        packets.push(self.build_global_gain_write_packet(0));
+        packets
     }
 }

@@ -16,6 +16,7 @@ pub use filter::{snap_freq_to_iso, snap_gain_step, snap_q_to_iso, Filter, Filter
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::device::capabilities::FilterTypeFlags;
 
     #[test]
     fn test_band_gain_clamp_at_max() {
@@ -93,7 +94,12 @@ mod tests {
         let caps = DeviceCapabilities {
             num_bands: 10,
             global_gain_range: (-5, 5),
-            ..Default::default()
+            band_gain_range: (-10.0, 10.0),
+            freq_range: (20, 20000),
+            q_range: (0.1, 20.0),
+            supported_filter_types: FilterTypeFlags::PEAK,
+            supports_per_band_enable: true,
+            dsp_sample_rate: 96000.0,
         };
         let mut peq = PEQData {
             global_gain: 20,
@@ -117,6 +123,7 @@ mod tests {
                 | FilterTypeFlags::LOW_SHELF
                 | FilterTypeFlags::HIGH_SHELF,
             supports_per_band_enable: true,
+            dsp_sample_rate: 96000.0,
         };
         let mut peq = PEQData {
             global_gain: 0,
@@ -140,6 +147,7 @@ mod tests {
                 | FilterTypeFlags::LOW_SHELF
                 | FilterTypeFlags::HIGH_SHELF,
             supports_per_band_enable: true,
+            dsp_sample_rate: 96000.0,
         };
         let mut peq = PEQData {
             global_gain: 0,
@@ -161,6 +169,7 @@ mod tests {
             q_range: (0.1, 20.0),
             supported_filter_types: FilterTypeFlags::PEAK,
             supports_per_band_enable: true,
+            dsp_sample_rate: 96000.0,
         };
         let mut peq = PEQData {
             global_gain: 0,

@@ -29,6 +29,11 @@ pub fn view_status_banner(state: &AppState) -> Element<'_, Message> {
             msg.severity,
             StatusSeverity::Warning | StatusSeverity::Error
         ) {
+            let reset_btn = small_action_button("Safe Reset")
+                .on_press(Message::Editor(EditorMessage::ForceResetPressed))
+                .style(theme::m3_banner_text_button);
+            actions = actions.push(reset_btn);
+
             let btn = small_action_button("Details")
                 .on_press(Message::Diagnostics(DiagnosticsMessage::ToggleDiagnostics))
                 .style(theme::m3_banner_text_button);

@@ -43,6 +43,8 @@ pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
         | Message::Editor(EditorMessage::ConfirmPullPressed)
         | Message::Editor(EditorMessage::PushPressed)
         | Message::Editor(EditorMessage::ConfirmPushPressed)
+        | Message::Editor(EditorMessage::ForceResetPressed)
+        | Message::Editor(EditorMessage::ConfirmForceResetPressed)
         | Message::Editor(EditorMessage::WorkerPulled(..))
         | Message::Editor(EditorMessage::WorkerPushed(..)) => handle_hardware(window, message),
 
@@ -140,9 +142,15 @@ pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
         }
     };
     if window.editor.data.generation != before_generation {
+        let caps = window
+            .active_device()
+            .map(|p| p.capabilities())
+            .unwrap_or(crate::core::device::capabilities::DESKTOP_DAC_CAPS);
+
         let (combined, bands) = crate::ui::graph::EqGraph::compute_responses(
             &window.editor.data.filters,
             window.editor.data.global_gain,
+            caps.dsp_sample_rate,
         );
         window.editor.ui.graph_state.cached_combined_response = combined;
         window.editor.ui.graph_state.cached_band_responses = bands;

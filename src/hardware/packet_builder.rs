@@ -40,6 +40,7 @@ pub fn write_filters_and_gain(
     global_gain: i8,
     timing: &WriteTiming,
     num_bands: usize,
+    dsp_sample_rate: f64,
 ) -> Result<()> {
     if filters.len() > num_bands {
         return Err(AppError::new(
@@ -53,7 +54,7 @@ pub fn write_filters_and_gain(
     }
 
     for (i, filter) in filters.iter().enumerate() {
-        let packet = proto.build_filter_write_packet(i as u8, filter);
+        let packet = proto.build_filter_write_packet(i as u8, filter, dsp_sample_rate);
         send_report(device, &packet, proto.report_id())?;
         delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
     }

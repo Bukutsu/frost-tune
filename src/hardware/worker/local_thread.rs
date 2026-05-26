@@ -17,6 +17,7 @@ pub enum LocalCommand {
     Status(oneshot::Sender<LocalStatus>),
     PullPEQ(oneshot::Sender<OperationResult>),
     PushPEQ(PushPayload, oneshot::Sender<OperationResult>),
+    ResetPEQ(oneshot::Sender<OperationResult>),
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,16 @@ pub struct LocalStatus {
     pub backend_reset: bool,
     pub generation: u64,
     pub fatal_error: Option<String>,
+}
+
+fn exponential_backoff_elapsed(attempts: u32, last: Option<Instant>, max_secs: u64) -> bool {
+    match last {
+        None => true,
+        Some(last) => {
+            let backoff = Duration::from_secs((2u64.saturating_pow(attempts)).min(max_secs));
+            Instant::now().duration_since(last) >= backoff
+        }
+    }
 }
 
 pub struct LocalWorkerState {
@@ -42,26 +53,13 @@ pub struct LocalWorkerState {
     pub device_profile: Option<&'static dyn DeviceProfile>,
     pub info: Option<DeviceInfo>,
     pub generation: u64,
-}
 
-fn exponential_backoff_elapsed(attempts: u32, last: Option<Instant>, max_secs: u64) -> bool {
-    match last {
-        None => true,
-        Some(last) => {
-            let backoff = Duration::from_secs((2u64.saturating_pow(attempts)).min(max_secs));
-            Instant::now().duration_since(last) >= backoff
-        }
-    }
-}
-
-impl Default for LocalWorkerState {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub rx: mpsc::Receiver<LocalCommand>,
+    pub pending_command: Option<LocalCommand>,
 }
 
 impl LocalWorkerState {
-    pub fn new() -> Self {
+    pub fn new(rx: mpsc::Receiver<LocalCommand>) -> Self {
         Self {
             api: None,
             api_retry_count: 0,
@@ -74,6 +72,26 @@ impl LocalWorkerState {
             device_profile: None,
             info: None,
             generation: 0,
+
+            rx,
+            pending_command: None,
+        }
+    }
+
+    /// Checks if a new command has arrived that should interrupt the current operation.
+    /// Returns true if the operation should be cancelled.
+    pub fn should_cancel(&mut self) -> bool {
+        if self.pending_command.is_some() {
+            return true;
+        }
+
+        match self.rx.try_recv() {
+            Ok(cmd) => {
+                self.pending_command = Some(cmd);
+                true
+            }
+            Err(mpsc::TryRecvError::Empty) => false,
+            Err(mpsc::TryRecvError::Disconnected) => true,
         }
     }
 
@@ -158,6 +176,10 @@ impl LocalWorkerState {
             }
             LocalCommand::PushPEQ(payload, resp) => {
                 let result = self.handle_push(payload);
+                let _ = resp.send(result);
+            }
+            LocalCommand::ResetPEQ(resp) => {
+                let result = self.handle_reset();
                 let _ = resp.send(result);
             }
         }
@@ -282,6 +304,9 @@ impl LocalWorkerState {
     }
 
     fn handle_pull(&mut self) -> OperationResult {
+        let worker_ptr = self as *mut Self;
+        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+
         let device = match &self.device {
             Some(d) => d,
             None => {
@@ -309,7 +334,7 @@ impl LocalWorkerState {
         let proto = profile.protocol();
         let num_bands = profile.capabilities().num_bands;
 
-        match pull_with_retry(device, proto.as_ref(), false, num_bands) {
+        match pull_with_retry(device, proto.as_ref(), false, num_bands, &check_in) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),
@@ -324,6 +349,9 @@ impl LocalWorkerState {
     }
 
     fn handle_push(&mut self, payload: PushPayload) -> OperationResult {
+        let worker_ptr = self as *mut Self;
+        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+
         let device = match &self.device {
             Some(d) => d,
             None => {
@@ -350,7 +378,78 @@ impl LocalWorkerState {
         };
         let proto = profile.protocol();
 
-        match push_with_verify(device, profile, proto.as_ref(), payload) {
+        match push_with_verify(device, profile, proto.as_ref(), payload, &check_in) {
+            Ok(peq) => OperationResult {
+                success: true,
+                data: Some(peq),
+                error: None,
+            },
+            Err(e) => OperationResult {
+                success: false,
+                data: None,
+                error: Some(e),
+            },
+        }
+    }
+
+    fn handle_reset(&mut self) -> OperationResult {
+        let worker_ptr = self as *mut Self;
+        let check_in = || unsafe { (*worker_ptr).should_cancel() };
+
+        let device = match &self.device {
+            Some(d) => d,
+            None => {
+                return OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::NotConnected, "Not connected")),
+                }
+            }
+        };
+
+        let profile = match self.device_profile {
+            Some(p) => p,
+            None => {
+                return OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(
+                        ErrorKind::HardwareError,
+                        "Device profile not loaded",
+                    )),
+                }
+            }
+        };
+        let proto = profile.protocol();
+        let caps = profile.capabilities();
+        let num_bands = caps.num_bands;
+        let dsp_sample_rate = caps.dsp_sample_rate;
+
+        let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
+        let timing = proto.write_timing();
+
+        for packet in packets {
+            if check_in() {
+                return OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(AppError::new(ErrorKind::OperationCancelled, "Cancelled")),
+                };
+            }
+            if let Err(e) = crate::hardware::hid::send_report(device, &packet, proto.report_id()) {
+                return OperationResult {
+                    success: false,
+                    data: None,
+                    error: Some(e),
+                };
+            }
+            crate::hardware::hid::delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
+        }
+        proto.build_commit_packets().iter().for_each(|p| {
+            let _ = crate::hardware::hid::send_report(device, p, proto.report_id());
+        });
+
+        match pull_with_retry(device, proto.as_ref(), true, num_bands, &check_in) {
             Ok(peq) => OperationResult {
                 success: true,
                 data: Some(peq),
@@ -366,7 +465,7 @@ impl LocalWorkerState {
 }
 
 pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
-    let mut state = LocalWorkerState::new();
+    let mut state = LocalWorkerState::new(rx);
 
     loop {
         state.ensure_api();
@@ -379,9 +478,14 @@ pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
             backend_reset = state.perform_physical_checks();
         }
 
+        if let Some(cmd) = state.pending_command.take() {
+            state.process_command(cmd, backend_reset);
+            continue;
+        }
+
         let timeout = state.check_interval.saturating_sub(time_since_check);
 
-        match rx.recv_timeout(timeout) {
+        match state.rx.recv_timeout(timeout) {
             Ok(cmd) => {
                 state.process_command(cmd, backend_reset);
             }

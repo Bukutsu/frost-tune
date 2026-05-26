@@ -538,6 +538,13 @@ impl AppState {
                     false,
                 ))
             }
+            ConfirmAction::ForceReset => Some(views::confirm_dialog::view_confirm_dialog(
+                "Force Reset to Flat?".to_string(),
+                "This will bypass normal safeguards and push a flat EQ (all bands disabled) and 0dB gain to the device. Use this only if the hardware state appears corrupted.".to_string(),
+                "Force Reset",
+                Message::Editor(EditorMessage::ConfirmForceResetPressed),
+                true,
+            )),
             ConfirmAction::LoadProfile { ref name } => Some(views::confirm_dialog::view_confirm_dialog(
                 "Unsaved Changes".to_string(),
                 format!("You have unsaved changes. Loading '{}' will replace your current editor settings. Continue?", name),

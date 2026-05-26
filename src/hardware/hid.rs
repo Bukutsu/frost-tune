@@ -136,12 +136,12 @@ pub fn flush_hid_buffer(device: &dyn HidDeviceIo) {
         }
     }
 }
-
 pub fn pull_peq_internal(
     device: &dyn HidDeviceIo,
     proto: &dyn DeviceProtocol,
     strict: bool,
     num_bands: usize,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<PEQData> {
     let cfg = proto.read_timing();
     let mut session = init_device_session(device, proto)?;
@@ -150,6 +150,10 @@ pub fn pull_peq_internal(
     let mut had_mismatch = false;
 
     for i in 0u8..num_bands as u8 {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
+
         let nonce = session.next_nonce();
         let request = proto.build_filter_read_request(i, nonce);
         send_report(device, &request, proto.report_id())?;
@@ -348,7 +352,12 @@ mod tests {
             })
         }
 
-        fn build_filter_write_packet(&self, index: u8, _filter: &Filter) -> Vec<u8> {
+        fn build_filter_write_packet(
+            &self,
+            index: u8,
+            _filter: &Filter,
+            _dsp_sample_rate: f64,
+        ) -> Vec<u8> {
             vec![WRITE, CMD_PEQ_VALUES, 0x00, 0x00, index, END]
         }
 

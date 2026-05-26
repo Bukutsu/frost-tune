@@ -66,6 +66,7 @@ pub enum ErrorKind {
     IpcError,
     InvalidPayload,
     Timeout,
+    OperationCancelled,
     WorkerDied,
     Unknown,
 }
@@ -92,6 +93,7 @@ impl ErrorKind {
             ErrorKind::IpcError => "IPC communication error with background helper.",
             ErrorKind::InvalidPayload => "Invalid or malformed data payload.",
             ErrorKind::Timeout => "Operation timed out.",
+            ErrorKind::OperationCancelled => "Operation cancelled or interrupted.",
             ErrorKind::WorkerDied => "Background worker terminated unexpectedly.",
             ErrorKind::Unknown => "Unknown error.",
         }

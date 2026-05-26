@@ -24,7 +24,8 @@ fn pull_logic(
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
     let num_bands = profile.capabilities().num_bands;
-    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict, num_bands)
+    let dummy_check = || false;
+    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), strict, num_bands, &dummy_check)
 }
 
 #[cfg(target_os = "linux")]
@@ -35,11 +36,65 @@ fn push_logic(
     global_gain: Option<i8>,
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
-    let payload = PushPayload {
+    let caps = profile.capabilities();
+    let num_bands = caps.num_bands;
+
+    let mut payload = PushPayload {
         filters,
         global_gain,
     };
-    crate::hardware::pipeline::push_with_verify(device, profile, proto.as_ref(), payload)
+
+    // Helper-side validation: NEVER trust the UI process blindly.
+    // Ensure the payload is clamped and valid for the hardware.
+    payload.clamp(
+        caps.freq_range,
+        caps.band_gain_range,
+        caps.q_range,
+        caps.global_gain_range,
+    );
+    payload
+        .is_valid(
+            num_bands,
+            caps.freq_range,
+            caps.band_gain_range,
+            caps.q_range,
+            caps.global_gain_range,
+        )
+        .map_err(|e| AppError::new(ErrorKind::InvalidPayload, e))?;
+
+    let dummy_check = || false;
+    crate::hardware::pipeline::push_with_verify(
+        device,
+        profile,
+        proto.as_ref(),
+        payload,
+        &dummy_check,
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn handle_reset(
+    device: &hidapi::HidDevice,
+    profile: &'static dyn DeviceProfile,
+) -> crate::error::Result<PEQData> {
+    let proto = profile.protocol();
+    let caps = profile.capabilities();
+    let num_bands = caps.num_bands;
+    let dsp_sample_rate = caps.dsp_sample_rate;
+
+    let packets = proto.build_reset_packets(num_bands, dsp_sample_rate);
+    let timing = proto.write_timing();
+
+    for packet in packets {
+        crate::hardware::hid::send_report(device, &packet, proto.report_id())?;
+        crate::hardware::hid::delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
+    }
+    proto.build_commit_packets().iter().for_each(|p| {
+        let _ = crate::hardware::hid::send_report(device, p, proto.report_id());
+    });
+
+    let dummy_check = || false;
+    crate::hardware::pipeline::pull_with_retry(device, proto.as_ref(), true, num_bands, &dummy_check)
 }
 
 #[cfg(target_os = "linux")]
@@ -54,19 +109,33 @@ fn require_device(
 #[cfg(target_os = "linux")]
 fn handle_connect(
     api: &mut hidapi::HidApi,
+    target: Option<DeviceInfo>,
     device: &mut Option<hidapi::HidDevice>,
     device_info: &mut Option<DeviceInfo>,
     device_profile: &mut Option<&'static dyn DeviceProfile>,
 ) -> HelperResponse {
     let _ = api.refresh_devices();
-    match find_device_info(api) {
-        Some(found) => {
+
+    let found_device = if let Some(target) = target {
+        api.device_list()
+            .find(|d| {
+                d.vendor_id() == target.vendor_id
+                    && d.product_id() == target.product_id
+                    && d.path().to_string_lossy() == target.path
+            })
+            .cloned()
+    } else {
+        find_device_info(api)
+    };
+
+    match found_device {
+        Some(ref found) => {
             if let Some(profile) =
                 crate::hardware::get_profile(found.vendor_id(), found.product_id())
             {
                 match found.open_device(api) {
                     Ok(opened) => {
-                        let info = device_info_from_hid(&found);
+                        let info = device_info_from_hid(found);
                         *device = Some(opened);
                         *device_profile = Some(profile);
                         *device_info = Some(info.clone());
@@ -193,13 +262,19 @@ pub fn run() -> crate::error::Result<()> {
 
         let request_id = request.id;
         let response_payload: HelperResponse = match request.payload {
-            HelperRequest::Connect => {
+            HelperRequest::Connect { device: target } => {
                 if device.is_some() {
                     HelperResponse::Connected {
                         device: device_info.clone(),
                     }
                 } else {
-                    handle_connect(&mut api, &mut device, &mut device_info, &mut device_profile)
+                    handle_connect(
+                        &mut api,
+                        target,
+                        &mut device,
+                        &mut device_info,
+                        &mut device_profile,
+                    )
                 }
             }
             HelperRequest::Disconnect => {
@@ -230,6 +305,26 @@ pub fn run() -> crate::error::Result<()> {
             HelperRequest::PullPeq { strict } => match require_device(&device) {
                 Ok(d) => match device_profile {
                     Some(dp) => match pull_logic(d, dp, strict) {
+                        Ok(peq) => match serde_json::to_value(peq) {
+                            Ok(value) => HelperResponse::Pulled { data: value },
+                            Err(e) => HelperResponse::Error {
+                                error: AppError::new(
+                                    ErrorKind::ParseError,
+                                    format!("Serialization failed: {}", e),
+                                ),
+                            },
+                        },
+                        Err(e) => HelperResponse::Error { error: e },
+                    },
+                    None => HelperResponse::Error {
+                        error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
+                    },
+                },
+                Err(payload) => payload,
+            },
+            HelperRequest::ResetPeq => match require_device(&device) {
+                Ok(d) => match device_profile {
+                    Some(dp) => match handle_reset(d, dp) {
                         Ok(peq) => match serde_json::to_value(peq) {
                             Ok(value) => HelperResponse::Pulled { data: value },
                             Err(e) => HelperResponse::Error {

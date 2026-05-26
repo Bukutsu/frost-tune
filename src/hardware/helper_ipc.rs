@@ -5,7 +5,7 @@ use crate::core::{DeviceInfo, Filter};
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 
-pub const IPC_VERSION: &str = "1.3.0";
+pub const IPC_VERSION: &str = "1.4.0";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpcRequest {
@@ -24,7 +24,9 @@ pub struct IpcResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum HelperRequest {
-    Connect,
+    Connect {
+        device: Option<DeviceInfo>,
+    },
     Disconnect,
     Status,
     Version,
@@ -36,6 +38,7 @@ pub enum HelperRequest {
         filters: Vec<Filter>,
         global_gain: Option<i8>,
     },
+    ResetPeq,
     Shutdown,
 }
 

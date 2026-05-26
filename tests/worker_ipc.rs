@@ -86,7 +86,7 @@ fn test_ipc_error_handling() {
 #[test]
 fn test_ipc_request_serialization() {
     let requests = vec![
-        HelperRequest::Connect,
+        HelperRequest::Connect { device: None },
         HelperRequest::Disconnect,
         HelperRequest::Status,
         HelperRequest::Version,

@@ -52,15 +52,19 @@ impl<'a> EqGraph<'a> {
         }
     }
 
-    pub fn compute_responses(filters: &[Filter], global_gain: i8) -> (Vec<f64>, Vec<Vec<f64>>) {
-        let test_freqs = &*GRAPH_FREQS;
+    pub fn compute_responses(
+        filters: &[Filter],
+        global_gain: i8,
+        dsp_sample_rate: f64,
+    ) -> (Vec<f64>, Vec<Vec<f64>>) {
+        let test_freqs = get_graph_freqs(dsp_sample_rate);
         let coeffs: Vec<Option<BiquadCoeffs>> = filters
             .iter()
             .map(|f| {
                 if f.freq == 0 || !f.enabled {
                     None
                 } else {
-                    Some(get_biquad_coefficients(f))
+                    Some(get_biquad_coefficients(f, dsp_sample_rate))
                 }
             })
             .collect();
@@ -95,19 +99,21 @@ impl<'a> EqGraph<'a> {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref GRAPH_FREQS: Vec<PrecomputedFreq> = {
-        let points_count = 300;
-        let min_f_log = 20.0f64.log10();
-        let max_f_log = 20000.0f64.log10();
-        let f_range_log = max_f_log - min_f_log;
-        let mut freqs = Vec::with_capacity(points_count);
-        for i in 0..points_count {
-            let f_log = min_f_log + (i as f64 / (points_count as f64 - 1.0)) * f_range_log;
-            freqs.push(PrecomputedFreq::new(10.0f64.powf(f_log)));
-        }
-        freqs
-    };
+fn get_graph_freqs(dsp_sample_rate: f64) -> Vec<PrecomputedFreq> {
+    compute_graph_freqs(dsp_sample_rate)
+}
+
+fn compute_graph_freqs(dsp_sample_rate: f64) -> Vec<PrecomputedFreq> {
+    let points_count = 300;
+    let min_f_log = 20.0f64.log10();
+    let max_f_log = 20000.0f64.log10();
+    let f_range_log = max_f_log - min_f_log;
+    let mut freqs = Vec::with_capacity(points_count);
+    for i in 0..points_count {
+        let f_log = min_f_log + (i as f64 / (points_count as f64 - 1.0)) * f_range_log;
+        freqs.push(PrecomputedFreq::new(10.0f64.powf(f_log), dsp_sample_rate));
+    }
+    freqs
 }
 
 impl<'a, Message> Program<Message> for EqGraph<'a> {
@@ -184,9 +190,8 @@ impl<'a, Message> Program<Message> for EqGraph<'a> {
         });
 
         let curve = self.curve_cache.draw(renderer, bounds.size(), |frame| {
-            let test_freqs = &*GRAPH_FREQS;
-            let points_count = test_freqs.len();
             let responses = &self.cached_combined_response;
+            let points_count = responses.len();
             let band_responses = &self.cached_band_responses;
 
             let min_db = -18.0;
