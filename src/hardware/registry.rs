@@ -12,7 +12,11 @@ pub use crate::core::device::profile::DeviceProfile;
 ///
 /// To add a new device: implement `DeviceProfile` in `hardware/devices/<vendor>/mod.rs`
 /// and add a `&<YourProfile>` entry here.
-pub const REGISTRY: &[&dyn DeviceProfile] = &[&crate::hardware::devices::tp35pro::TP35ProProfile];
+pub const REGISTRY: &[&dyn DeviceProfile] = &[
+    &crate::hardware::devices::tp35pro::TP35ProProfile,
+    &crate::hardware::devices::walkplay::DawnProProfile,
+    &crate::hardware::devices::walkplay::TruthearKeyxProfile,
+];
 
 /// Resolves a `DeviceProfile` from a USB Vendor ID and Product ID.
 pub fn get_profile(vid: u16, pid: u16) -> Option<&'static dyn DeviceProfile> {

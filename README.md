@@ -42,7 +42,7 @@ Frost-Tune talks to compatible USB DACs over HID, edits 10-band parametric EQ, a
 - Read-back verification with rollback
 - Offline — no account, no cloud
 
-**Supported devices:** EPZ TP35 Pro. More can be added via `DeviceProtocol`.
+**Supported devices:** EPZ TP35 Pro, Moondrop Dawn Pro (untested), Truthear KEYX (untested). More can be added via `DeviceProtocol`.
 
 **Built with:** Rust, Iced, Tokio
 
@@ -118,6 +118,7 @@ MIT. See `LICENSE`.
 - [Iced](https://iced.rs/)
 - [hidapi](https://github.com/libusb/hidapi)
 - [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
+- [devicePEQ](https://github.com/jeromeof/devicePEQ) for reverse-engineered DAC protocols
 
 [contributors-shield]: https://img.shields.io/github/contributors/Bukutsu/frost-tune.svg?style=for-the-badge
 [contributors-url]: https://github.com/Bukutsu/frost-tune/graphs/contributors
