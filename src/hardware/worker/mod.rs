@@ -219,34 +219,53 @@ impl UsbWorkerState {
 
     #[cfg(target_os = "linux")]
     async fn connect_elevated(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
-        if let Ok(transport) = ElevatedTransport::spawn().await {
-            if let Ok(HelperResponse::Connected { device: Some(info) }) = transport
-                .round_trip(&HelperRequest::Connect {
-                    device: target_device,
-                })
-                .await
-            {
-                let (ltx, _) = oneshot::channel();
-                let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
-                self.backend = Some(ActiveBackend::Elevated {
-                    transport: Box::new(transport),
-                    device_info: Some(info.clone()),
-                });
-                self.preferred_backend = BackendKind::Elevated;
-                return ConnectionResult {
-                    success: true,
-                    device: Some(info),
-                    error: None,
-                };
+        match ElevatedTransport::spawn().await {
+            Ok(transport) => {
+                match transport
+                    .round_trip(&HelperRequest::Connect {
+                        device: target_device,
+                    })
+                    .await
+                {
+                    Ok(HelperResponse::Connected { device: Some(info) }) => {
+                        let (ltx, _) = oneshot::channel();
+                        let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
+                        self.backend = Some(ActiveBackend::Elevated {
+                            transport: Box::new(transport),
+                            device_info: Some(info.clone()),
+                        });
+                        self.preferred_backend = BackendKind::Elevated;
+                        ConnectionResult {
+                            success: true,
+                            device: Some(info),
+                            error: None,
+                        }
+                    }
+                    Ok(HelperResponse::Error { error }) => ConnectionResult {
+                        success: false,
+                        device: None,
+                        error: Some(error),
+                    },
+                    Ok(_) => ConnectionResult {
+                        success: false,
+                        device: None,
+                        error: Some(AppError::new(
+                            ErrorKind::IpcError,
+                            "Elevated helper handshake failed",
+                        )),
+                    },
+                    Err(e) => ConnectionResult {
+                        success: false,
+                        device: None,
+                        error: Some(e),
+                    },
+                }
             }
-        }
-        ConnectionResult {
-            success: false,
-            device: None,
-            error: Some(AppError::new(
-                ErrorKind::PermissionDenied,
-                "Elevated transport failed to connect",
-            )),
+            Err(spawn_err) => ConnectionResult {
+                success: false,
+                device: None,
+                error: Some(spawn_err),
+            },
         }
     }
 

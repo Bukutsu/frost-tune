@@ -72,7 +72,12 @@ pub fn get_magnitude_response_with_precomputed(
     let num_mag_sq = num_real * num_real + num_imag * num_imag;
     let den_mag_sq = den_real * den_real + den_imag * den_imag;
 
-    10.0 * (num_mag_sq / den_mag_sq).log10()
+    if den_mag_sq <= 0.0 || num_mag_sq <= 0.0 {
+        -100.0
+    } else {
+        let db = 10.0 * (num_mag_sq / den_mag_sq).log10();
+        db.max(-100.0)
+    }
 }
 
 type BiquadCoeffs = (f64, f64, f64, f64, f64, f64);
@@ -180,5 +185,17 @@ mod tests {
 
         let total_with_preamp = calculate_total_response(&filters, -3, &freqs, 96000.0);
         assert!((total_with_preamp[0] - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_magnitude_clamp_underflow() {
+        let pf = PrecomputedFreq::new(1000.0, 96000.0);
+        // Case 1: Zero values for numerator / denominator magnitude squared
+        let mag1 = get_magnitude_response_with_precomputed(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &pf);
+        assert_eq!(mag1, -100.0);
+
+        // Case 2: Extreme attenuation (should clamp to -100.0)
+        let mag2 = get_magnitude_response_with_precomputed(1e-30, 0.0, 0.0, 1.0, 0.0, 0.0, &pf);
+        assert_eq!(mag2, -100.0);
     }
 }
