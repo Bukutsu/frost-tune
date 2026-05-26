@@ -172,6 +172,7 @@ fn test_ipc_request_response_roundtrip() {
 
     let req = IpcRequest {
         id: 42,
+        auth: "test-token".to_string(),
         payload: HelperRequest::Version,
     };
     let serialized_req = serde_json::to_string(&req).expect("Failed to serialize IpcRequest");

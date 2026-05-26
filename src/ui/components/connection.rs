@@ -50,4 +50,8 @@ pub struct ConnectionComponent {
     pub worker: Option<Arc<UsbWorker>>,
     pub connected_device: Option<DeviceInfo>,
     pub available_devices: Vec<DeviceInfo>,
+    pub connection_generation: u64,
+    pub suspend_status_polling: bool,
+    pub last_auto_reconnect_attempt: Option<std::time::Instant>,
+    pub auto_reconnect_attempts: u32,
 }

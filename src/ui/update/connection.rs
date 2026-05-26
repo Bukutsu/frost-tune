@@ -47,10 +47,11 @@ fn maybe_reconnect(window: &mut AppState) -> Option<Task<Message>> {
         && window.connection.status != ConnectionStatus::Connected
         && !window.connection.available_devices.is_empty()
     {
-        let should_attempt = match window.last_auto_reconnect_attempt {
+        let should_attempt = match window.connection.last_auto_reconnect_attempt {
             None => true,
             Some(last) => {
-                let backoff_secs = (2u64.saturating_pow(window.auto_reconnect_attempts)).min(30);
+                let backoff_secs =
+                    (2u64.saturating_pow(window.connection.auto_reconnect_attempts)).min(30);
                 std::time::Instant::now().duration_since(last)
                     >= std::time::Duration::from_secs(backoff_secs)
             }
@@ -58,11 +59,11 @@ fn maybe_reconnect(window: &mut AppState) -> Option<Task<Message>> {
         if should_attempt {
             let target_device = window.connection.available_devices.first().cloned()?;
 
-            window.last_auto_reconnect_attempt = Some(std::time::Instant::now());
-            window.auto_reconnect_attempts += 1;
+            window.connection.last_auto_reconnect_attempt = Some(std::time::Instant::now());
+            window.connection.auto_reconnect_attempts += 1;
             window.connection.status = ConnectionStatus::Connecting;
             window.connection.operation_lock.is_connecting = true;
-            window.suspend_status_polling = true;
+            window.connection.suspend_status_polling = true;
 
             let worker = match window.connection.worker.as_ref() {
                 Some(w) => Arc::clone(w),
@@ -185,7 +186,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             }
             window.connection.status = ConnectionStatus::Connecting;
             window.connection.operation_lock.is_connecting = true;
-            window.suspend_status_polling = true;
+            window.connection.suspend_status_polling = true;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,
@@ -215,7 +216,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             }
             window.connection.disconnect_reason = DisconnectReason::Manual;
             window.connection.operation_lock.is_disconnecting = true;
-            window.suspend_status_polling = true;
+            window.connection.suspend_status_polling = true;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::UI,
@@ -246,7 +247,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
         }
         Message::Connection(ConnectionMessage::WorkerConnected(result)) => {
             window.connection.operation_lock.is_connecting = false;
-            window.suspend_status_polling = false;
+            window.connection.suspend_status_polling = false;
             let device_name_owned = if let Some(ref d) = result.device {
                 crate::hardware::get_profile(d.vendor_id, d.product_id)
                     .map(|p| p.name())
@@ -260,8 +261,8 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
                 window.connection.status = ConnectionStatus::Connected;
                 window.connection.connected_device = result.device;
                 window.connection.disconnect_reason = DisconnectReason::None;
-                window.last_auto_reconnect_attempt = None;
-                window.auto_reconnect_attempts = 0;
+                window.connection.last_auto_reconnect_attempt = None;
+                window.connection.auto_reconnect_attempts = 0;
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
                     Source::Worker,
@@ -302,7 +303,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
         }
         Message::Connection(ConnectionMessage::WorkerDisconnected(_)) => {
             window.connection.operation_lock.is_disconnecting = false;
-            window.suspend_status_polling = false;
+            window.connection.suspend_status_polling = false;
             window.diagnostics.push(DiagnosticEvent::new(
                 LogLevel::Info,
                 Source::Worker,
@@ -312,8 +313,8 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             window.connection.connected_device = None;
             window.editor.session.pending_confirm = ConfirmAction::None;
             if window.connection.disconnect_reason == DisconnectReason::Manual {
-                window.last_auto_reconnect_attempt = None;
-                window.auto_reconnect_attempts = 0;
+                window.connection.last_auto_reconnect_attempt = None;
+                window.connection.auto_reconnect_attempts = 0;
             }
             Task::none()
         }
@@ -328,10 +329,10 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
                     Message::Connection(ConnectionMessage::WorkerBackendReset)
                 });
             }
-            if status.generation < window.connection_generation {
+            if status.generation < window.connection.connection_generation {
                 return Task::none();
             }
-            window.connection_generation = status.generation;
+            window.connection.connection_generation = status.generation;
             if window.connection.available_devices != status.available_devices {
                 window.connection.available_devices = status.available_devices.clone();
             }
@@ -353,8 +354,8 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             if status.connected && window.connection.status != ConnectionStatus::Connected {
                 window.connection.status = ConnectionStatus::Connected;
                 window.connection.disconnect_reason = DisconnectReason::None;
-                window.last_auto_reconnect_attempt = None;
-                window.auto_reconnect_attempts = 0;
+                window.connection.last_auto_reconnect_attempt = None;
+                window.connection.auto_reconnect_attempts = 0;
                 log::info!("Device connected");
                 window.diagnostics.push(DiagnosticEvent::new(
                     LogLevel::Info,
@@ -406,7 +407,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             if let Some(task) = profile_task {
                 tasks.push(task);
             }
-            if !window.suspend_status_polling {
+            if !window.connection.suspend_status_polling {
                 tasks.push(status_task);
             }
             if let Some(task) = reconnect_task {
@@ -421,7 +422,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             window.connection.operation_lock.is_pulling = false;
             window.connection.operation_lock.is_pushing = false;
             window.connection.operation_lock.is_disconnecting = false;
-            window.suspend_status_polling = false;
+            window.connection.suspend_status_polling = false;
             window.set_status("Connection lost. Please reconnect.", StatusSeverity::Error)
         }
         Message::Profiles(ProfilesMessage::ProfilesDirMtimeChecked(mtime)) => {

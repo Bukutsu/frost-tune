@@ -233,16 +233,16 @@ fn unwrap_operation_result(result: Result<OperationResult, String>) -> Operation
 }
 
 fn perform_pull(window: &mut AppState) -> Task<Message> {
+    let worker = match window.connection.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
     window.connection.operation_lock.is_pulling = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
         Source::UI,
         "Pulling from device",
     ));
-    let worker = match window.connection.worker.as_ref() {
-        Some(w) => Arc::clone(w),
-        None => return Task::none(),
-    };
     let pull_task = Task::perform(
         async move {
             let result = worker.pull_peq().await;
@@ -255,16 +255,16 @@ fn perform_pull(window: &mut AppState) -> Task<Message> {
 }
 
 fn perform_push(window: &mut AppState) -> Task<Message> {
+    let worker = match window.connection.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
     window.connection.operation_lock.is_pushing = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Info,
         Source::UI,
         "Push pressed",
     ));
-    let worker = match window.connection.worker.as_ref() {
-        Some(w) => Arc::clone(w),
-        None => return Task::none(),
-    };
     let filters = window.editor.data.filters.clone();
     let global_gain = window.editor.data.global_gain;
     let push_task = Task::perform(
@@ -283,16 +283,16 @@ fn perform_push(window: &mut AppState) -> Task<Message> {
 }
 
 fn perform_force_reset(window: &mut AppState) -> Task<Message> {
+    let worker = match window.connection.worker.as_ref() {
+        Some(w) => Arc::clone(w),
+        None => return Task::none(),
+    };
     window.connection.operation_lock.is_pushing = true;
     window.diagnostics.push(DiagnosticEvent::new(
         LogLevel::Warn,
         Source::UI,
         "Force Reset triggered",
     ));
-    let worker = match window.connection.worker.as_ref() {
-        Some(w) => Arc::clone(w),
-        None => return Task::none(),
-    };
     let push_task = Task::perform(
         async move {
             let result = worker.reset_peq().await;

@@ -6,7 +6,9 @@ use crate::core::{DeviceCapabilities, Filter, PEQData};
 use crate::error::{AppError, ErrorKind, Result};
 use crate::hardware::device_io::PhysicalInterface;
 use crate::hardware::hid::{delay_ms, send_report};
-use crate::hardware::operations::{compare_peq, pull_peq_data, rollback_and_verify};
+use crate::hardware::operations::{
+    compare_peq, compare_peq_exclude_gain, pull_peq_data, rollback_and_verify,
+};
 use crate::hardware::packet_builder::{
     commit_changes, init_device_session, write_filters_and_gain,
 };
@@ -110,14 +112,12 @@ fn verify_or_rollback(
         delay_ms(backoff_ms);
         match pull_peq_data(device, proto, true, num_bands, check_in) {
             Ok(read_back) => {
-                if compare_peq(
-                    &read_back,
-                    expected_filters,
-                    expected_gain.unwrap_or(0),
-                    caps,
-                )
-                .is_ok()
-                {
+                let cmp = if let Some(gain) = expected_gain {
+                    compare_peq(&read_back, expected_filters, gain, caps)
+                } else {
+                    compare_peq_exclude_gain(&read_back, expected_filters, caps)
+                };
+                if cmp.is_ok() {
                     return Ok(read_back);
                 }
             }
@@ -259,9 +259,20 @@ pub fn reset_with_verify(
         send_report(device, &packet, framer)?;
         delay_ms(timing.per_filter_ms.max(timing.flood_delay_ms));
     }
-    proto.build_commit_packets().iter().for_each(|p| {
-        let _ = send_report(device, p, framer);
-    });
+    for packet in proto.build_commit_packets() {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
+        send_report(device, &packet, framer).map_err(|e| {
+            AppError::new(
+                ErrorKind::RollbackFailed,
+                format!(
+                    "Reset commit failed: {} — device may be in an inconsistent state",
+                    e.message
+                ),
+            )
+        })?;
+    }
 
     pull_with_retry(device, proto, true, num_bands, check_in)
 }

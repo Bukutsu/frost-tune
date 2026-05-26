@@ -231,6 +231,10 @@ pub fn pull_peq_internal(
 
 /// Read a single filter response from the device, matching by `index` and `nonce`.
 /// The protocol decides whether an incoming packet is the response we expect.
+///
+/// Worst-case latency: up to 68 attempts (60 timeout + 8 mismatch) × 60 ms per
+/// attempt ≈ 4 seconds per filter band. For 10-band devices, total worst-case
+/// read time ≈ 40 seconds.
 fn read_single_filter(
     device: &dyn crate::hardware::PhysicalInterface,
     proto: &dyn DeviceProtocol,

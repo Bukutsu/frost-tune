@@ -8,10 +8,6 @@ pub struct AppState {
     pub connection: ConnectionComponent,
     pub editor: EditorComponent,
     pub diagnostics: DiagnosticsStore,
-    pub connection_generation: u64,
-    pub suspend_status_polling: bool,
-    pub last_auto_reconnect_attempt: Option<std::time::Instant>,
-    pub auto_reconnect_attempts: u32,
     pub last_profile_check: Option<std::time::Instant>,
 }
 

@@ -22,6 +22,7 @@ pub struct ElevatedTransport {
     tx: mpsc::Sender<IpcRequest>,
     pending: Arc<tokio::sync::Mutex<HashMap<u64, oneshot::Sender<HelperResponse>>>>,
     next_id: AtomicU64,
+    token: String,
     _child: Child,
 }
 
@@ -31,9 +32,11 @@ impl ElevatedTransport {
             AppError::general(format!("Failed to resolve current executable path: {}", e))
         })?;
 
+        let token = generate_ipc_token();
+
         let mut child = spawn_via_pkexec(CommandSpec {
             program: current_exe,
-            args: vec!["--hid-helper".to_string()],
+            args: vec!["--hid-helper".to_string(), token.clone()],
         })?;
 
         let stdin = child
@@ -95,6 +98,7 @@ impl ElevatedTransport {
             tx: request_tx,
             pending,
             next_id: AtomicU64::new(1),
+            token,
             _child: child,
         };
 
@@ -152,6 +156,7 @@ impl ElevatedTransport {
 
         let ipc_req = IpcRequest {
             id,
+            auth: self.token.clone(),
             payload: request.clone(),
         };
 
@@ -230,6 +235,15 @@ fn spawn_via_pkexec(spec: CommandSpec) -> Result<Child> {
         })?;
 
     Ok(child)
+}
+
+fn generate_ipc_token() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let raw = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("ft{:x}", raw ^ (std::process::id() as u128))
 }
 
 fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {

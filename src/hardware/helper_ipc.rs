@@ -9,6 +9,7 @@ pub const IPC_VERSION: &str = "1.4.0";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IpcRequest {
+    pub auth: String,
     pub id: u64,
     #[serde(flatten)]
     pub payload: HelperRequest,

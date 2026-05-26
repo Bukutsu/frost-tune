@@ -171,7 +171,7 @@ fn write_response(
 }
 
 #[cfg(target_os = "linux")]
-pub fn run() -> crate::error::Result<()> {
+pub fn run(ipc_token: String) -> crate::error::Result<()> {
     let provider = crate::hardware::hid::HidDiscoveryProvider;
     let mut device: Option<Box<dyn PhysicalInterface>> = None;
     let mut device_info: Option<DeviceInfo> = None;
@@ -245,6 +245,20 @@ pub fn run() -> crate::error::Result<()> {
         };
 
         let request_id = request.id;
+
+        if request.auth != ipc_token {
+            let _ = write_response(
+                &mut stdout_lock,
+                &IpcResponse {
+                    id: request_id,
+                    payload: HelperResponse::Error {
+                        error: AppError::new(ErrorKind::IpcError, "Authentication token mismatch"),
+                    },
+                },
+            );
+            continue;
+        }
+
         let response_payload: HelperResponse = match request.payload {
             HelperRequest::Connect { device: target } => {
                 if device.is_some() {
@@ -262,8 +276,18 @@ pub fn run() -> crate::error::Result<()> {
                 HelperResponse::Disconnected
             }
             HelperRequest::Status => {
-                let available_devices = provider.list_devices().unwrap_or_default();
-                let physically_present = if let Some(ref current) = device_info {
+                let (available_devices, list_err) = match provider.list_devices() {
+                    Ok(devices) => (devices, None),
+                    Err(e) => {
+                        log::error!("HID device enumeration failed: {}", e.message);
+                        (vec![], Some(e))
+                    }
+                };
+                let physically_present = if list_err.is_some() {
+                    // Cannot enumerate — assume device is still present to avoid
+                    // false-positive disconnects on transient HID API failures.
+                    device.is_some()
+                } else if let Some(ref current) = device_info {
                     available_devices.iter().any(|d| d.path == current.path)
                 } else {
                     !available_devices.is_empty()
@@ -372,6 +396,6 @@ pub fn run() -> crate::error::Result<()> {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn run() -> Result<(), String> {
+pub fn run(_ipc_token: String) -> Result<(), String> {
     Err("helper server is only available on Linux".to_string())
 }

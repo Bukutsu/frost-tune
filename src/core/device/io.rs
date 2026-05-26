@@ -7,6 +7,11 @@ use crate::core::device::device::DeviceInfo;
 use crate::error::{AppError, ErrorKind, Result};
 
 /// A generic connection interface representing physical communication with a DAC device.
+///
+/// **Contract:** Implementations must be accessed sequentially from a single
+/// thread or behind a serialization layer (e.g. an async worker processing
+/// commands one-at-a-time). Concurrent reads and writes will corrupt USB
+/// protocol state (nonce interleaving, packet framing).
 pub trait PhysicalInterface: Send {
     /// Writes raw payload bytes to the underlying transport stream.
     fn write(&self, data: &[u8]) -> Result<usize>;
@@ -59,8 +64,8 @@ impl PacketFramer for HidPacketFramer {
     fn unframe_packet(&self, framed: &[u8]) -> Result<Vec<u8>> {
         if framed.is_empty() {
             return Err(AppError::new(
-                ErrorKind::ReadTimeout,
-                "Received empty packet",
+                ErrorKind::HardwareError,
+                "Received empty framed packet",
             ));
         }
         let offset = if framed[0] == self.report_id { 1 } else { 0 };

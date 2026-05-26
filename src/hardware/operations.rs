@@ -106,14 +106,33 @@ pub fn compare_peq(
     gain: i8,
     caps: &DeviceCapabilities,
 ) -> Result<()> {
-    if actual.global_gain != gain {
-        return Err(AppError::new(
-            ErrorKind::VerifyFailed,
-            format!(
-                "Global gain mismatch: expected {}, got {}",
-                gain, actual.global_gain
-            ),
-        ));
+    compare_filters_and_gain(actual, filters, Some(gain), caps)
+}
+
+pub fn compare_peq_exclude_gain(
+    actual: &PEQData,
+    filters: &[Filter],
+    caps: &DeviceCapabilities,
+) -> Result<()> {
+    compare_filters_and_gain(actual, filters, None, caps)
+}
+
+fn compare_filters_and_gain(
+    actual: &PEQData,
+    filters: &[Filter],
+    expected_gain: Option<i8>,
+    caps: &DeviceCapabilities,
+) -> Result<()> {
+    if let Some(gain) = expected_gain {
+        if actual.global_gain != gain {
+            return Err(AppError::new(
+                ErrorKind::VerifyFailed,
+                format!(
+                    "Global gain mismatch: expected {}, got {}",
+                    gain, actual.global_gain
+                ),
+            ));
+        }
     }
     if actual.filters.len() != filters.len() {
         return Err(AppError::new(
@@ -293,5 +312,40 @@ mod tests {
         data.filters[0].filter_type = crate::core::FilterType::LowShelf;
         let result = compare_peq(&data, &filters, 0, &DESKTOP_DAC_CAPS);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compare_peq_exclude_gain_ignores_gain_difference() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::core::FilterType::Peak,
+        )];
+        let data = PEQData {
+            filters: filters.clone(),
+            global_gain: -3,
+        };
+        assert!(compare_peq_exclude_gain(&data, &filters, &DESKTOP_DAC_CAPS).is_ok());
+    }
+
+    #[test]
+    fn test_compare_peq_exclude_gain_still_detects_filter_mismatch() {
+        let filters = vec![make_filter(
+            0,
+            1000,
+            5.0,
+            1.0,
+            crate::core::FilterType::Peak,
+        )];
+        let mut bad = PEQData {
+            filters: filters.clone(),
+            global_gain: 0,
+        };
+        bad.filters[0].gain = 6.0;
+        let result = compare_peq_exclude_gain(&bad, &filters, &DESKTOP_DAC_CAPS);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind, ErrorKind::VerifyFailed);
     }
 }
