@@ -59,7 +59,7 @@ pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
                     window.editor.session.import_name_input.clear();
                     window.editor.session.pending_confirm =
                         crate::ui::components::editor::ConfirmAction::ImportAutoEQ {
-                            data: peq,
+                            data: std::sync::Arc::new(peq),
                             default_name: format!(
                                 "Imported {}",
                                 chrono::Local::now().format("%Y-%m-%d %H:%M")

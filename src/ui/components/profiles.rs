@@ -17,10 +17,13 @@ pub enum ProfilesMessage {
     ImportFromFilePressed,
     ExportToFilePressed,
     FileImported(Option<std::path::PathBuf>),
-    FileExported(Option<std::path::PathBuf>, crate::core::PEQData),
+    FileExported(
+        Option<std::path::PathBuf>,
+        std::sync::Arc<crate::core::PEQData>,
+    ),
     ProfileSaved {
         name: String,
-        data: crate::core::PEQData,
+        data: std::sync::Arc<crate::core::PEQData>,
         result: Result<(), AppError>,
         context: crate::ui::messages::SaveContext,
     },

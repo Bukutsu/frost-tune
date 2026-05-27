@@ -116,33 +116,34 @@ struct ParsedFilterLine {
 }
 
 fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
-    let regex_match = line.find("Filter")?;
-    let rest = &line[regex_match..];
-    let rest_upper = rest.to_uppercase();
+    let lower = line.to_lowercase();
+    let filter_idx = lower.find("filter")?;
+    let rest = &line[filter_idx + 6..];
 
-    let idx_str: &str = rest.get(7..)?;
-    let idx: usize = idx_str
-        .trim_start()
-        .get(..idx_str.trim_start().find(|c: char| !c.is_ascii_digit())?)?
-        .parse()
-        .ok()?;
+    let mut digits = String::new();
+    let mut found_digit = false;
+    for c in rest.chars() {
+        if c.is_ascii_digit() {
+            digits.push(c);
+            found_digit = true;
+        } else if found_digit {
+            break;
+        }
+    }
+
+    let idx: usize = digits.parse().ok()?;
     let idx = idx.saturating_sub(1);
 
-    let on_off = if rest_upper.contains("ON") {
-        true
-    } else if rest_upper.contains("OFF") {
-        false
-    } else {
-        return None;
-    };
+    let on_off = !lower.contains("off");
+    let rest_upper = rest.to_uppercase();
 
     let filter_type = if contains_token(&rest_upper, "LSC") || contains_token(&rest_upper, "LSQ") {
         FilterType::LowShelf
     } else if contains_token(&rest_upper, "HSC") || contains_token(&rest_upper, "HSQ") {
         FilterType::HighShelf
-    } else if contains_token(&rest_upper, "HP") {
+    } else if contains_token(&rest_upper, "HP") || contains_token(&rest_upper, "HPF") {
         FilterType::HighPass
-    } else if contains_token(&rest_upper, "LP") {
+    } else if contains_token(&rest_upper, "LP") || contains_token(&rest_upper, "LPF") {
         FilterType::LowPass
     } else if contains_token(&rest_upper, "LS") {
         FilterType::LowShelf
@@ -153,8 +154,12 @@ fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
     };
 
     let freq = extract_fc_value(rest).or_else(|| extract_number_after(rest, "Fc"))?;
-    let gain = extract_gain_value(rest).or_else(|| extract_number_after(rest, "Gain"))?;
-    let q = extract_q_value(rest).or_else(|| extract_number_after(rest, "Q"))?;
+    let gain = extract_gain_value(rest)
+        .or_else(|| extract_number_after(rest, "Gain"))
+        .unwrap_or(0.0);
+    let q = extract_q_value(rest)
+        .or_else(|| extract_number_after(rest, "Q"))
+        .unwrap_or(1.0);
 
     Some(ParsedFilterLine {
         index: idx,
@@ -382,13 +387,10 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
 
     #[test]
     fn test_parse_lsq_missing_q_fallback() {
-        // Shelf type with missing Q should NOT succeed and parse Q as 80.0
+        // Shelf type with missing Q should default to 1.0 rather than failing
         let text = "Filter 1: ON LSQ Fc 80 Hz Gain -3.0 dB";
-        let result = parse_autoeq_text(text);
-        assert!(
-            result.is_err(),
-            "Missing Q should fail to parse rather than parsing frequency as Q"
-        );
+        let (result, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.filters[0].q, 1.0);
     }
 
     #[test]

@@ -53,33 +53,34 @@ pub struct PushPayload {
 }
 
 impl PushPayload {
-    pub fn clamp(
-        &mut self,
-        freq_range: (u16, u16),
-        gain_range: (f64, f64),
-        q_range: (f64, f64),
-        global_gain_range: (i8, i8),
-    ) {
+    pub fn new_validated(
+        filters: Vec<Filter>,
+        global_gain: Option<i8>,
+        caps: &crate::core::device::DeviceCapabilities,
+    ) -> Result<Self, String> {
+        let mut payload = Self {
+            filters,
+            global_gain,
+        };
+        payload.clamp(caps);
+        payload.is_valid(caps)?;
+        Ok(payload)
+    }
+
+    pub fn clamp(&mut self, caps: &crate::core::device::DeviceCapabilities) {
         for filter in &mut self.filters {
-            filter.clamp(freq_range, gain_range, q_range);
+            filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
         }
         if let Some(gain) = self.global_gain {
-            self.global_gain = Some(gain.clamp(global_gain_range.0, global_gain_range.1));
+            self.global_gain = Some(gain.clamp(caps.global_gain_range.0, caps.global_gain_range.1));
         }
     }
 
-    pub fn is_valid(
-        &self,
-        num_bands: usize,
-        freq_range: (u16, u16),
-        gain_range: (f64, f64),
-        q_range: (f64, f64),
-        global_gain_range: (i8, i8),
-    ) -> Result<(), String> {
-        if self.filters.len() != num_bands {
+    pub fn is_valid(&self, caps: &crate::core::device::DeviceCapabilities) -> Result<(), String> {
+        if self.filters.len() != caps.num_bands {
             return Err(format!(
                 "Expected {} filters, got {}",
-                num_bands,
+                caps.num_bands,
                 self.filters.len()
             ));
         }
@@ -90,18 +91,30 @@ impl PushPayload {
             if !f.q.is_finite() {
                 return Err(format!("Band {} Q is not a finite number", f.index));
             }
-            if f.freq < freq_range.0 || f.freq > freq_range.1 {
+            if f.freq < caps.freq_range.0 || f.freq > caps.freq_range.1 {
                 return Err(format!("Band {} freq out of range: {}", f.index, f.freq));
             }
-            if f.gain < gain_range.0 || f.gain > gain_range.1 {
+            if f.gain < caps.band_gain_range.0 || f.gain > caps.band_gain_range.1 {
                 return Err(format!("Band {} gain out of range: {}", f.index, f.gain));
             }
-            if f.q < q_range.0 || f.q > q_range.1 {
+            if f.q < caps.q_range.0 || f.q > caps.q_range.1 {
                 return Err(format!("Band {} Q out of range: {}", f.index, f.q));
+            }
+            if !caps.supported_filter_types.supports(f.filter_type) {
+                return Err(format!(
+                    "Band {} uses unsupported filter type: {:?}",
+                    f.index, f.filter_type
+                ));
+            }
+            if !caps.supports_per_band_enable && !f.enabled {
+                return Err(format!(
+                    "Band {} cannot be disabled on this hardware",
+                    f.index
+                ));
             }
         }
         if let Some(gain) = self.global_gain {
-            if !(global_gain_range.0..=global_gain_range.1).contains(&gain) {
+            if !(caps.global_gain_range.0..=caps.global_gain_range.1).contains(&gain) {
                 return Err(format!("Global gain out of range: {}", gain));
             }
         }

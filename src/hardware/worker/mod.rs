@@ -9,18 +9,17 @@ use crate::error::{AppError, ErrorKind};
 use crate::hardware::{ConnectionResult, OperationResult, PushPayload};
 
 pub mod backend;
+pub mod connection;
+pub mod discovery;
 pub mod local_thread;
 
 pub use backend::BackendKind;
 use local_thread::{run_local_worker, LocalCommand, LocalStatus};
 
 #[cfg(target_os = "linux")]
-use crate::hardware::elevated_transport::ElevatedTransport;
-#[cfg(target_os = "linux")]
 use crate::hardware::helper_ipc::{HelperRequest, HelperResponse};
 #[cfg(target_os = "linux")]
 use crate::hardware::transport::Transport;
-
 #[derive(Debug, Clone)]
 pub struct WorkerStatus {
     pub connected: bool,
@@ -122,7 +121,7 @@ impl Default for UsbWorker {
 
 // ─── Active backend ───────────────────────────────────────────────────────────
 
-enum ActiveBackend {
+pub(crate) enum ActiveBackend {
     Local,
     #[cfg(target_os = "linux")]
     Elevated {
@@ -135,26 +134,32 @@ enum ActiveBackend {
 
 struct UsbWorkerState {
     local_tx: std_mpsc::Sender<LocalCommand>,
-    backend: Option<ActiveBackend>,
-    preferred_backend: BackendKind,
+    connection_manager: connection::ConnectionManager,
 }
 
 impl UsbWorkerState {
     fn new(local_tx: std_mpsc::Sender<LocalCommand>) -> Self {
         Self {
             local_tx,
-            backend: None,
-            preferred_backend: BackendKind::Local,
+            connection_manager: connection::ConnectionManager::new(),
         }
     }
 
     async fn process_command(&mut self, cmd: UsbCommand) {
         match cmd {
             UsbCommand::Connect(device, backend, resp) => {
-                let _ = resp.send(self.handle_connect(device, backend).await);
+                let _ = resp.send(
+                    self.connection_manager
+                        .handle_connect(&self.local_tx, device, backend)
+                        .await,
+                );
             }
             UsbCommand::Disconnect(resp) => {
-                let _ = resp.send(self.handle_disconnect().await);
+                let _ = resp.send(
+                    self.connection_manager
+                        .handle_disconnect(&self.local_tx)
+                        .await,
+                );
             }
             UsbCommand::Status(resp) => {
                 let _ = resp.send(self.handle_status().await);
@@ -169,133 +174,6 @@ impl UsbWorkerState {
                 let _ = resp.send(self.handle_reset().await);
             }
         }
-    }
-
-    async fn handle_connect(
-        &mut self,
-        target_device: Option<DeviceInfo>,
-        target_backend: Option<BackendKind>,
-    ) -> ConnectionResult {
-        let target = target_backend.unwrap_or(self.preferred_backend);
-
-        #[cfg(target_os = "linux")]
-        if target == BackendKind::Elevated {
-            return self.connect_elevated(target_device).await;
-        }
-
-        self.connect_local(target_device).await
-    }
-
-    async fn connect_local(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
-        let (ltx, lrx) = oneshot::channel();
-        if self
-            .local_tx
-            .send(LocalCommand::Connect(target_device.clone(), ltx))
-            .is_ok()
-        {
-            if let Ok(res) = lrx.await {
-                if res.success {
-                    self.backend = Some(ActiveBackend::Local);
-                    self.preferred_backend = BackendKind::Local;
-                    return res;
-                }
-
-                #[cfg(target_os = "linux")]
-                if res
-                    .error
-                    .as_ref()
-                    .is_some_and(|e| e.kind == ErrorKind::PermissionDenied)
-                {
-                    return self.connect_elevated(target_device).await;
-                }
-
-                return res;
-            }
-        }
-        ConnectionResult {
-            success: false,
-            device: None,
-            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    async fn connect_elevated(&mut self, target_device: Option<DeviceInfo>) -> ConnectionResult {
-        match ElevatedTransport::spawn().await {
-            Ok(transport) => {
-                match transport
-                    .round_trip(&HelperRequest::Connect {
-                        device: target_device,
-                    })
-                    .await
-                {
-                    Ok(HelperResponse::Connected { device: Some(info) }) => {
-                        let (ltx, _) = oneshot::channel();
-                        let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
-                        self.backend = Some(ActiveBackend::Elevated {
-                            transport: Box::new(transport),
-                            device_info: Some(info.clone()),
-                        });
-                        self.preferred_backend = BackendKind::Elevated;
-                        ConnectionResult {
-                            success: true,
-                            device: Some(info),
-                            error: None,
-                        }
-                    }
-                    Ok(HelperResponse::Error { error }) => ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(error),
-                    },
-                    Ok(_) => ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(AppError::new(
-                            ErrorKind::IpcError,
-                            "Elevated helper handshake failed",
-                        )),
-                    },
-                    Err(e) => ConnectionResult {
-                        success: false,
-                        device: None,
-                        error: Some(e),
-                    },
-                }
-            }
-            Err(spawn_err) => ConnectionResult {
-                success: false,
-                device: None,
-                error: Some(spawn_err),
-            },
-        }
-    }
-
-    async fn handle_disconnect(&mut self) -> OperationResult {
-        #[cfg(target_os = "linux")]
-        if let Some(ActiveBackend::Elevated { .. }) = &self.backend {
-            if let Some(ActiveBackend::Elevated {
-                transport: mut t, ..
-            }) = self.backend.take()
-            {
-                let _ = t.round_trip(&HelperRequest::Disconnect).await;
-                t.shutdown();
-            }
-            return OperationResult {
-                success: true,
-                data: None,
-                error: None,
-            };
-        }
-
-        self.backend = None;
-        let (ltx, lrx) = oneshot::channel();
-        let _ = self.local_tx.send(LocalCommand::Disconnect(ltx));
-        lrx.await.unwrap_or(OperationResult {
-            success: false,
-            data: None,
-            error: Some(AppError::new(ErrorKind::Unknown, "Worker thread died")),
-        })
     }
 
     async fn handle_status(&mut self) -> WorkerStatus {
@@ -323,13 +201,14 @@ impl UsbWorkerState {
 
         #[cfg(target_os = "linux")]
         {
-            // Immutable borrow ends before any self.backend mutation below.
-            let elevated_result =
-                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
-                    Some(transport.round_trip(&HelperRequest::Status).await)
-                } else {
-                    None
-                };
+            // Immutable borrow ends before any self.connection_manager.backend mutation below.
+            let elevated_result = if let Some(ActiveBackend::Elevated { transport, .. }) =
+                &self.connection_manager.backend
+            {
+                Some(transport.round_trip(&HelperRequest::Status).await)
+            } else {
+                None
+            };
 
             match elevated_result {
                 Some(Ok(HelperResponse::Status {
@@ -337,36 +216,40 @@ impl UsbWorkerState {
                     physically_present,
                     device,
                 })) => {
-                    let fallback =
-                        if let Some(ActiveBackend::Elevated { device_info, .. }) = &self.backend {
-                            device_info.clone()
-                        } else {
-                            None
-                        };
+                    let fallback = if let Some(ActiveBackend::Elevated { device_info, .. }) =
+                        &self.connection_manager.backend
+                    {
+                        device_info.clone()
+                    } else {
+                        None
+                    };
                     status.connected = connected;
                     status.physically_present = physically_present;
                     status.device = device.or(fallback);
                     if !connected {
-                        self.backend = None;
+                        self.connection_manager.backend = None;
                     }
                 }
                 Some(_) => {
-                    self.backend = None;
+                    self.connection_manager.backend = None;
                     status.connected = false;
                     status.backend_reset = true;
                 }
                 None => {
-                    if matches!(self.backend, Some(ActiveBackend::Local)) && !local_status.connected
+                    if matches!(self.connection_manager.backend, Some(ActiveBackend::Local))
+                        && !local_status.connected
                     {
-                        self.backend = None;
+                        self.connection_manager.backend = None;
                     }
                 }
             }
         }
 
         #[cfg(not(target_os = "linux"))]
-        if matches!(self.backend, Some(ActiveBackend::Local)) && !local_status.connected {
-            self.backend = None;
+        if matches!(self.connection_manager.backend, Some(ActiveBackend::Local))
+            && !local_status.connected
+        {
+            self.connection_manager.backend = None;
         }
 
         status
@@ -375,16 +258,17 @@ impl UsbWorkerState {
     async fn handle_pull(&mut self) -> OperationResult {
         #[cfg(target_os = "linux")]
         {
-            let elevated_result =
-                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
-                    Some(
-                        transport
-                            .round_trip(&HelperRequest::PullPeq { strict: false })
-                            .await,
-                    )
-                } else {
-                    None
-                };
+            let elevated_result = if let Some(ActiveBackend::Elevated { transport, .. }) =
+                &self.connection_manager.backend
+            {
+                Some(
+                    transport
+                        .round_trip(&HelperRequest::PullPeq { strict: false })
+                        .await,
+                )
+            } else {
+                None
+            };
 
             if let Some(response) = elevated_result {
                 return match response {
@@ -406,7 +290,7 @@ impl UsbWorkerState {
                         error: Some(error),
                     },
                     _ => {
-                        self.backend = None;
+                        self.connection_manager.backend = None;
                         OperationResult {
                             success: false,
                             data: None,
@@ -429,20 +313,21 @@ impl UsbWorkerState {
     async fn handle_push(&mut self, payload: PushPayload, skip_verify: bool) -> OperationResult {
         #[cfg(target_os = "linux")]
         {
-            let elevated_result =
-                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
-                    Some(
-                        transport
-                            .round_trip(&HelperRequest::PushPeq {
-                                filters: payload.filters.clone(),
-                                global_gain: payload.global_gain,
-                                skip_verify,
-                            })
-                            .await,
-                    )
-                } else {
-                    None
-                };
+            let elevated_result = if let Some(ActiveBackend::Elevated { transport, .. }) =
+                &self.connection_manager.backend
+            {
+                Some(
+                    transport
+                        .round_trip(&HelperRequest::PushPeq {
+                            filters: payload.filters.clone(),
+                            global_gain: payload.global_gain,
+                            skip_verify,
+                        })
+                        .await,
+                )
+            } else {
+                None
+            };
 
             if let Some(response) = elevated_result {
                 return match response {
@@ -464,7 +349,7 @@ impl UsbWorkerState {
                         error: Some(error),
                     },
                     _ => {
-                        self.backend = None;
+                        self.connection_manager.backend = None;
                         OperationResult {
                             success: false,
                             data: None,
@@ -489,12 +374,13 @@ impl UsbWorkerState {
     async fn handle_reset(&mut self) -> OperationResult {
         #[cfg(target_os = "linux")]
         {
-            let elevated_result =
-                if let Some(ActiveBackend::Elevated { transport, .. }) = &self.backend {
-                    Some(transport.round_trip(&HelperRequest::ResetPeq).await)
-                } else {
-                    None
-                };
+            let elevated_result = if let Some(ActiveBackend::Elevated { transport, .. }) =
+                &self.connection_manager.backend
+            {
+                Some(transport.round_trip(&HelperRequest::ResetPeq).await)
+            } else {
+                None
+            };
 
             if let Some(response) = elevated_result {
                 return match response {
@@ -516,7 +402,7 @@ impl UsbWorkerState {
                         error: Some(error),
                     },
                     _ => {
-                        self.backend = None;
+                        self.connection_manager.backend = None;
                         OperationResult {
                             success: false,
                             data: None,

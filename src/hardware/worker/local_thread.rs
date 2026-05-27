@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::oneshot;
 
 use crate::core::DeviceInfo;
 use crate::error::{AppError, ErrorKind};
-use crate::hardware::device_io::{DiscoveryProvider, PhysicalInterface};
+use crate::hardware::device_io::PhysicalInterface;
 use crate::hardware::pipeline::{pull_with_retry, push_with_verify, reset_with_verify};
 use crate::hardware::{get_profile, DeviceProfile};
 use crate::hardware::{ConnectionResult, OperationResult, PushPayload};
@@ -31,10 +31,8 @@ pub struct LocalStatus {
 }
 
 pub struct LocalWorkerState {
-    pub discovery_providers: Vec<Box<dyn DiscoveryProvider>>,
+    pub discovery: crate::hardware::worker::discovery::DiscoveryManager,
     pub fatal_error: Option<String>,
-    pub last_physical_check: Instant,
-    pub check_interval: Duration,
 
     pub device: Option<Box<dyn PhysicalInterface>>,
     pub device_profile: Option<&'static dyn DeviceProfile>,
@@ -48,10 +46,8 @@ pub struct LocalWorkerState {
 impl LocalWorkerState {
     pub fn new(rx: mpsc::Receiver<LocalCommand>) -> Self {
         Self {
-            discovery_providers: vec![Box::new(crate::hardware::hid::HidDiscoveryProvider)],
+            discovery: crate::hardware::worker::discovery::DiscoveryManager::new(),
             fatal_error: None,
-            last_physical_check: Instant::now(),
-            check_interval: Duration::from_millis(1000),
 
             device: None,
             device_profile: None,
@@ -81,20 +77,9 @@ impl LocalWorkerState {
     }
 
     fn perform_physical_checks(&mut self) -> bool {
-        self.last_physical_check = Instant::now();
         let mut backend_reset = false;
 
-        let mut physically_connected = false;
-        for provider in &self.discovery_providers {
-            if let Ok(devices) = provider.list_devices() {
-                if let Some(ref current_info) = self.info {
-                    if devices.iter().any(|d| d.path == current_info.path) {
-                        physically_connected = true;
-                        break;
-                    }
-                }
-            }
-        }
+        let physically_connected = self.discovery.check_physical_presence(self.info.as_ref());
 
         if self.device.is_some() && !physically_connected {
             log::warn!("DAC physically disconnected (local backend)");
@@ -149,14 +134,10 @@ impl LocalWorkerState {
         let resolved_target = if let Some(target) = target_device {
             Some(target)
         } else {
+            let available_devices = self.discovery.list_devices();
             let mut first_discovered = None;
-            for provider in &self.discovery_providers {
-                if let Ok(devices) = provider.list_devices() {
-                    if let Some(first) = devices.first() {
-                        first_discovered = Some(first.clone());
-                        break;
-                    }
-                }
+            if let Some(first) = available_devices.first() {
+                first_discovered = Some(first.clone());
             }
             first_discovered
         };
@@ -187,7 +168,7 @@ impl LocalWorkerState {
             };
         }
 
-        for provider in &self.discovery_providers {
+        for provider in &self.discovery.providers {
             if let Ok(devices) = provider.list_devices() {
                 if devices.iter().any(|d| d.path == target.path) {
                     match provider.open_device(&target) {
@@ -225,13 +206,7 @@ impl LocalWorkerState {
     }
 
     fn handle_status(&mut self, backend_reset: bool) -> LocalStatus {
-        let mut available_devices = Vec::new();
-        for provider in &self.discovery_providers {
-            if let Ok(mut devs) = provider.list_devices() {
-                available_devices.append(&mut devs);
-            }
-        }
-
+        let available_devices = self.discovery.list_devices();
         let physically_present = !available_devices.is_empty();
 
         LocalStatus {
@@ -321,11 +296,21 @@ impl LocalWorkerState {
         };
         let proto = profile.protocol();
 
+        let mut validated_payload = payload;
+        validated_payload.clamp(&profile.capabilities());
+        if let Err(e) = validated_payload.is_valid(&profile.capabilities()) {
+            return OperationResult {
+                success: false,
+                data: None,
+                error: Some(AppError::new(ErrorKind::InvalidPayload, e)),
+            };
+        }
+
         match push_with_verify(
             device,
             profile,
             proto.as_ref(),
-            payload,
+            validated_payload,
             skip_verify,
             &check_in,
         ) {
@@ -391,10 +376,10 @@ pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
 
     loop {
         let now = Instant::now();
-        let time_since_check = now.duration_since(state.last_physical_check);
+        let time_since_check = now.duration_since(state.discovery.last_physical_check);
         let mut backend_reset = false;
 
-        if time_since_check >= state.check_interval {
+        if time_since_check >= state.discovery.check_interval {
             backend_reset = state.perform_physical_checks();
         }
 
@@ -404,7 +389,10 @@ pub fn run_local_worker(rx: mpsc::Receiver<LocalCommand>) {
             continue;
         }
 
-        let timeout = state.check_interval.saturating_sub(time_since_check);
+        let timeout = state
+            .discovery
+            .check_interval
+            .saturating_sub(time_since_check);
 
         let recv_result = state.rx.borrow_mut().recv_timeout(timeout);
         match recv_result {

@@ -146,10 +146,10 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
             };
 
             if let Some(name) = save_name {
-                let peq_data = crate::core::PEQData {
+                let peq_data = std::sync::Arc::new(crate::core::PEQData {
                     filters: window.editor.data.filters.clone(),
                     global_gain: window.editor.data.global_gain,
-                };
+                });
                 let name_clone = name.clone();
                 let peq_data_clone = peq_data.clone();
 

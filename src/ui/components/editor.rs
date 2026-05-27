@@ -137,12 +137,12 @@ pub enum ConfirmAction {
     ResetFilters,
     DeleteProfile,
     ImportAutoEQ {
-        data: crate::core::PEQData,
+        data: std::sync::Arc<crate::core::PEQData>,
         default_name: String,
     },
     OverwriteProfile {
         name: String,
-        data: crate::core::PEQData,
+        data: std::sync::Arc<crate::core::PEQData>,
     },
     PullDevice,
     PushToDevice,
@@ -164,10 +164,10 @@ pub const MAX_UNDO: usize = 50;
 
 impl EditorComponent {
     pub fn push_undo(&mut self) {
-        let snapshot = crate::core::PEQData {
+        let snapshot = std::sync::Arc::new(crate::core::PEQData {
             filters: self.data.filters.clone(),
             global_gain: self.data.global_gain,
-        };
+        });
         self.session.undo_stack.push(snapshot);
         if self.session.undo_stack.len() > MAX_UNDO {
             self.session.undo_stack.remove(0);
@@ -185,10 +185,10 @@ mod tests {
     #[test]
     fn push_undo_clears_redo_and_adds_undo_entry() {
         let mut state = EditorComponent::default();
-        state.session.redo_stack.push(PEQData {
+        state.session.redo_stack.push(std::sync::Arc::new(PEQData {
             filters: vec![],
             global_gain: 0,
-        });
+        }));
         assert_eq!(state.session.undo_stack.len(), 0);
         assert_eq!(state.session.redo_stack.len(), 1);
 
@@ -225,8 +225,8 @@ pub struct EditorSession {
     pub is_autoeq_active: bool,
     pub input_buffer: InputBuffer,
     pub pending_confirm: ConfirmAction,
-    pub undo_stack: Vec<crate::core::PEQData>,
-    pub redo_stack: Vec<crate::core::PEQData>,
+    pub undo_stack: Vec<std::sync::Arc<crate::core::PEQData>>,
+    pub redo_stack: Vec<std::sync::Arc<crate::core::PEQData>>,
     pub status_message: Option<StatusMessage>,
     pub import_name_input: String,
     pub new_profile_name: String,

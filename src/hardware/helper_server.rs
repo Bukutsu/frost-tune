@@ -46,29 +46,8 @@ fn push_logic(
 ) -> crate::error::Result<PEQData> {
     let proto = profile.protocol();
     let caps = profile.capabilities();
-    let num_bands = caps.num_bands;
 
-    let mut payload = PushPayload {
-        filters,
-        global_gain,
-    };
-
-    // Helper-side validation: NEVER trust the UI process blindly.
-    // Ensure the payload is clamped and valid for the hardware.
-    payload.clamp(
-        caps.freq_range,
-        caps.band_gain_range,
-        caps.q_range,
-        caps.global_gain_range,
-    );
-    payload
-        .is_valid(
-            num_bands,
-            caps.freq_range,
-            caps.band_gain_range,
-            caps.q_range,
-            caps.global_gain_range,
-        )
+    let payload = PushPayload::new_validated(filters, global_gain, &caps)
         .map_err(|e| AppError::new(ErrorKind::InvalidPayload, e))?;
 
     let dummy_check = || false;
@@ -201,7 +180,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                         },
                     },
                 );
-                continue;
+                break;
             }
         };
 
@@ -242,7 +221,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                         },
                     },
                 );
-                continue;
+                break;
             }
         };
 
@@ -258,7 +237,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                     },
                 },
             );
-            continue;
+            break;
         }
 
         let response_payload: HelperResponse = match request.payload {
@@ -375,24 +354,28 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                 Err(payload) => payload,
             },
             HelperRequest::Shutdown => {
-                write_response(
+                let _ = write_response(
                     &mut stdout_lock,
                     &IpcResponse {
                         id: request_id,
                         payload: HelperResponse::Ok,
                     },
-                )?;
+                );
                 break;
             }
         };
 
-        write_response(
+        if write_response(
             &mut stdout_lock,
             &IpcResponse {
                 id: request_id,
                 payload: response_payload,
             },
-        )?;
+        )
+        .is_err()
+        {
+            break;
+        }
     }
 
     Ok(())

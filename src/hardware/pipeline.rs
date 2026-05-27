@@ -179,21 +179,10 @@ pub fn push_with_verify(
     let caps = profile.capabilities();
     let num_bands = caps.num_bands;
     let dsp_sample_rate = caps.dsp_sample_rate;
-    payload.clamp(
-        caps.freq_range,
-        caps.band_gain_range,
-        caps.q_range,
-        caps.global_gain_range,
-    );
-    payload
-        .is_valid(
-            num_bands,
-            caps.freq_range,
-            caps.band_gain_range,
-            caps.q_range,
-            caps.global_gain_range,
-        )
-        .map_err(|e| AppError::new(ErrorKind::ParseError, e))?;
+    payload.clamp(&caps);
+    if let Err(e) = payload.is_valid(&caps) {
+        return Err(AppError::new(ErrorKind::InvalidPayload, e));
+    }
 
     wake_device(device, proto);
     let snapshot = pull_peq_data(device, proto, true, num_bands, check_in)?;

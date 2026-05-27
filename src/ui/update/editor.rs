@@ -287,12 +287,12 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
 
         Message::Editor(EditorMessage::Undo) => {
             if let Some(prev) = window.editor.session.undo_stack.pop() {
-                let current = crate::core::PEQData {
+                let current = std::sync::Arc::new(crate::core::PEQData {
                     filters: window.editor.data.filters.clone(),
                     global_gain: window.editor.data.global_gain,
-                };
+                });
                 window.editor.session.redo_stack.push(current);
-                window.editor.data.filters = prev.filters;
+                window.editor.data.filters = prev.filters.clone();
                 window.editor.data.global_gain = prev.global_gain;
                 window.editor.data.generation += 1;
                 window.editor.session.is_dirty = true;
@@ -302,12 +302,12 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Editor(EditorMessage::Redo) => {
             if let Some(next) = window.editor.session.redo_stack.pop() {
-                let current = crate::core::PEQData {
+                let current = std::sync::Arc::new(crate::core::PEQData {
                     filters: window.editor.data.filters.clone(),
                     global_gain: window.editor.data.global_gain,
-                };
+                });
                 window.editor.session.undo_stack.push(current);
-                window.editor.data.filters = next.filters;
+                window.editor.data.filters = next.filters.clone();
                 window.editor.data.global_gain = next.global_gain;
                 window.editor.data.generation += 1;
                 window.editor.session.is_dirty = true;

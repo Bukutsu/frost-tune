@@ -202,8 +202,11 @@ pub fn pull_peq_internal(
         let request = proto.build_filter_read_request(i, nonce);
         send_report(device, &request, framer)?;
 
-        let result = read_single_filter(device, proto, framer, &cfg, i, nonce);
+        let result = read_single_filter(device, proto, framer, &cfg, i, nonce, check_in);
         if strict && result.is_none() {
+            if check_in() {
+                return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+            }
             return Err(AppError::new(
                 ErrorKind::ReadTimeout,
                 format!("Failed to read filter {} (nonce: {})", i, nonce),
@@ -220,7 +223,7 @@ pub fn pull_peq_internal(
     validate_filter_reads(strict, had_mismatch)?;
 
     let global_nonce = session.next_nonce();
-    let global_gain = read_global_gain(device, proto, framer, &cfg, global_nonce)?;
+    let global_gain = read_global_gain(device, proto, framer, &cfg, global_nonce, check_in)?;
     let filters = assemble_filters(num_bands, filter_results);
 
     Ok(PEQData {
@@ -242,10 +245,14 @@ fn read_single_filter(
     cfg: &ReadTiming,
     expected_index: u8,
     nonce: u8,
+    check_in: &dyn Fn() -> bool,
 ) -> Option<Filter> {
     let mut attempts = 0;
     let mut mismatches = 0;
     while attempts < MAX_FILTER_READ_ATTEMPTS {
+        if check_in() {
+            return None;
+        }
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms) {
             Ok(count) if count > 0 => {
@@ -292,6 +299,7 @@ fn read_global_gain(
     framer: &dyn crate::hardware::PacketFramer,
     cfg: &ReadTiming,
     nonce: u8,
+    check_in: &dyn Fn() -> bool,
 ) -> Result<i8> {
     delay_ms(cfg.post_filter_read_ms);
     let request = proto.build_global_gain_request(nonce);
@@ -300,6 +308,9 @@ fn read_global_gain(
 
     let mut attempts = 0;
     while attempts < MAX_GLOBAL_GAIN_ATTEMPTS {
+        if check_in() {
+            return Err(AppError::new(ErrorKind::OperationCancelled, "Cancelled"));
+        }
         let mut buf = [0u8; 64];
         match device.read_timeout(&mut buf[..], cfg.read_timeout_ms) {
             Ok(count) if count > 0 => {

@@ -66,7 +66,7 @@ pub(crate) fn apply_peq_to_editor(window: &mut AppState, mut peq: PEQData) -> (b
 fn check_overwrite_and_save(
     window: &mut AppState,
     name: String,
-    data: PEQData,
+    data: std::sync::Arc<crate::core::PEQData>,
     context: crate::ui::messages::SaveContext,
 ) -> Task<Message> {
     let name_exists = window.editor.ui.profiles.iter().any(|p| p.name == name);
@@ -82,7 +82,7 @@ fn check_overwrite_and_save(
 fn do_save_profile(
     _window: &mut AppState,
     name: String,
-    data: PEQData,
+    data: std::sync::Arc<crate::core::PEQData>,
     context: crate::ui::messages::SaveContext,
 ) -> Task<Message> {
     let name_clone = name.clone();
@@ -240,7 +240,7 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 window.editor.session.pending_confirm.clone()
             {
                 window.editor.push_undo();
-                let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                let (was_truncated, enabled_count) = apply_peq_to_editor(window, (*data).clone());
                 window.editor.session.import_name_input = String::new();
                 window.editor.session.pending_confirm = ConfirmAction::None;
                 window.editor.session.is_dirty = true;
@@ -300,10 +300,10 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
             if name.is_empty() {
                 return window.set_status("Invalid profile name", StatusSeverity::Warning);
             }
-            let data = PEQData {
+            let data = std::sync::Arc::new(PEQData {
                 filters: window.editor.data.filters.clone(),
                 global_gain: window.editor.data.global_gain,
-            };
+            });
             check_overwrite_and_save(window, name, data, SaveContext::Standard)
         }
         Message::AutoEq(AutoEqMessage::ConfirmImportWithName) => {
@@ -495,7 +495,7 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 move |handle| {
                     Message::Profiles(ProfilesMessage::FileExported(
                         handle.map(|h| h.path().to_path_buf()),
-                        peq.clone(),
+                        std::sync::Arc::new(peq),
                     ))
                 },
             )
@@ -551,7 +551,8 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 }
                 SaveContext::ImportOverwrite => {
                     window.editor.push_undo();
-                    let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                    let (was_truncated, enabled_count) =
+                        apply_peq_to_editor(window, (*data).clone());
                     window.editor.session.import_name_input = String::new();
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.session.is_dirty = false;
@@ -597,7 +598,8 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 }
                 SaveContext::ImportWithName => {
                     window.editor.push_undo();
-                    let (was_truncated, enabled_count) = apply_peq_to_editor(window, data);
+                    let (was_truncated, enabled_count) =
+                        apply_peq_to_editor(window, (*data).clone());
                     window.editor.session.import_name_input = String::new();
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.ui.selected_profile_name = Some(name.clone());
@@ -634,7 +636,7 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 }
                 SaveContext::Overwrite => {
                     window.editor.push_undo();
-                    apply_peq_to_editor(window, data);
+                    apply_peq_to_editor(window, (*data).clone());
                     window.editor.session.pending_confirm = ConfirmAction::None;
                     window.editor.session.new_profile_name = name.clone();
                     window.editor.ui.selected_profile_name = Some(name.clone());
@@ -718,7 +720,7 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 window.editor.session.import_temporary = false;
                 window.editor.session.import_name_input.clear();
                 window.editor.session.pending_confirm = ConfirmAction::ImportAutoEQ {
-                    data: profile.data,
+                    data: std::sync::Arc::new(profile.data),
                     default_name: profile.name,
                 };
                 Task::none()
