@@ -13,7 +13,12 @@ fn ensure_dir(path: &PathBuf, kind: ErrorKind, message: &str) -> Result<()> {
 }
 
 pub(crate) fn get_base_dir() -> Result<PathBuf> {
-    let env_home = if nix::unistd::Uid::current().is_root() {
+    #[cfg(target_os = "linux")]
+    let is_root = nix::unistd::Uid::current().is_root();
+    #[cfg(not(target_os = "linux"))]
+    let is_root = false;
+
+    let env_home = if is_root {
         None
     } else {
         std::env::var("FROST_TUNE_HOME").ok()

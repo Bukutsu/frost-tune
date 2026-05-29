@@ -70,7 +70,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "frost-tune-v1"
+          shared-key: "frost-tune-${{ matrix.target }}"
           cache-directories: |
             ~/.cache/sccache
             ~/AppData/Local/Mozilla/sccache/cache
