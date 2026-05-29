@@ -1,12 +1,5 @@
 <a id="readme-top"></a>
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-
-<br />
 <div align="center">
   <a href="https://github.com/Bukutsu/frost-tune">
     <img src="assets/frost-tune.svg" alt="Frost-Tune" width="80" height="80">
@@ -15,6 +8,14 @@
 ## Frost-Tune
 
 Native parametric EQ editor for USB DACs. Offline, transactional, zero-latency.
+
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
+
+<br />
 
 [Download](https://github.com/Bukutsu/frost-tune/releases/latest) · [Usage](#usage) · [Report Bug](https://github.com/Bukutsu/frost-tune/issues/new?labels=bug) · [Request Feature](https://github.com/Bukutsu/frost-tune/issues/new?labels=enhancement)
 </div>
@@ -129,14 +130,14 @@ MIT. See `LICENSE`.
 - [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 - [devicePEQ](https://github.com/jeromeof/devicePEQ) for reverse-engineered DAC protocols
 
-[contributors-shield]: https://img.shields.io/github/contributors/Bukutsu/frost-tune.svg?style=for-the-badge
+[contributors-shield]: https://img.shields.io/github/contributors/Bukutsu/frost-tune?style=flat-square
 [contributors-url]: https://github.com/Bukutsu/frost-tune/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/Bukutsu/frost-tune.svg?style=for-the-badge
+[forks-shield]: https://img.shields.io/github/forks/Bukutsu/frost-tune?style=flat-square
 [forks-url]: https://github.com/Bukutsu/frost-tune/network/members
-[stars-shield]: https://img.shields.io/github/stars/Bukutsu/frost-tune.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/Bukutsu/frost-tune?style=flat-square
 [stars-url]: https://github.com/Bukutsu/frost-tune/stargazers
-[issues-shield]: https://img.shields.io/github/issues/Bukutsu/frost-tune.svg?style=for-the-badge
+[issues-shield]: https://img.shields.io/github/issues/Bukutsu/frost-tune?style=flat-square
 [issues-url]: https://github.com/Bukutsu/frost-tune/issues
-[license-shield]: https://img.shields.io/github/license/Bukutsu/frost-tune.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/Bukutsu/frost-tune?style=flat-square
 [license-url]: https://github.com/Bukutsu/frost-tune/blob/main/LICENSE
 [product-screenshot]: assets/screenshot.png
