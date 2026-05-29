@@ -9,10 +9,10 @@
 
 Native parametric EQ editor for USB DACs. Offline, transactional, zero-latency.
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
+[![Contributors][contributors-shield]][contributors-url] &nbsp;
+[![Forks][forks-shield]][forks-url] &nbsp;
+[![Stargazers][stars-shield]][stars-url] &nbsp;
+[![Issues][issues-shield]][issues-url] &nbsp;
 [![MIT License][license-shield]][license-url]
 
 <br />
@@ -130,14 +130,14 @@ MIT. See `LICENSE`.
 - [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 - [devicePEQ](https://github.com/jeromeof/devicePEQ) for reverse-engineered DAC protocols
 
-[contributors-shield]: https://img.shields.io/github/contributors/Bukutsu/frost-tune?style=flat-square
-[contributors-url]: https://github.com/Bukutsu/frost-tune/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/Bukutsu/frost-tune?style=flat-square
-[forks-url]: https://github.com/Bukutsu/frost-tune/network/members
-[stars-shield]: https://img.shields.io/github/stars/Bukutsu/frost-tune?style=flat-square
-[stars-url]: https://github.com/Bukutsu/frost-tune/stargazers
-[issues-shield]: https://img.shields.io/github/issues/Bukutsu/frost-tune?style=flat-square
-[issues-url]: https://github.com/Bukutsu/frost-tune/issues
-[license-shield]: https://img.shields.io/github/license/Bukutsu/frost-tune?style=flat-square
-[license-url]: https://github.com/Bukutsu/frost-tune/blob/main/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/bukutsu/frost-tune?style=flat&logo=github&color=blue
+[contributors-url]: https://github.com/bukutsu/frost-tune/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/bukutsu/frost-tune?style=flat&logo=github&color=blue
+[forks-url]: https://github.com/bukutsu/frost-tune/network/members
+[stars-shield]: https://img.shields.io/github/stars/bukutsu/frost-tune?style=flat&logo=github&color=brightgreen
+[stars-url]: https://github.com/bukutsu/frost-tune/stargazers
+[issues-shield]: https://img.shields.io/github/issues/bukutsu/frost-tune?style=flat&logo=github&color=important
+[issues-url]: https://github.com/bukutsu/frost-tune/issues
+[license-shield]: https://img.shields.io/github/license/bukutsu/frost-tune?style=flat&logo=github&color=brightgreen
+[license-url]: https://github.com/bukutsu/frost-tune/blob/main/LICENSE
 [product-screenshot]: assets/screenshot.png
