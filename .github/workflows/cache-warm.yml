@@ -8,6 +8,9 @@ on:
     - cron: '0 3 * * 0'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_HTTP_MULTIPLEXING: false
@@ -47,6 +50,7 @@ jobs:
           cache-directories: |
             ~/.cache/sccache
             ~/AppData/Local/Mozilla/sccache/cache
+          cache-targets: false
 
       - name: Enable sccache
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"

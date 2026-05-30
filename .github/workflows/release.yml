@@ -74,12 +74,16 @@ jobs:
           cache-directories: |
             ~/.cache/sccache
             ~/AppData/Local/Mozilla/sccache/cache
+          cache-targets: false
 
       - name: Enable sccache
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
+      - name: Test release build
+        run: cargo test --release --locked --target ${{ matrix.target }}
+
 
       - name: Install cargo-wix
         if: matrix.os == 'windows-latest'
@@ -142,11 +146,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: release-*
+          merge-multiple: true
 
-      - name: Flatten artifacts
-        run: |
-          find artifacts -type f -exec cp {} . \;
-          ls -la frost-tune-*
+      - name: List artifacts
+        run: ls -la frost-tune-*
 
       - uses: softprops/action-gh-release@v2
         with:

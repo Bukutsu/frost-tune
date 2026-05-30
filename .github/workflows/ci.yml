@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_HTTP_MULTIPLEXING: false
@@ -17,28 +20,44 @@ concurrency:
 
 jobs:
   test:
-    name: Test (Linux)
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            deps: libudev-dev pkg-config
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            deps: ""
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
       - uses: mozilla-actions/sccache-action@v0.0.7
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.deps }}
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "frost-tune-v1"
+          shared-key: "frost-tune-${{ matrix.target }}"
           save-if: ${{ github.event_name != 'pull_request' }}
-          cache-directories: ~/.cache/sccache
+          cache-directories: |
+            ~/.cache/sccache
+            ~/AppData/Local/Mozilla/sccache/cache
+          cache-targets: false
 
       - name: Enable sccache
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        shell: bash
 
       - name: Format check
         run: cargo fmt --all -- --check
@@ -55,3 +74,15 @@ jobs:
       - name: sccache stats
         if: always()
         run: sccache --show-stats || true
+        shell: bash
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: Run cargo audit
+        run: cargo audit
