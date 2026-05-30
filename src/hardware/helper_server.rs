@@ -153,6 +153,10 @@ fn write_response(
 
 #[cfg(target_os = "linux")]
 pub fn run(ipc_token: String) -> crate::error::Result<()> {
+    // Ensure the helper process is terminated if the parent (UI) dies.
+    unsafe {
+        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+    }
     let provider = crate::hardware::hid::HidDiscoveryProvider;
     let mut device: Option<Box<dyn PhysicalInterface>> = None;
     let mut device_info: Option<DeviceInfo> = None;
@@ -168,7 +172,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
         let bytes_read = match stdin_lock.by_ref().take(65536).read_line(&mut line) {
             Ok(n) => n,
             Err(e) => {
-                let _ = write_response(
+                if let Err(write_err) = write_response(
                     &mut stdout_lock,
                     &IpcResponse {
                         id: 0,
@@ -179,7 +183,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                             ),
                         },
                     },
-                );
+                ) {
+                    log::error!("Failed to write IPC error response: {}", write_err);
+                }
                 break;
             }
         };
@@ -189,7 +195,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
         }
 
         if bytes_read == 65536 && !line.ends_with('\n') {
-            let _ = write_response(
+            if let Err(e) = write_response(
                 &mut stdout_lock,
                 &IpcResponse {
                     id: 0,
@@ -197,7 +203,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                         error: AppError::new(ErrorKind::IpcError, "Request payload too large"),
                     },
                 },
-            );
+            ) {
+                log::error!("Failed to write IPC error response: {}", e);
+            }
             break; // Abort connection on oversized payload to prevent OOM
         }
 
@@ -209,7 +217,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
         let request = match serde_json::from_str::<IpcRequest>(line) {
             Ok(r) => r,
             Err(e) => {
-                let _ = write_response(
+                if let Err(write_err) = write_response(
                     &mut stdout_lock,
                     &IpcResponse {
                         id: 0,
@@ -220,7 +228,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                             ),
                         },
                     },
-                );
+                ) {
+                    log::error!("Failed to write IPC error response: {}", write_err);
+                }
                 break;
             }
         };
@@ -228,7 +238,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
         let request_id = request.id;
 
         if request.auth != ipc_token {
-            let _ = write_response(
+            if let Err(e) = write_response(
                 &mut stdout_lock,
                 &IpcResponse {
                     id: request_id,
@@ -236,7 +246,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                         error: AppError::new(ErrorKind::IpcError, "Authentication token mismatch"),
                     },
                 },
-            );
+            ) {
+                log::error!("Failed to write IPC error response: {}", e);
+            }
             break;
         }
 
@@ -354,26 +366,27 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                 Err(payload) => payload,
             },
             HelperRequest::Shutdown => {
-                let _ = write_response(
+                if let Err(e) = write_response(
                     &mut stdout_lock,
                     &IpcResponse {
                         id: request_id,
                         payload: HelperResponse::Ok,
                     },
-                );
+                ) {
+                    log::error!("Failed to write shutdown response: {}", e);
+                }
                 break;
             }
         };
 
-        if write_response(
+        if let Err(e) = write_response(
             &mut stdout_lock,
             &IpcResponse {
                 id: request_id,
                 payload: response_payload,
             },
-        )
-        .is_err()
-        {
+        ) {
+            log::error!("Failed to write IPC response: {}", e);
             break;
         }
     }

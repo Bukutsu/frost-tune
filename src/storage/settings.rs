@@ -26,7 +26,9 @@ pub fn load_settings() -> Settings {
                 })?;
                 let settings = serde_json::from_str(&content).map_err(|e| {
                     let bad_path = path.with_extension("json.bad");
-                    let _ = fs::rename(&path, &bad_path);
+                    if let Err(err) = fs::rename(&path, &bad_path) {
+                        log::warn!("Failed to rename corrupted settings: {}", err);
+                    }
                     log::error!(
                         "Corrupted settings.json detected. Renamed to settings.json.bad. Error: {}",
                         e
@@ -47,26 +49,30 @@ pub fn load_settings() -> Settings {
         })
 }
 
-pub fn save_settings(settings: Settings) -> Result<()> {
-    let path = get_base_dir()?.join("settings.json");
-    let tmp_path = path.with_extension("tmp");
-    let content = serde_json::to_string_pretty(&settings).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to serialize settings: {}", e),
-        )
-    })?;
-    fs::write(&tmp_path, content).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to write temporary settings file: {}", e),
-        )
-    })?;
-    fs::rename(&tmp_path, &path).map_err(|e| {
-        AppError::new(
-            ErrorKind::StorageError,
-            format!("Failed to rename temporary settings file: {}", e),
-        )
-    })?;
-    Ok(())
+pub async fn save_settings(settings: Settings) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        let path = get_base_dir()?.join("settings.json");
+        let tmp_path = path.with_extension("tmp");
+        let content = serde_json::to_string_pretty(&settings).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to serialize settings: {}", e),
+            )
+        })?;
+        fs::write(&tmp_path, content).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to write temporary settings file: {}", e),
+            )
+        })?;
+        fs::rename(&tmp_path, &path).map_err(|e| {
+            AppError::new(
+                ErrorKind::StorageError,
+                format!("Failed to rename temporary settings file: {}", e),
+            )
+        })?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorKind::StorageError, format!("Task panic: {}", e)))?
 }

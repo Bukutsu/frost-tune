@@ -1089,6 +1089,7 @@ dependencies = [
  "env_logger",
  "hidapi",
  "iced",
+ "libc",
  "log",
  "nix 0.27.1",
  "rfd",

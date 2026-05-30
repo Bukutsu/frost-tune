@@ -8,12 +8,12 @@ use thiserror::Error;
 #[error("{message}")]
 pub struct AppError {
     pub kind: ErrorKind,
-    pub message: String,
+    pub message: std::borrow::Cow<'static, str>,
     pub context: Option<String>,
 }
 
 impl AppError {
-    pub fn new(kind: ErrorKind, msg: impl Into<String>) -> Self {
+    pub fn new(kind: ErrorKind, msg: impl Into<std::borrow::Cow<'static, str>>) -> Self {
         AppError {
             kind,
             message: msg.into(),
@@ -21,7 +21,7 @@ impl AppError {
         }
     }
 
-    pub fn general(msg: impl Into<String>) -> Self {
+    pub fn general(msg: impl Into<std::borrow::Cow<'static, str>>) -> Self {
         AppError::new(ErrorKind::Unknown, msg)
     }
 
@@ -43,7 +43,7 @@ impl From<String> for AppError {
 
 impl From<&str> for AppError {
     fn from(s: &str) -> Self {
-        AppError::general(s)
+        AppError::general(s.to_string())
     }
 }
 

@@ -220,6 +220,15 @@ use std::io::Write;
 
 pub fn append_diagnostics_log(line: &str) -> Result<()> {
     let path = crate::storage::get_diagnostics_log_path()?;
+
+    if let Ok(metadata) = fs::metadata(&path) {
+        if metadata.len() > 5 * 1024 * 1024 {
+            let backup_path = path.with_extension("log.1");
+            if let Err(e) = fs::rename(&path, &backup_path) {
+                log::warn!("Failed to rotate diagnostics log: {}", e);
+            }
+        }
+    }
     let mut file = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -266,18 +275,7 @@ pub fn load_recent_diagnostics(limit: usize) -> Result<Vec<String>> {
     })?;
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-    const MAX_LOG_LINES: usize = 5000;
-    if lines.len() > MAX_LOG_LINES {
-        let keep_count = limit.clamp(100, 2000);
-        lines = lines.split_off(lines.len() - keep_count);
-        let tmp = path.with_extension("log.tmp");
-        if let Err(e) =
-            fs::write(&tmp, lines.join("\n") + "\n").and_then(|_| fs::rename(&tmp, &path))
-        {
-            log::warn!("Failed to truncate diagnostics log: {}", e);
-            let _ = fs::remove_file(&tmp);
-        }
-    } else if lines.len() > limit {
+    if lines.len() > limit {
         lines = lines.split_off(lines.len() - limit);
     }
 

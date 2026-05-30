@@ -16,7 +16,10 @@ fn timed_out_connection_result(error_message: &str) -> ConnectionResult {
     ConnectionResult {
         success: false,
         device: None,
-        error: Some(AppError::new(ErrorKind::IpcError, error_message)),
+        error: Some(AppError::new(
+            ErrorKind::IpcError,
+            error_message.to_string(),
+        )),
     }
 }
 
@@ -278,7 +281,7 @@ pub fn handle_connection(window: &mut AppState, message: Message) -> Task<Messag
                     .error
                     .unwrap_or_else(|| AppError::new(ErrorKind::Unknown, "Unknown error"));
                 let user_error = match err.kind {
-                    ErrorKind::PolkitAuthRequired => err.message.clone(),
+                    ErrorKind::PolkitAuthRequired => err.message.to_string(),
                     _ => err.user_message().to_string(),
                 };
                 window.connection.status = ConnectionStatus::Error(user_error.clone());

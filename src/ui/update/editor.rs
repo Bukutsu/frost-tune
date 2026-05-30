@@ -330,6 +330,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
                         auto_pull_on_connect: enabled,
                         skip_push_verification: settings.skip_push_verification,
                     })
+                    .await
                     .map_err(|e| {
                         crate::error::AppError::new(
                             crate::error::ErrorKind::StorageError,
@@ -349,6 +350,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
                         auto_pull_on_connect: settings.auto_pull_on_connect,
                         skip_push_verification: enabled,
                     })
+                    .await
                     .map_err(|e| {
                         crate::error::AppError::new(
                             crate::error::ErrorKind::StorageError,

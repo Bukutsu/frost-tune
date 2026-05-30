@@ -55,13 +55,22 @@ impl UsbWorker {
         let (local_tx, local_rx) = std_mpsc::channel();
         std::thread::spawn(move || run_local_worker(local_rx));
 
+        let (internal_tx, mut internal_rx) = mpsc::channel(4);
+
         tokio::spawn(async move {
             let mut state = UsbWorkerState::new(local_tx);
-            while let Some(cmd) = rx.recv().await {
-                state.process_command(cmd).await;
+            loop {
+                tokio::select! {
+                    Some(cmd) = rx.recv() => {
+                        state.process_command(cmd, &internal_tx).await;
+                    }
+                    Some(internal_cmd) = internal_rx.recv() => {
+                        state.process_internal(internal_cmd).await;
+                    }
+                    else => break,
+                }
             }
         });
-
         UsbWorker { tx }
     }
 
@@ -132,9 +141,18 @@ pub(crate) enum ActiveBackend {
 
 // ─── Worker state ─────────────────────────────────────────────────────────────
 
+pub(crate) enum InternalCommand {
+    ConnectDone(
+        connection::ConnectionManager,
+        ConnectionResult,
+        oneshot::Sender<ConnectionResult>,
+    ),
+}
+
 struct UsbWorkerState {
     local_tx: std_mpsc::Sender<LocalCommand>,
     connection_manager: connection::ConnectionManager,
+    pending_connect: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl UsbWorkerState {
@@ -142,19 +160,45 @@ impl UsbWorkerState {
         Self {
             local_tx,
             connection_manager: connection::ConnectionManager::new(),
+            pending_connect: None,
         }
     }
 
-    async fn process_command(&mut self, cmd: UsbCommand) {
+    async fn process_internal(&mut self, cmd: InternalCommand) {
+        match cmd {
+            InternalCommand::ConnectDone(cm, res, resp) => {
+                self.connection_manager = cm;
+                self.pending_connect = None;
+                let _ = resp.send(res);
+            }
+        }
+    }
+
+    async fn process_command(
+        &mut self,
+        cmd: UsbCommand,
+        internal_tx: &mpsc::Sender<InternalCommand>,
+    ) {
         match cmd {
             UsbCommand::Connect(device, backend, resp) => {
-                let _ = resp.send(
-                    self.connection_manager
-                        .handle_connect(&self.local_tx, device, backend)
-                        .await,
-                );
+                if let Some(task) = self.pending_connect.take() {
+                    task.abort();
+                }
+                let mut cm = std::mem::take(&mut self.connection_manager);
+                let local_tx = self.local_tx.clone();
+                let internal_tx_clone = internal_tx.clone();
+
+                self.pending_connect = Some(tokio::spawn(async move {
+                    let res = cm.handle_connect(&local_tx, device, backend).await;
+                    let _ = internal_tx_clone
+                        .send(InternalCommand::ConnectDone(cm, res, resp))
+                        .await;
+                }));
             }
             UsbCommand::Disconnect(resp) => {
+                if let Some(task) = self.pending_connect.take() {
+                    task.abort();
+                }
                 let _ = resp.send(
                     self.connection_manager
                         .handle_disconnect(&self.local_tx)

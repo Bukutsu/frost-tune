@@ -117,11 +117,21 @@ pub async fn save_profile(name: &str, data: &PEQData) -> Result<()> {
     // Directory sync is only meaningful/supported on Unix-like operating systems
     #[cfg(unix)]
     if let Ok(dir_file) = fs::File::open(&dir).await {
-        let _ = dir_file.sync_all().await;
+        if let Err(e) = dir_file.sync_all().await {
+            log::error!("Failed to sync directory after saving profile: {}", e);
+        }
     }
 
     // Cleanup tmp file if it still exists (e.g., if rename succeeded or failed)
-    let _ = fs::remove_file(&tmp_path).await;
+    if let Err(e) = fs::remove_file(&tmp_path).await {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            log::error!(
+                "Failed to clean up temporary file {}: {}",
+                tmp_path.display(),
+                e
+            );
+        }
+    }
 
     Ok(())
 }
