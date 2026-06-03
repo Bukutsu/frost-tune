@@ -8,8 +8,8 @@ fn main() {
     #[cfg(target_os = "linux")]
     {
         let args: Vec<String> = std::env::args().collect();
-        if let Some(pos) = args.iter().position(|arg| arg == "--hid-helper") {
-            let token = args.get(pos + 1).cloned().unwrap_or_default();
+        if args.iter().any(|arg| arg == "--hid-helper") {
+            let token = std::env::var("FROST_TUNE_IPC_TOKEN").unwrap_or_default();
             if let Err(e) = frost_tune::hardware::helper_server::run(token) {
                 eprintln!("frost-tune --hid-helper error: {}", e);
                 std::process::exit(1);

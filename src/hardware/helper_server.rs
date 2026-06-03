@@ -150,6 +150,24 @@ fn write_response(
         .map_err(|e| AppError::general(format!("Failed flushing response: {}", e)))?;
     Ok(())
 }
+#[cfg(target_os = "linux")]
+fn wrap_peq_response<F>(res: crate::error::Result<PEQData>, constructor: F) -> HelperResponse
+where
+    F: FnOnce(serde_json::Value) -> HelperResponse,
+{
+    match res {
+        Ok(peq) => match serde_json::to_value(peq) {
+            Ok(value) => constructor(value),
+            Err(e) => HelperResponse::Error {
+                error: AppError::new(
+                    ErrorKind::ParseError,
+                    format!("Serialization failed: {}", e),
+                ),
+            },
+        },
+        Err(e) => HelperResponse::Error { error: e },
+    }
+}
 
 #[cfg(target_os = "linux")]
 pub fn run(ipc_token: String) -> crate::error::Result<()> {
@@ -303,18 +321,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
             HelperRequest::Ping => HelperResponse::Pong,
             HelperRequest::PullPeq { strict } => match require_device(&device) {
                 Ok(d) => match device_profile {
-                    Some(dp) => match pull_logic(d, dp, strict) {
-                        Ok(peq) => match serde_json::to_value(peq) {
-                            Ok(value) => HelperResponse::Pulled { data: value },
-                            Err(e) => HelperResponse::Error {
-                                error: AppError::new(
-                                    ErrorKind::ParseError,
-                                    format!("Serialization failed: {}", e),
-                                ),
-                            },
-                        },
-                        Err(e) => HelperResponse::Error { error: e },
-                    },
+                    Some(dp) => wrap_peq_response(pull_logic(d, dp, strict), |data| {
+                        HelperResponse::Pulled { data }
+                    }),
                     None => HelperResponse::Error {
                         error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
@@ -323,18 +332,9 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
             },
             HelperRequest::ResetPeq => match require_device(&device) {
                 Ok(d) => match device_profile {
-                    Some(dp) => match handle_reset(d, dp) {
-                        Ok(peq) => match serde_json::to_value(peq) {
-                            Ok(value) => HelperResponse::Pulled { data: value },
-                            Err(e) => HelperResponse::Error {
-                                error: AppError::new(
-                                    ErrorKind::ParseError,
-                                    format!("Serialization failed: {}", e),
-                                ),
-                            },
-                        },
-                        Err(e) => HelperResponse::Error { error: e },
-                    },
+                    Some(dp) => wrap_peq_response(handle_reset(d, dp), |data| {
+                        HelperResponse::Pulled { data }
+                    }),
                     None => HelperResponse::Error {
                         error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },
@@ -347,18 +347,10 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
                 skip_verify,
             } => match require_device(&device) {
                 Ok(d) => match device_profile {
-                    Some(dp) => match push_logic(d, dp, filters, global_gain, skip_verify) {
-                        Ok(peq) => match serde_json::to_value(peq) {
-                            Ok(value) => HelperResponse::Pushed { data: value },
-                            Err(e) => HelperResponse::Error {
-                                error: AppError::new(
-                                    ErrorKind::ParseError,
-                                    format!("Serialization failed: {}", e),
-                                ),
-                            },
-                        },
-                        Err(e) => HelperResponse::Error { error: e },
-                    },
+                    Some(dp) => wrap_peq_response(
+                        push_logic(d, dp, filters, global_gain, skip_verify),
+                        |data| HelperResponse::Pushed { data },
+                    ),
                     None => HelperResponse::Error {
                         error: AppError::new(ErrorKind::NotConnected, "Device profile not loaded"),
                     },

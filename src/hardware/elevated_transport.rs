@@ -34,10 +34,13 @@ impl ElevatedTransport {
 
         let token = generate_ipc_token();
 
-        let mut child = spawn_via_pkexec(CommandSpec {
-            program: current_exe,
-            args: vec!["--hid-helper".to_string(), token.clone()],
-        })?;
+        let mut child = spawn_via_pkexec(
+            CommandSpec {
+                program: current_exe,
+                args: vec!["--hid-helper".to_string()],
+            },
+            &token,
+        )?;
 
         let stdin = child
             .stdin
@@ -208,15 +211,14 @@ struct CommandSpec {
     program: PathBuf,
     args: Vec<String>,
 }
-
-fn spawn_via_pkexec(spec: CommandSpec) -> Result<Child> {
+fn spawn_via_pkexec(spec: CommandSpec, token: &str) -> Result<Child> {
     validate_pkexec_target(&spec.program)?;
     let mut command = Command::new("pkexec");
+    command.env("FROST_TUNE_IPC_TOKEN", token);
     command.arg(spec.program.as_os_str());
     for arg in spec.args {
         command.arg(arg);
     }
-
     let child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

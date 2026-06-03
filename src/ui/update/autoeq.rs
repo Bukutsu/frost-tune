@@ -123,7 +123,7 @@ pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
 
             Task::perform(
                 async move {
-                    std::fs::write(&path, output).map_err(|e| {
+                    tokio::fs::write(&path, output).await.map_err(|e| {
                         crate::error::AppError::new(
                             crate::error::ErrorKind::StorageError,
                             e.to_string(),

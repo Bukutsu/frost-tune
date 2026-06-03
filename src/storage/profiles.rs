@@ -105,14 +105,13 @@ pub async fn save_profile(name: &str, data: &PEQData) -> Result<()> {
             format!("Failed to write temp profile: {}", e),
         )
     })?;
-    fs::rename(&tmp_path, &path).await.map_err(|e| {
-        // Fallback since remove_file is async, we can't easily wait here inside map_err without being an async closure.
-        // We will just let the map_err construct the error, then we will spawn a cleanup task or ignore.
-        AppError::new(
+    if let Err(e) = fs::rename(&tmp_path, &path).await {
+        let _ = fs::remove_file(&tmp_path).await;
+        return Err(AppError::new(
             ErrorKind::StorageError,
             format!("Failed to finalize profile save: {}", e),
-        )
-    })?;
+        ));
+    }
 
     // Directory sync is only meaningful/supported on Unix-like operating systems
     #[cfg(unix)]
