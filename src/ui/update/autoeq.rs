@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 use crate::core::autoeq;
-use crate::core::PEQData;
 use crate::diagnostics::{DiagnosticEvent, LogLevel, Source};
 use crate::ui::main_window::APP_VERSION;
 use crate::ui::messages::*;
@@ -12,10 +11,7 @@ use iced::{clipboard, Task};
 pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
     match message {
         Message::AutoEq(AutoEqMessage::ExportAutoEQPressed) => {
-            let peq = PEQData {
-                filters: window.editor.data.filters.clone(),
-                global_gain: window.editor.data.global_gain,
-            };
+            let peq = window.editor.data.peq.as_ref().clone();
             let output = autoeq::peq_to_autoeq(&peq);
             let write_task =
                 clipboard::write(output).map(|()| Message::AutoEq(AutoEqMessage::ExportComplete));

@@ -59,8 +59,8 @@ impl AppState {
         let window = AppState {
             editor: EditorComponent {
                 data: EditorData {
-                    filters: default_filters,
-                    ..Default::default()
+                    peq: std::sync::Arc::new(crate::core::PEQData { filters: default_filters, global_gain: 0 }),
+                    generation: 0,
                 },
                 ui: EditorUI {
                     snap_to_iso_enabled: true,

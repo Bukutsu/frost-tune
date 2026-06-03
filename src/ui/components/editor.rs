@@ -155,8 +155,7 @@ pub enum ConfirmAction {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EditorData {
-    pub filters: Vec<Filter>,
-    pub global_gain: i8,
+    pub peq: std::sync::Arc<crate::core::PEQData>,
     pub generation: u64,
 }
 
@@ -164,11 +163,7 @@ pub const MAX_UNDO: usize = 50;
 
 impl EditorComponent {
     pub fn push_undo(&mut self) {
-        let snapshot = std::sync::Arc::new(crate::core::PEQData {
-            filters: self.data.filters.clone(),
-            global_gain: self.data.global_gain,
-        });
-        self.session.undo_stack.push(snapshot);
+        self.session.undo_stack.push(self.data.peq.clone());
         if self.session.undo_stack.len() > MAX_UNDO {
             self.session.undo_stack.remove(0);
         }
@@ -271,12 +266,12 @@ impl EditorComponent {
         let preamp_section = row![
             container(section_header(format!(
                 "PREAMP: {} dB",
-                self.data.global_gain
+                self.data.peq.global_gain
             )))
             .width(Length::Fixed(PREAMP_LABEL_WIDTH)),
             slider(
                 *gain_range.start() as f64..=*gain_range.end() as f64,
-                self.data.global_gain as f64,
+                self.data.peq.global_gain as f64,
                 move |v| EditorMessage::GlobalGainChanged(v as i8)
             )
             .width(Length::Fill)

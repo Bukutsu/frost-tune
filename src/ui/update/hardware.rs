@@ -82,8 +82,8 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                         .find(|p| p.data.matches_within(&peq, 0.05, 0.05))
                         .map(|p| p.name.clone());
 
-                    window.editor.data.filters = peq.filters;
-                    window.editor.data.global_gain = peq.global_gain;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).filters = peq.filters;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;
                     window.editor.data.generation += 1;
 
                     let status_msg = if let Some(name) = matched {
@@ -147,8 +147,8 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
             if result.success {
                 window.editor.session.is_dirty = false;
                 if let Some(peq) = result.data {
-                    window.editor.data.filters = peq.filters;
-                    window.editor.data.global_gain = peq.global_gain;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).filters = peq.filters;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;
                     window.editor.data.generation += 1;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
@@ -265,8 +265,8 @@ fn perform_push(window: &mut AppState) -> Task<Message> {
         Source::UI,
         "Push pressed",
     ));
-    let filters = window.editor.data.filters.clone();
-    let global_gain = window.editor.data.global_gain;
+    let filters = window.editor.data.peq.filters.clone();
+    let global_gain = window.editor.data.peq.global_gain;
     let skip_verify = window.editor.ui.skip_push_verification;
     let push_task = Task::perform(
         async move {

@@ -103,7 +103,7 @@ impl Filter {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct PEQData {
     pub filters: Vec<Filter>,
     #[serde(rename = "globalGain")]

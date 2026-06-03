@@ -75,7 +75,7 @@ pub fn view_bands(state: &AppState) -> Element<'_, Message> {
     let show_enable = state.supports_per_band_enable();
 
     let is_empty = state.editor.ui.eq_source == EqSource::Default
-        && state.editor.data.filters.iter().all(|f| !f.enabled);
+        && state.editor.data.peq.filters.iter().all(|f| !f.enabled);
 
     if is_empty {
         return render_empty_state(is_busy);
@@ -85,7 +85,7 @@ pub fn view_bands(state: &AppState) -> Element<'_, Message> {
         if size.width < BANDS_TWO_COLUMN_BREAK {
             // Single column for narrow/medium widths
             let col =
-                render_band_column(0, &state.editor.data.filters, state, is_busy, show_enable);
+                render_band_column(0, &state.editor.data.peq.filters, state, is_busy, show_enable);
             container(col)
                 .style(theme::card_style)
                 .padding(SPACE_8)
@@ -93,17 +93,17 @@ pub fn view_bands(state: &AppState) -> Element<'_, Message> {
                 .into()
         } else {
             // Two columns for wide widths
-            let mid = state.editor.data.filters.len() / 2;
+            let mid = state.editor.data.peq.filters.len() / 2;
             let col1 = render_band_column(
                 0,
-                &state.editor.data.filters[..mid],
+                &state.editor.data.peq.filters[..mid],
                 state,
                 is_busy,
                 show_enable,
             );
             let col2 = render_band_column(
                 mid,
-                &state.editor.data.filters[mid..],
+                &state.editor.data.peq.filters[mid..],
                 state,
                 is_busy,
                 show_enable,

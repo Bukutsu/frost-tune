@@ -59,8 +59,8 @@ pub fn with_modal_overlay<'a>(
             false,
         )),
         ConfirmAction::PushToDevice => {
-            let active = state.editor.data.filters.iter().filter(|f| f.enabled).count();
-            let gain = state.editor.data.global_gain;
+            let active = state.editor.data.peq.filters.iter().filter(|f| f.enabled).count();
+            let gain = state.editor.data.peq.global_gain;
             Some(views::confirm_dialog::view_confirm_dialog(
                 "Push to Device?".to_string(),
                 format!(

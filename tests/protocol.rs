@@ -3,33 +3,33 @@
 
 use frost_tune::core::device::protocol::DeviceProtocol;
 use frost_tune::core::{Filter, FilterType};
-use frost_tune::hardware::devices::tp35pro::{
-    TP35ProProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
+use frost_tune::hardware::devices::walkplay_protocol::{
+    WalkplayProtocol, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, READ, WRITE,
 };
 
 #[test]
-fn test_tp35pro_build_filter_read_request() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_build_filter_read_request() {
+    let proto = WalkplayProtocol;
     let packet = proto.build_filter_read_request(3, 0xAA);
     assert_eq!(packet, vec![READ, CMD_PEQ_VALUES, 0xAA, 0x00, 3, 0x00]);
 }
 
 #[test]
-fn test_tp35pro_build_global_gain_request() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_build_global_gain_request() {
+    let proto = WalkplayProtocol;
     let packet = proto.build_global_gain_request(0xBB);
     assert_eq!(packet, vec![READ, CMD_GLOBAL_GAIN, 0x00, 0x00]);
 }
 
 #[test]
-fn test_tp35pro_parse_filter_response_invalid() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_parse_filter_response_invalid() {
+    let proto = WalkplayProtocol;
     assert!(proto.parse_filter_response(&[0x00, 0x01]).is_none());
 }
 
 #[test]
-fn test_tp35pro_filter_packet_round_trip() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_filter_packet_round_trip() {
+    let proto = WalkplayProtocol;
     let filter = Filter {
         index: 0,
         enabled: true,
@@ -45,8 +45,8 @@ fn test_tp35pro_filter_packet_round_trip() {
 }
 
 #[test]
-fn test_tp35pro_filter_packet_round_trip_lowpass_highpass() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_filter_packet_round_trip_lowpass_highpass() {
+    let proto = WalkplayProtocol;
     let lp_filter = Filter {
         index: 0,
         enabled: true,
@@ -77,8 +77,8 @@ fn test_tp35pro_filter_packet_round_trip_lowpass_highpass() {
 }
 
 #[test]
-fn test_tp35pro_build_commit_packets_count() {
-    let proto = TP35ProProtocol;
+fn test_walkplay_build_commit_packets_count() {
+    let proto = WalkplayProtocol;
     let packets = proto.build_commit_packets();
     // TP35 Pro uses 2 commit steps: temp-write, flash-eq
     assert_eq!(packets.len(), 2);

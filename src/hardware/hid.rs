@@ -367,7 +367,7 @@ fn validate_filter_reads(strict: bool, had_mismatch: bool) -> Result<()> {
 mod tests {
     use super::*;
     use crate::core::FilterType;
-    use crate::hardware::devices::tp35pro::{
+    use crate::hardware::devices::walkplay_protocol::{
         CMD_FLASH_EQ, CMD_GLOBAL_GAIN, CMD_PEQ_VALUES, CMD_TEMP_WRITE, CMD_VERSION, END, READ,
         WRITE,
     };

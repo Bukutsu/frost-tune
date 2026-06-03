@@ -35,7 +35,7 @@ pub(crate) fn apply_peq_to_editor(window: &mut AppState, mut peq: PEQData) -> (b
     }
 
     let enabled_count = filters.iter().filter(|f| f.enabled).count();
-    window.editor.data.filters = filters
+    std::sync::Arc::make_mut(&mut window.editor.data.peq).filters = filters
         .into_iter()
         .enumerate()
         .map(|(i, mut f)| {
@@ -46,18 +46,17 @@ pub(crate) fn apply_peq_to_editor(window: &mut AppState, mut peq: PEQData) -> (b
         })
         .collect();
 
-    while window.editor.data.filters.len() < num_bands {
-        window
-            .editor
-            .data
+    while window.editor.data.peq.filters.len() < num_bands {
+        let new_index = window.editor.data.peq.filters.len() as u8;
+        std::sync::Arc::make_mut(&mut window.editor.data.peq)
             .filters
             .push(crate::core::Filter::enabled(
-                window.editor.data.filters.len() as u8,
+                new_index,
                 false,
             ));
     }
 
-    window.editor.data.global_gain = peq.global_gain;
+    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;
     window.editor.session.is_autoeq_active = true;
 
     (was_truncated, enabled_count)
@@ -301,8 +300,8 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
                 return window.set_status("Invalid profile name", StatusSeverity::Warning);
             }
             let data = std::sync::Arc::new(PEQData {
-                filters: window.editor.data.filters.clone(),
-                global_gain: window.editor.data.global_gain,
+                filters: window.editor.data.peq.filters.clone(),
+                global_gain: window.editor.data.peq.global_gain,
             });
             check_overwrite_and_save(window, name, data, SaveContext::Standard)
         }
@@ -475,8 +474,8 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
         }
         Message::Profiles(ProfilesMessage::ExportToFilePressed) => {
             let peq = PEQData {
-                filters: window.editor.data.filters.clone(),
-                global_gain: window.editor.data.global_gain,
+                filters: window.editor.data.peq.filters.clone(),
+                global_gain: window.editor.data.peq.global_gain,
             };
             let name = if window.editor.session.new_profile_name.is_empty() {
                 "profile".to_string()

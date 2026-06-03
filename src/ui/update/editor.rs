@@ -15,7 +15,7 @@ fn handle_band_text_input(
     s: String,
     setter: impl FnOnce(&mut DraftFilter, String),
 ) {
-    let filter = match window.editor.data.filters.get(index) {
+    let filter = match window.editor.data.peq.filters.get(index) {
         Some(f) => f,
         None => {
             log::error!("Band input: index {} out of bounds", index);
@@ -50,7 +50,7 @@ fn commit_band_field(
     if let Some(mut draft) = window.editor.session.input_buffer.active_draft.take() {
         if draft.index == index {
             window.editor.push_undo();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 if parse_and_apply(band, &mut draft) {
                     window.editor.session.is_dirty = true;
                 } else {
@@ -71,7 +71,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
             let freq_range = window.freq_range();
             let gain_range = window.gain_range();
             let q_range = window.q_range();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 band.freq = freq;
                 band.enabled = true;
                 band.clamp(freq_range, gain_range, q_range);
@@ -81,7 +81,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Editor(EditorMessage::BandTypeChanged(index, t)) => {
             window.editor.push_undo();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 band.filter_type = t;
                 window.editor.session.is_dirty = true;
             }
@@ -92,7 +92,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
                 return Task::none();
             }
             window.editor.push_undo();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 band.enabled = en;
                 window.editor.session.is_dirty = true;
             }
@@ -185,7 +185,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::Editor(EditorMessage::BandFreqSliderChanged(index, v)) => {
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 let hz = 10f64.powf(v).round() as u16;
                 band.freq = if window.editor.ui.snap_to_iso_enabled {
                     snap_freq_to_iso(hz)
@@ -207,7 +207,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Editor(EditorMessage::BandGainChanged(index, v)) => {
             let (min_gain, max_gain) = window.gain_range();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 band.gain = v.clamp(min_gain, max_gain);
                 band.enabled = true;
                 window.editor.session.is_dirty = true;
@@ -225,7 +225,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Editor(EditorMessage::BandQChanged(index, v)) => {
             window.editor.push_undo();
-            if let Some(band) = window.editor.data.filters.get_mut(index) {
+            if let Some(band) = std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.get_mut(index) {
                 let q_val = 10f64.powf(v);
                 band.q = snap_q_to_iso(q_val);
                 window.editor.session.is_dirty = true;
@@ -240,7 +240,7 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         Message::Editor(EditorMessage::GlobalGainChanged(gain)) => {
             window.editor.push_undo();
             let gain_range = window.global_gain_range();
-            window.editor.data.global_gain = gain.clamp(*gain_range.start(), *gain_range.end());
+            std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = gain.clamp(*gain_range.start(), *gain_range.end());
             window.editor.session.is_dirty = true;
             Task::none()
         }
@@ -255,15 +255,13 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
                 ConfirmAction::ResetFilters
             ) {
                 window.editor.push_undo();
-                window.editor.data.filters.clear();
+                std::sync::Arc::make_mut(&mut window.editor.data.peq).filters.clear();
                 for i in 0..num_bands {
-                    window
-                        .editor
-                        .data
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq)
                         .filters
                         .push(Filter::enabled(i as u8, false));
                 }
-                window.editor.data.global_gain = 0;
+                std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = 0;
                 window.editor.session.is_dirty = true;
                 window.editor.session.is_autoeq_active = false;
                 window.editor.session.input_buffer.active_draft = None;
@@ -287,13 +285,8 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
 
         Message::Editor(EditorMessage::Undo) => {
             if let Some(prev) = window.editor.session.undo_stack.pop() {
-                let current = std::sync::Arc::new(crate::core::PEQData {
-                    filters: window.editor.data.filters.clone(),
-                    global_gain: window.editor.data.global_gain,
-                });
-                window.editor.session.redo_stack.push(current);
-                window.editor.data.filters = prev.filters.clone();
-                window.editor.data.global_gain = prev.global_gain;
+                window.editor.session.redo_stack.push(window.editor.data.peq.clone());
+                window.editor.data.peq = prev.clone();
                 window.editor.data.generation += 1;
                 window.editor.session.is_dirty = true;
                 window.editor.session.input_buffer.active_draft = None;
@@ -302,13 +295,8 @@ pub fn handle_editor(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::Editor(EditorMessage::Redo) => {
             if let Some(next) = window.editor.session.redo_stack.pop() {
-                let current = std::sync::Arc::new(crate::core::PEQData {
-                    filters: window.editor.data.filters.clone(),
-                    global_gain: window.editor.data.global_gain,
-                });
-                window.editor.session.undo_stack.push(current);
-                window.editor.data.filters = next.filters.clone();
-                window.editor.data.global_gain = next.global_gain;
+                window.editor.session.undo_stack.push(window.editor.data.peq.clone());
+                window.editor.data.peq = next.clone();
                 window.editor.data.generation += 1;
                 window.editor.session.is_dirty = true;
                 window.editor.session.input_buffer.active_draft = None;

@@ -16,12 +16,12 @@ pub fn view_preamp(state: &AppState) -> Element<'_, Message> {
     let preamp_section = row![
         container(super::section_header(format!(
             "PREAMP: {} dB",
-            state.editor.data.global_gain
+            state.editor.data.peq.global_gain
         )))
         .width(Length::Fixed(PREAMP_LABEL_WIDTH)),
         slider(
             *gain_range.start() as f64..=*gain_range.end() as f64,
-            state.editor.data.global_gain as f64,
+            state.editor.data.peq.global_gain as f64,
             move |v| {
                 if is_busy {
                     Message::NoOp

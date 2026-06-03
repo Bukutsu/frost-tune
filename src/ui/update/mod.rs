@@ -150,8 +150,8 @@ pub fn update(window: &mut AppState, message: Message) -> Task<Message> {
             .unwrap_or(crate::core::device::capabilities::DESKTOP_DAC_CAPS);
 
         let (combined, bands) = crate::ui::graph::EqGraph::compute_responses(
-            &window.editor.data.filters,
-            window.editor.data.global_gain,
+            &window.editor.data.peq.filters,
+            window.editor.data.peq.global_gain,
             caps.dsp_sample_rate,
         );
         window.editor.ui.graph_state.cached_combined_response = combined;
