@@ -6,7 +6,6 @@
 //! Shared protocol implementation for Walkplay family devices including EPZ TP35 Pro,
 //! Moondrop Dawn Pro, and Truthear KEYX.
 
-use crate::core::device::capabilities::DeviceCapabilities;
 use crate::core::device::protocol::DeviceProtocol;
 use crate::core::device::timing::WriteTiming;
 use crate::core::eq::iir_math::compute_biquad_coeffs;

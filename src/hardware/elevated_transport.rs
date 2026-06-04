@@ -34,13 +34,10 @@ impl ElevatedTransport {
 
         let token = generate_ipc_token();
 
-        let mut child = spawn_via_pkexec(
-            CommandSpec {
-                program: current_exe,
-                args: vec!["--hid-helper".to_string()],
-            },
-            &token,
-        )?;
+        let mut child = spawn_via_pkexec(CommandSpec {
+            program: current_exe,
+            args: vec!["--hid-helper".to_string()],
+        })?;
 
         let stdin = child
             .stdin
@@ -58,8 +55,14 @@ impl ElevatedTransport {
         >::new()));
         let pending_task_ref = Arc::clone(&pending);
 
-        // Task for writing to helper stdin
+        // Bootstrap token, then task for writing to helper stdin
         let mut framed_stdin = FramedWrite::new(stdin, LinesCodec::new_with_max_length(65536));
+        framed_stdin.send(token.clone()).await.map_err(|e| {
+            AppError::new(
+                ErrorKind::IpcError,
+                format!("Failed to send helper bootstrap token: {}", e),
+            )
+        })?;
         tokio::spawn(async move {
             while let Some(request) = request_rx.recv().await {
                 if let Ok(line) = serde_json::to_string(&request) {
@@ -106,32 +109,14 @@ impl ElevatedTransport {
         };
 
         // Version check with a long timeout for the human polkit prompt
-        use crate::hardware::helper_ipc::IPC_VERSION;
-        match transport
-            .round_trip_with_timeout(
-                &HelperRequest::Version,
-                std::time::Duration::from_secs(HANDSHAKE_TIMEOUT_SECS),
-            )
-            .await?
-        {
-            HelperResponse::Version { version } => {
-                if version != IPC_VERSION {
-                    return Err(AppError::new(
-                        ErrorKind::IpcError,
-                        format!(
-                            "IPC Version mismatch: UI={} helper={}. Re-install the application.",
-                            IPC_VERSION, version
-                        ),
-                    ));
-                }
-            }
-            _ => {
-                return Err(AppError::new(
-                    ErrorKind::IpcError,
-                    "Elevated helper failed version handshake",
-                ));
-            }
-        }
+        Self::validate_version_response(
+            transport
+                .round_trip_with_timeout(
+                    &HelperRequest::Version,
+                    std::time::Duration::from_secs(HANDSHAKE_TIMEOUT_SECS),
+                )
+                .await?,
+        )?;
 
         Ok(transport)
     }
@@ -189,6 +174,29 @@ impl ElevatedTransport {
         }
     }
 
+    fn validate_version_response(response: HelperResponse) -> Result<()> {
+        match response {
+            HelperResponse::Version { version } => {
+                if version != crate::hardware::helper_ipc::IPC_VERSION {
+                    return Err(AppError::new(
+                        ErrorKind::IpcError,
+                        format!(
+                            "IPC Version mismatch: UI={} helper={}. Re-install the application.",
+                            crate::hardware::helper_ipc::IPC_VERSION,
+                            version
+                        ),
+                    ));
+                }
+                Ok(())
+            }
+            HelperResponse::Error { error } => Err(error),
+            _ => Err(AppError::new(
+                ErrorKind::IpcError,
+                "Elevated helper failed version handshake",
+            )),
+        }
+    }
+
     pub fn shutdown(&mut self) {
         // In the async version, dropping the tx will close the write task.
     }
@@ -211,10 +219,9 @@ struct CommandSpec {
     program: PathBuf,
     args: Vec<String>,
 }
-fn spawn_via_pkexec(spec: CommandSpec, token: &str) -> Result<Child> {
+fn spawn_via_pkexec(spec: CommandSpec) -> Result<Child> {
     validate_pkexec_target(&spec.program)?;
     let mut command = Command::new("pkexec");
-    command.env("FROST_TUNE_IPC_TOKEN", token);
     command.arg(spec.program.as_os_str());
     for arg in spec.args {
         command.arg(arg);
@@ -308,4 +315,38 @@ fn validate_pkexec_target(path: &std::path::Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_response_succeeds() {
+        let response = HelperResponse::Version {
+            version: crate::hardware::helper_ipc::IPC_VERSION.to_string(),
+        };
+        assert!(ElevatedTransport::validate_version_response(response).is_ok());
+    }
+
+    #[test]
+    fn version_response_propagates_helper_error() {
+        let error = AppError::new(ErrorKind::IpcError, "Authentication token mismatch");
+        let result = ElevatedTransport::validate_version_response(HelperResponse::Error {
+            error: error.clone(),
+        });
+        let err = result.expect_err("expected helper error");
+        assert_eq!(err.kind, error.kind);
+        assert_eq!(err.message, error.message);
+    }
+
+    #[test]
+    fn version_mismatch_returns_ipc_error() {
+        let err = ElevatedTransport::validate_version_response(HelperResponse::Version {
+            version: "0.9.0".to_string(),
+        })
+        .expect_err("expected version mismatch");
+        assert_eq!(err.kind, ErrorKind::IpcError);
+        assert!(err.message.contains("IPC Version mismatch"));
+    }
 }

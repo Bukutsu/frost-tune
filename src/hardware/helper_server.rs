@@ -72,6 +72,34 @@ fn handle_reset(
 }
 
 #[cfg(target_os = "linux")]
+fn read_bootstrap_token(stdin: &mut impl BufRead) -> crate::error::Result<String> {
+    let mut line = String::new();
+    let bytes_read = stdin.read_line(&mut line).map_err(|e| {
+        AppError::new(
+            ErrorKind::IpcError,
+            format!("Failed reading IPC bootstrap token: {}", e),
+        )
+    })?;
+
+    if bytes_read == 0 {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Missing IPC bootstrap token",
+        ));
+    }
+
+    let token = line.trim();
+    if token.is_empty() {
+        return Err(AppError::new(
+            ErrorKind::IpcError,
+            "Missing IPC bootstrap token",
+        ));
+    }
+
+    Ok(token.to_string())
+}
+
+#[cfg(target_os = "linux")]
 fn require_device(
     device: &Option<Box<dyn PhysicalInterface>>,
 ) -> Result<&dyn PhysicalInterface, HelperResponse> {
@@ -170,7 +198,7 @@ where
 }
 
 #[cfg(target_os = "linux")]
-pub fn run(ipc_token: String) -> crate::error::Result<()> {
+pub fn run() -> crate::error::Result<()> {
     // Ensure the helper process is terminated if the parent (UI) dies.
     unsafe {
         libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
@@ -184,6 +212,7 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
     let stdout = io::stdout();
     let mut stdin_lock = stdin.lock();
     let mut stdout_lock = stdout.lock();
+    let ipc_token = read_bootstrap_token(&mut stdin_lock)?;
 
     loop {
         let mut line = String::new();
@@ -387,6 +416,33 @@ pub fn run(ipc_token: String) -> crate::error::Result<()> {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn run(_ipc_token: String) -> Result<(), String> {
+pub fn run() -> Result<(), String> {
     Err("helper server is only available on Linux".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn read_bootstrap_token_accepts_token_line() {
+        let mut input = Cursor::new(b"ftabc123\nignored-body".to_vec());
+        let token = read_bootstrap_token(&mut input).expect("expected bootstrap token");
+        assert_eq!(token, "ftabc123");
+    }
+
+    #[test]
+    fn read_bootstrap_token_rejects_blank_input() {
+        let mut input = Cursor::new(b"\n".to_vec());
+        let err = read_bootstrap_token(&mut input).expect_err("expected an error");
+        assert_eq!(err.kind, ErrorKind::IpcError);
+    }
+
+    #[test]
+    fn read_bootstrap_token_rejects_missing_input() {
+        let mut input = Cursor::new(Vec::<u8>::new());
+        let err = read_bootstrap_token(&mut input).expect_err("expected an error");
+        assert_eq!(err.kind, ErrorKind::IpcError);
+    }
 }

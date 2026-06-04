@@ -9,8 +9,7 @@ fn main() {
     {
         let args: Vec<String> = std::env::args().collect();
         if args.iter().any(|arg| arg == "--hid-helper") {
-            let token = std::env::var("FROST_TUNE_IPC_TOKEN").unwrap_or_default();
-            if let Err(e) = frost_tune::hardware::helper_server::run(token) {
+            if let Err(e) = frost_tune::hardware::helper_server::run() {
                 eprintln!("frost-tune --hid-helper error: {}", e);
                 std::process::exit(1);
             }
