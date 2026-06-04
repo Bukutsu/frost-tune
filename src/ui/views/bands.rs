@@ -84,8 +84,13 @@ pub fn view_bands(state: &AppState) -> Element<'_, Message> {
     responsive(move |size| {
         if size.width < BANDS_TWO_COLUMN_BREAK {
             // Single column for narrow/medium widths
-            let col =
-                render_band_column(0, &state.editor.data.peq.filters, state, is_busy, show_enable);
+            let col = render_band_column(
+                0,
+                &state.editor.data.peq.filters,
+                state,
+                is_busy,
+                show_enable,
+            );
             container(col)
                 .style(theme::card_style)
                 .padding(SPACE_8)

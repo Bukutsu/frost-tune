@@ -59,7 +59,10 @@ impl AppState {
         let window = AppState {
             editor: EditorComponent {
                 data: EditorData {
-                    peq: std::sync::Arc::new(crate::core::PEQData { filters: default_filters, global_gain: 0 }),
+                    peq: std::sync::Arc::new(crate::core::PEQData {
+                        filters: default_filters,
+                        global_gain: 0,
+                    }),
                     generation: 0,
                 },
                 ui: EditorUI {

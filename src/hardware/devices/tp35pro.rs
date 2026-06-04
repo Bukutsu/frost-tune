@@ -1,10 +1,10 @@
 // Copyright (c) 2026 Bukutsu
 // SPDX-License-Identifier: MIT
 
+use super::walkplay_protocol::WalkplayProtocol;
 use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::device::profile::DeviceProfile;
 use crate::core::device::protocol::DeviceProtocol;
-use super::walkplay_protocol::WalkplayProtocol;
 
 pub struct TP35ProProfile;
 
@@ -45,4 +45,3 @@ impl DeviceProfile for TP35ProProfile {
         Box::new(WalkplayProtocol)
     }
 }
-

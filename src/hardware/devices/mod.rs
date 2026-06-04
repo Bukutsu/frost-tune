@@ -2,5 +2,5 @@
 // SPDX-License-Identifier: MIT
 
 pub mod tp35pro;
-pub mod walkplay_protocol;
 pub mod walkplay;
+pub mod walkplay_protocol;

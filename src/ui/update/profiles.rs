@@ -50,10 +50,7 @@ pub(crate) fn apply_peq_to_editor(window: &mut AppState, mut peq: PEQData) -> (b
         let new_index = window.editor.data.peq.filters.len() as u8;
         std::sync::Arc::make_mut(&mut window.editor.data.peq)
             .filters
-            .push(crate::core::Filter::enabled(
-                new_index,
-                false,
-            ));
+            .push(crate::core::Filter::enabled(new_index, false));
     }
 
     std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;

@@ -6,10 +6,10 @@
 //! Reuses the core DSP math and DeviceProtocol implementation from `walkplay_protocol.rs`
 //! since they share the exact same wire format and chipset.
 
+use super::walkplay_protocol::WalkplayProtocol;
 use crate::core::device::capabilities::{DeviceCapabilities, FilterTypeFlags};
 use crate::core::device::profile::DeviceProfile;
 use crate::core::device::protocol::DeviceProtocol;
-use super::walkplay_protocol::WalkplayProtocol;
 pub struct DawnProProfile;
 
 impl DeviceProfile for DawnProProfile {

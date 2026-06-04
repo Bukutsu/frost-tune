@@ -83,7 +83,8 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                         .map(|p| p.name.clone());
 
                     std::sync::Arc::make_mut(&mut window.editor.data.peq).filters = peq.filters;
-                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain =
+                        peq.global_gain;
                     window.editor.data.generation += 1;
 
                     let status_msg = if let Some(name) = matched {
@@ -148,7 +149,8 @@ pub fn handle_hardware(window: &mut AppState, message: Message) -> Task<Message>
                 window.editor.session.is_dirty = false;
                 if let Some(peq) = result.data {
                     std::sync::Arc::make_mut(&mut window.editor.data.peq).filters = peq.filters;
-                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain = peq.global_gain;
+                    std::sync::Arc::make_mut(&mut window.editor.data.peq).global_gain =
+                        peq.global_gain;
                     window.editor.data.generation += 1;
                     window.diagnostics.push(DiagnosticEvent::new(
                         LogLevel::Info,
