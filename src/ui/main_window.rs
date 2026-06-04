@@ -340,13 +340,15 @@ impl AppState {
 }
 
 pub fn run() -> iced::Result {
-    let mut window_settings = iced::window::Settings {
+    let window_settings = iced::window::Settings {
         min_size: Some(iced::Size::new(
             LAYOUT_WINDOW_MIN_WIDTH,
             LAYOUT_WINDOW_MIN_HEIGHT,
         )),
         ..Default::default()
     };
+    #[cfg(target_os = "linux")]
+    let mut window_settings = window_settings;
     #[cfg(target_os = "linux")]
     {
         window_settings.platform_specific.application_id = "frost-tune".to_string();
@@ -372,13 +374,15 @@ pub fn run_with_diagnostics(recent_logs: Vec<String>) -> iced::Result {
         })
         .collect();
     let diagnostics = DiagnosticsStore::from_events(events);
-    let mut window_settings = iced::window::Settings {
+    let window_settings = iced::window::Settings {
         min_size: Some(iced::Size::new(
             LAYOUT_WINDOW_MIN_WIDTH,
             LAYOUT_WINDOW_MIN_HEIGHT,
         )),
         ..Default::default()
     };
+    #[cfg(target_os = "linux")]
+    let mut window_settings = window_settings;
     #[cfg(target_os = "linux")]
     {
         window_settings.platform_specific.application_id = "frost-tune".to_string();

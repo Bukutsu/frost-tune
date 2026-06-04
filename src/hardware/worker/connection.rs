@@ -39,7 +39,10 @@ impl ConnectionManager {
         target_device: Option<DeviceInfo>,
         target_backend: Option<BackendKind>,
     ) -> ConnectionResult {
+        #[cfg(target_os = "linux")]
         let target = target_backend.unwrap_or(self.preferred_backend);
+        #[cfg(not(target_os = "linux"))]
+        let _target = target_backend.unwrap_or(self.preferred_backend);
 
         #[cfg(target_os = "linux")]
         if target == BackendKind::Elevated {

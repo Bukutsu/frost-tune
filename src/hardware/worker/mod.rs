@@ -233,7 +233,7 @@ impl UsbWorkerState {
             fatal_error: Some("Local worker thread died".to_string()),
         });
 
-        let mut status = WorkerStatus {
+        let status = WorkerStatus {
             connected: local_status.connected,
             physically_present: local_status.physically_present,
             device: local_status.device.clone(),
@@ -242,6 +242,8 @@ impl UsbWorkerState {
             generation: local_status.generation,
             fatal_error: local_status.fatal_error.clone(),
         };
+        #[cfg(target_os = "linux")]
+        let mut status = status;
 
         #[cfg(target_os = "linux")]
         {

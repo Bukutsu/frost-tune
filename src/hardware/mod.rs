@@ -35,5 +35,4 @@ pub use device_io::*;
 pub use dsp::*;
 pub use ipc_types::*;
 pub use registry::*;
-pub use transport::*;
 pub use worker::*;
