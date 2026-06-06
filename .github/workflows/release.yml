@@ -150,10 +150,12 @@ jobs:
           merge-multiple: true
 
       - name: List artifacts
-        run: ls -la frost-tune-*
+        run: |
+          ls -la artifacts
+          ls -la artifacts/frost-tune-*
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: frost-tune-*
+          files: artifacts/frost-tune-*
           generate_release_notes: true
 
