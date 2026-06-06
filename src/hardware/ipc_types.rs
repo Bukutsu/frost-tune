@@ -70,6 +70,12 @@ impl PushPayload {
     pub fn clamp(&mut self, caps: &crate::core::device::DeviceCapabilities) {
         for filter in &mut self.filters {
             filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
+            if !caps.supports_per_band_enable && !filter.enabled {
+                // Hardware without a per-band enable bit cannot represent an
+                // off slot. Write an audibly-neutral band instead so pushing a
+                // preset with disabled bands does not fail validation.
+                filter.gain = 0.0;
+            }
         }
         if let Some(gain) = self.global_gain {
             self.global_gain = Some(gain.clamp(caps.global_gain_range.0, caps.global_gain_range.1));
@@ -106,9 +112,9 @@ impl PushPayload {
                     f.index, f.filter_type
                 ));
             }
-            if !caps.supports_per_band_enable && !f.enabled {
+            if !caps.supports_per_band_enable && !f.enabled && f.gain.abs() > 0.001 {
                 return Err(format!(
-                    "Band {} cannot be disabled on this hardware",
+                    "Band {} cannot be disabled with non-zero gain on this hardware",
                     f.index
                 ));
             }
@@ -119,5 +125,46 @@ impl PushPayload {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::device::capabilities::{DeviceCapabilities, DESKTOP_DAC_CAPS};
+    use crate::core::eq::Filter;
+
+    fn caps_without_per_band_enable(num_bands: usize) -> DeviceCapabilities {
+        DeviceCapabilities {
+            num_bands,
+            supports_per_band_enable: false,
+            ..DESKTOP_DAC_CAPS
+        }
+    }
+
+    #[test]
+    fn new_validated_zeroes_disabled_band_gain_when_hardware_lacks_enable_bit() {
+        let caps = caps_without_per_band_enable(1);
+        let mut filter = Filter::enabled(0, false);
+        filter.gain = 4.5;
+
+        let payload = PushPayload::new_validated(vec![filter], Some(0), &caps)
+            .expect("disabled bands should be represented as neutral writes");
+
+        assert!(!payload.filters[0].enabled);
+        assert_eq!(payload.filters[0].gain, 0.0);
+    }
+
+    #[test]
+    fn is_valid_accepts_neutral_disabled_band_when_hardware_lacks_enable_bit() {
+        let caps = caps_without_per_band_enable(1);
+        let filter = Filter::enabled(0, false);
+
+        let payload = PushPayload {
+            filters: vec![filter],
+            global_gain: Some(0),
+        };
+
+        assert!(payload.is_valid(&caps).is_ok());
     }
 }
