@@ -8,6 +8,7 @@ Thumbs.db
 # --- AI Agents / Assistants ---
 .claude/
 .antigravitycli/
+.pi/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
