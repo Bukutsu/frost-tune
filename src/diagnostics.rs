@@ -187,8 +187,21 @@ pub fn parse_diagnostic_log_line(line: &str) -> Option<DiagnosticEvent> {
     let timestamp = format!("{} {}", date, time);
     let level_raw = parts.next()?;
     let source_raw = parts.next()?;
-    let message = parts.next()?.to_string();
-    let message = message.split(" | ").next().unwrap_or(&message).to_string();
+    let message_raw = parts.next()?.to_string();
+    let mut msg_parts = message_raw.split(" | ");
+    let message = msg_parts.next().unwrap_or("").to_string();
+
+    let mut context = std::collections::HashMap::new();
+    for part in msg_parts {
+        if let Some((k, v)) = part.split_once('=') {
+            context.insert(k.to_string(), v.to_string());
+        }
+    }
+    let context = if context.is_empty() {
+        None
+    } else {
+        Some(context)
+    };
 
     let level = match level_raw.trim_matches(&['[', ']'][..]) {
         "INFO" => LogLevel::Info,
@@ -210,7 +223,7 @@ pub fn parse_diagnostic_log_line(line: &str) -> Option<DiagnosticEvent> {
         level,
         source,
         message,
-        context: None,
+        context,
     })
 }
 
@@ -383,12 +396,16 @@ mod tests {
     #[test]
     fn test_diagnostic_log_line_roundtrip() {
         let event = DiagnosticEvent::new(LogLevel::Warn, Source::HID, "Device disconnected")
-            .with_context("device_id", "1234");
+            .with_context("device_id", "1234")
+            .with_context("port", "2");
         let formatted = format_diagnostic_log_line(&event);
         let parsed = parse_diagnostic_log_line(&formatted).unwrap();
 
         assert_eq!(parsed.level, LogLevel::Warn);
         assert_eq!(parsed.source, Source::HID);
         assert_eq!(parsed.message, "Device disconnected");
+        let ctx = parsed.context.as_ref().unwrap();
+        assert_eq!(ctx.get("device_id").unwrap(), "1234");
+        assert_eq!(ctx.get("port").unwrap(), "2");
     }
 }

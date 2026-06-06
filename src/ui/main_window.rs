@@ -42,9 +42,9 @@ pub fn parse_freq_string(s: &str) -> Option<u16> {
     }
 
     if let Ok(v) = num_str.parse::<f64>() {
-        let hz = (v * multiplier).round() as u16;
-        if (20..=20000).contains(&hz) {
-            return Some(hz);
+        let hz_float = (v * multiplier).round();
+        if (20.0..=20000.0).contains(&hz_float) {
+            return Some(hz_float as u16);
         }
     }
     None

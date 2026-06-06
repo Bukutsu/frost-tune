@@ -64,7 +64,10 @@ pub const GAIN_I16_THRESHOLD: i32 = 32767;
 pub const BYTE_BIT_SHIFT: i32 = 8;
 
 fn clamp_i32(v: f64) -> i32 {
-    (v.round() as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32
+    if !v.is_finite() {
+        return 0;
+    }
+    v.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
 }
 
 fn quantizer(d_arr: &[f64; 3], d_arr2: &[f64; 3]) -> [i32; 5] {

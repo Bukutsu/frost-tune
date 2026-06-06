@@ -224,13 +224,9 @@ fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
         FilterType::Peak
     };
 
-    let freq = extract_fc_value(rest).or_else(|| extract_number_after(rest, "Fc"))?;
-    let gain = extract_gain_value(rest)
-        .or_else(|| extract_number_after(rest, "Gain"))
-        .unwrap_or(0.0);
-    let q = extract_q_value(rest)
-        .or_else(|| extract_number_after(rest, "Q"))
-        .unwrap_or(1.0);
+    let freq = extract_number_after(rest, "Fc")?;
+    let gain = extract_number_after(rest, "Gain").unwrap_or(0.0);
+    let q = extract_number_after(rest, "Q").unwrap_or(1.0);
 
     Some(ParsedFilterLine {
         index: idx,
@@ -240,47 +236,6 @@ fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
         gain,
         q,
     })
-}
-
-fn extract_fc_value(s: &str) -> Option<f64> {
-    let lower = s.to_lowercase();
-    if let Some(pos) = lower.find("fc") {
-        extract_number(&s[pos..])
-    } else {
-        None
-    }
-}
-
-fn extract_gain_value(s: &str) -> Option<f64> {
-    let lower = s.to_lowercase();
-    if let Some(pos) = lower.find("gain") {
-        extract_number(&s[pos..])
-    } else {
-        None
-    }
-}
-
-fn extract_q_value(s: &str) -> Option<f64> {
-    let lower = s.to_lowercase();
-    // Look for " q " or " q:" to avoid matching "lsq" or "hsq"
-    if let Some(pos) = lower
-        .find(" q ")
-        .or_else(|| lower.find(" q:"))
-        .or_else(|| lower.find(" q="))
-    {
-        extract_number(&s[pos..])
-    } else if let Some(pos) = lower.rfind('q') {
-        // Ensure the matched 'q' is not part of a token like "lsq", "hsq"
-        let slice_before = &lower[..pos];
-        let is_filter_type_q = slice_before.ends_with("ls") || slice_before.ends_with("hs");
-        if !is_filter_type_q {
-            extract_number(&s[pos..])
-        } else {
-            None
-        }
-    } else {
-        None
-    }
 }
 
 fn extract_number_after(s: &str, keyword: &str) -> Option<f64> {
