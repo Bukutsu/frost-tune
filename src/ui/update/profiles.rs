@@ -303,8 +303,9 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
             check_overwrite_and_save(window, name, data, SaveContext::Standard)
         }
         Message::AutoEq(AutoEqMessage::ConfirmImportWithName) => {
-            if let ConfirmAction::ImportAutoEQ { data, default_name } =
-                window.editor.session.pending_confirm.clone()
+            if let ConfirmAction::ImportAutoEQ {
+                data, default_name, ..
+            } = window.editor.session.pending_confirm.clone()
             {
                 let typed = window.editor.session.import_name_input.trim();
                 let name = if typed.is_empty() {
@@ -704,22 +705,31 @@ pub fn handle_profiles(window: &mut AppState, message: Message) -> Task<Message>
             Err(e) => window.set_status(format!("Failed to delete: {}", e), StatusSeverity::Error),
         },
         Message::Profiles(ProfilesMessage::ProfileImported { result }) => match result {
-            Ok(mut profile) => {
-                if let Some(active) = window.active_device() {
-                    profile.data.clamp_to_capabilities(&active.capabilities());
+            Ok((mut profile, mut warnings)) => {
+                let mut clamp_warnings = if let Some(active) = window.active_device() {
+                    profile.data.clamp_to_capabilities(&active.capabilities())
                 } else {
-                    profile.data.clamp_to_capabilities(
-                        &crate::core::device::capabilities::DESKTOP_DAC_CAPS,
-                    );
-                }
+                    profile
+                        .data
+                        .clamp_to_capabilities(&crate::core::device::capabilities::DESKTOP_DAC_CAPS)
+                };
+                warnings.append(&mut clamp_warnings);
 
                 window.editor.session.import_temporary = false;
                 window.editor.session.import_name_input.clear();
                 window.editor.session.pending_confirm = ConfirmAction::ImportAutoEQ {
                     data: std::sync::Arc::new(profile.data),
                     default_name: profile.name,
+                    warnings: warnings.clone(),
                 };
-                Task::none()
+                if !warnings.is_empty() {
+                    window.set_status(
+                        format!("Import parsed with warnings: {}", warnings.join("; ")),
+                        StatusSeverity::Warning,
+                    )
+                } else {
+                    Task::none()
+                }
             }
             Err(e) => window.set_status(format!("Import failed: {}", e), StatusSeverity::Error),
         },

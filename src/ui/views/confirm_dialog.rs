@@ -9,7 +9,7 @@ use crate::ui::tokens::{
     TYPE_TITLE,
 };
 use crate::ui::views::action_button;
-use iced::widget::{button, column, container, pick_list, row, text, text_input};
+use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input};
 use iced::{Element, Length};
 
 fn dialog_container<'a>(
@@ -154,6 +154,8 @@ pub fn view_import_dialog<'a>(
     profiles: &'a [crate::storage::Profile],
     _active_profile_name: Option<&'a str>,
     import_temporary: bool,
+    data: &'a crate::core::PEQData,
+    warnings: &'a [String],
     confirm_label: &'static str,
     confirm_msg: Message,
 ) -> Element<'a, Message> {
@@ -265,16 +267,94 @@ pub fn view_import_dialog<'a>(
     .spacing(SPACE_12)
     .width(Length::Fill);
 
-    let col = column![
+    // Filter preview section
+    let mut preview_col = column![text("Filters Preview:")
+        .size(TYPE_CAPTION)
+        .color(COLOR_ON_SURFACE)
+        .font(iced::Font {
+            weight: iced::font::Weight::Bold,
+            ..Default::default()
+        }),]
+    .spacing(SPACE_4);
+
+    let mut has_filters = false;
+    for (i, f) in data.filters.iter().enumerate() {
+        if f.enabled && f.freq > 0 {
+            has_filters = true;
+            let filter_type_short = match f.filter_type {
+                crate::core::FilterType::Peak => "PK",
+                crate::core::FilterType::LowShelf => "LSC",
+                crate::core::FilterType::HighShelf => "HSC",
+                crate::core::FilterType::LowPass => "LP",
+                crate::core::FilterType::HighPass => "HP",
+            };
+            let label = format!(
+                "Band {}: {}  {} Hz  {:.1} dB  Q {:.2}",
+                i + 1,
+                filter_type_short,
+                f.freq,
+                f.gain,
+                f.q
+            );
+            preview_col = preview_col.push(
+                text(label)
+                    .size(TYPE_CAPTION)
+                    .color(COLOR_ON_SURFACE_VARIANT),
+            );
+        }
+    }
+
+    if !has_filters {
+        preview_col = preview_col.push(
+            text("No active filters (preamp only)")
+                .size(TYPE_CAPTION)
+                .color(COLOR_ON_SURFACE_VARIANT),
+        );
+    }
+
+    let preview_box = container(scrollable(preview_col).height(Length::Fixed(80.0)))
+        .padding(SPACE_8)
+        .style(theme::card_style)
+        .width(Length::Fill);
+
+    let mut col = column![
         text(title).size(TYPE_TITLE).color(COLOR_ON_SURFACE),
         text(message)
             .size(TYPE_LABEL)
             .color(COLOR_ON_SURFACE_VARIANT),
         tab_strip,
         mode_content,
-        actions,
+        preview_box,
     ]
     .spacing(SPACE_16);
+
+    if !warnings.is_empty() {
+        let mut warnings_col = column![text("Compatibility Adjustments:")
+            .size(TYPE_CAPTION)
+            .color(crate::ui::tokens::COLOR_WARNING)
+            .font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..Default::default()
+            }),]
+        .spacing(SPACE_4);
+
+        for w in warnings {
+            warnings_col = warnings_col.push(
+                text(format!("• {}", w))
+                    .size(TYPE_CAPTION)
+                    .color(crate::ui::tokens::COLOR_WARNING),
+            );
+        }
+
+        let warnings_box = container(scrollable(warnings_col).height(Length::Fixed(60.0)))
+            .padding(SPACE_8)
+            .style(theme::card_style)
+            .width(Length::Fill);
+
+        col = col.push(warnings_box);
+    }
+
+    col = col.push(actions);
 
     container(col.padding(SPACE_16))
         .style(theme::dialog_style)

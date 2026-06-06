@@ -3,12 +3,15 @@
 
 use crate::core::{Filter, FilterType, PEQData};
 
-pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
+pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Option<String>, Vec<String>), String> {
     let lines: Vec<&str> = text.lines().collect();
     let mut filters: std::collections::BTreeMap<usize, Filter> = std::collections::BTreeMap::new();
     let mut preamp: i8 = 0;
     let mut parsed_count: usize = 0;
     let mut warnings: Vec<String> = Vec::new();
+
+    let headphone_name = extract_name_from_comments(text);
+    let mut next_sequential_idx = 0;
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_num = line_idx + 1;
@@ -35,18 +38,28 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
 
         if line.to_lowercase().contains("filter") {
             if let Some(parsed) = parse_filter_line(line) {
-                if parsed.index >= 32 {
+                let idx = parsed.index.unwrap_or_else(|| {
+                    let i = next_sequential_idx;
+                    next_sequential_idx += 1;
+                    i
+                });
+
+                if parsed.index.is_some() {
+                    next_sequential_idx = idx + 1;
+                }
+
+                if idx >= 32 {
                     warnings.push(format!(
                         "Line {}: Filter index {} exceeds maximum allowed bands (32)",
                         line_num,
-                        parsed.index + 1
+                        idx + 1
                     ));
                     continue;
                 }
                 filters.insert(
-                    parsed.index,
+                    idx,
                     Filter {
-                        index: parsed.index as u8,
+                        index: idx as u8,
                         enabled: parsed.enabled,
                         freq: parsed.freq as u16,
                         gain: parsed.gain,
@@ -81,8 +94,53 @@ pub fn parse_autoeq_text(text: &str) -> Result<(PEQData, Vec<String>), String> {
             filters: contiguous_filters,
             global_gain: preamp,
         },
+        headphone_name,
         warnings,
     ))
+}
+
+fn extract_name_from_comments(text: &str) -> Option<String> {
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(stripped) = line.strip_prefix('#') {
+            let content = stripped.trim();
+            if content.is_empty() {
+                continue;
+            }
+
+            // Check for explicit headers
+            if let Some(pos) = content.to_lowercase().find("graphiceq:") {
+                let name = content[pos + 10..].trim();
+                if !name.is_empty() {
+                    return Some(name.to_string());
+                }
+            }
+            if let Some(pos) = content.to_lowercase().find("autoeq:") {
+                let name = content[pos + 7..].trim();
+                if !name.is_empty() {
+                    return Some(name.to_string());
+                }
+            }
+
+            // Or if it's the first non-empty comment line and doesn't look like a URL or generic info
+            let lower = content.to_lowercase();
+            if !lower.contains("http")
+                && !lower.contains("squig.link")
+                && !lower.contains("equalizer")
+                && !lower.contains("preamp")
+                && !lower.contains("filter")
+                && !lower.contains("frequency")
+                && !lower.contains("response")
+                && content.len() < 100
+            {
+                return Some(content.to_string());
+            }
+        } else if !line.is_empty() {
+            // Stop searching once we hit actual non-comment content
+            break;
+        }
+    }
+    None
 }
 
 fn extract_number(s: &str) -> Option<f64> {
@@ -107,7 +165,7 @@ fn extract_number(s: &str) -> Option<f64> {
 }
 
 struct ParsedFilterLine {
-    index: usize,
+    index: Option<usize>,
     enabled: bool,
     filter_type: FilterType,
     freq: f64,
@@ -128,11 +186,24 @@ fn parse_filter_line(line: &str) -> Option<ParsedFilterLine> {
             found_digit = true;
         } else if found_digit {
             break;
+        } else if c.is_whitespace() {
+            // Skip leading whitespace before finding a digit
+            continue;
+        } else if c == ':' {
+            // If we hit a colon before finding any digit, e.g. "Filter: ON"
+            break;
+        } else {
+            // Any other non-digit character before finding a digit means it's not a standard index
+            break;
         }
     }
 
-    let idx: usize = digits.parse().ok()?;
-    let idx = idx.saturating_sub(1);
+    let idx: Option<usize> = if digits.is_empty() {
+        None
+    } else {
+        let i: usize = digits.parse().ok()?;
+        Some(i.saturating_sub(1))
+    };
 
     let on_off = !lower.contains("off");
     let rest_upper = rest.to_uppercase();
@@ -276,16 +347,17 @@ mod tests {
     #[test]
     fn test_parse_autoeq_with_preamp() {
         let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, name, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.global_gain, -3);
         assert!(result.filters[0].enabled);
         assert!(warnings.is_empty());
+        assert_eq!(name, None);
     }
 
     #[test]
     fn test_parse_autoeq_multiple_filters() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, _, warnings) = parse_autoeq_text(text).unwrap();
         assert!(result.filters[0].enabled);
         assert!(!result.filters[1].enabled);
         assert!(warnings.is_empty());
@@ -305,7 +377,7 @@ mod tests {
     #[test]
     fn test_parse_autoeq_clamp_gain() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 20.0 dB Q 1.0";
-        let (mut result, warnings) = parse_autoeq_text(text).unwrap();
+        let (mut result, _, warnings) = parse_autoeq_text(text).unwrap();
 
         result.clamp_to_capabilities(&crate::core::device::capabilities::DESKTOP_DAC_CAPS);
 
@@ -316,7 +388,7 @@ mod tests {
     #[test]
     fn test_parse_real_file_format() {
         let text = "Preamp: -6.3 dB\nFilter 1: ON LSC Fc 36 Hz Gain -2.22 dB Q 0.857\nFilter 2: ON PK Fc 166 Hz Gain -0.79 dB Q 1.669";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, _, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.global_gain, -6);
         assert_eq!(result.filters[0].freq, 36);
         assert!((result.filters[0].gain - (-2.22)).abs() < 0.1);
@@ -331,7 +403,7 @@ mod tests {
 Filter 1: ON PK Fc 22 Hz Gain -0.86 dB Q 1.717
 Filter 2: ON LSC Fc 43 Hz Gain -1.38 dB Q 1.004
 Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _, _) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].filter_type, FilterType::Peak);
         assert_eq!(result.filters[1].filter_type, FilterType::LowShelf);
         assert_eq!(result.filters[7].filter_type, FilterType::HighShelf);
@@ -361,7 +433,7 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
             global_gain: 0,
         };
         let text = peq_to_autoeq(&original);
-        let (parsed, _) = parse_autoeq_text(&text).unwrap();
+        let (parsed, _, _) = parse_autoeq_text(&text).unwrap();
         assert_eq!(parsed.filters[0].filter_type, FilterType::LowShelf);
         assert_eq!(parsed.filters[1].filter_type, FilterType::HighShelf);
     }
@@ -370,7 +442,7 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     fn test_parse_legacy_ls_hs_tokens() {
         let text =
             "Filter 1: ON LS Fc 80 Hz Gain -2 dB Q 0.7\nFilter 2: ON HS Fc 8000 Hz Gain 1 dB Q 0.7";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _, _) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].filter_type, FilterType::LowShelf);
         assert_eq!(result.filters[1].filter_type, FilterType::HighShelf);
     }
@@ -378,7 +450,7 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     #[test]
     fn test_parse_autoeq_lenient_with_bad_lines() {
         let text = "Preamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0\nFilter 2: BAD FORMAT\nFilter 3: OFF PK Fc 1000 Hz Gain 0 dB Q 2.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, _, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].freq, 100);
         assert_eq!(result.filters[2].freq, 1000);
         assert_eq!(warnings.len(), 1);
@@ -389,14 +461,14 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     fn test_parse_lsq_missing_q_fallback() {
         // Shelf type with missing Q should default to 1.0 rather than failing
         let text = "Filter 1: ON LSQ Fc 80 Hz Gain -3.0 dB";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _, _) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].q, 1.0);
     }
 
     #[test]
     fn test_parse_inline_comments() {
         let text = "Preamp: -3 dB # Set preamplifier gain\nFilter 1: ON PK Fc 1000 Hz Gain 1.5 dB Q 1.4 # peak filter";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _, _) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.global_gain, -3);
         assert_eq!(result.filters[0].freq, 1000);
         assert!((result.filters[0].gain - 1.5).abs() < 0.01);
@@ -407,7 +479,7 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     fn test_parse_number_after_case_insensitive_fallback() {
         // Test case-insensitive fallback logic inside extract_number_after
         let text = "Filter 1: ON PK fc 500 gain 2.0 q 1.2";
-        let (result, _) = parse_autoeq_text(text).unwrap();
+        let (result, _, _) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters[0].freq, 500);
         assert!((result.filters[0].gain - 2.0).abs() < 0.01);
         assert!((result.filters[0].q - 1.2).abs() < 0.01);
@@ -416,9 +488,33 @@ Filter 8: ON HSC Fc 7624 Hz Gain 0.59 dB Q 3.000";
     #[test]
     fn test_parse_oversized_filter_index_dos_mitigation() {
         let text = "Filter 1: ON PK Fc 100 Hz Gain 1.0 dB Q 1.0\nFilter 9999: ON PK Fc 1000 Hz Gain 2.0 dB Q 1.0";
-        let (result, warnings) = parse_autoeq_text(text).unwrap();
+        let (result, _, warnings) = parse_autoeq_text(text).unwrap();
         assert_eq!(result.filters.len(), 1); // Should only have Filter 1
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("exceeds maximum allowed bands"));
+    }
+
+    #[test]
+    fn test_parse_index_less_filters() {
+        let text = "Preamp: -6.0 dB\nFilter: ON PK Fc 30 Hz Gain 6.0 dB Q 1.5\nFilter: ON PK Fc 100 Hz Gain -3.0 dB Q 2.0";
+        let (result, name, warnings) = parse_autoeq_text(text).unwrap();
+        assert_eq!(result.global_gain, -6);
+        assert_eq!(result.filters.len(), 2);
+        assert!(result.filters[0].enabled);
+        assert_eq!(result.filters[0].freq, 30);
+        assert_eq!(result.filters[1].freq, 100);
+        assert!(warnings.is_empty());
+        assert_eq!(name, None);
+    }
+
+    #[test]
+    fn test_parse_headphone_name_from_comments() {
+        let text = "# GraphicEQ: Sennheiser HD 600\nPreamp: -3 dB\nFilter 1: ON PK Fc 100 Hz Gain 5.0 dB Q 1.0";
+        let (_, name, _) = parse_autoeq_text(text).unwrap();
+        assert_eq!(name, Some("Sennheiser HD 600".to_string()));
+
+        let text2 = "# Sennheiser HD 600\nPreamp: -3 dB";
+        let (_, name2, _) = parse_autoeq_text(text2).unwrap();
+        assert_eq!(name2, Some("Sennheiser HD 600".to_string()));
     }
 }

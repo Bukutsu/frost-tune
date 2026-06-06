@@ -139,6 +139,7 @@ pub enum ConfirmAction {
     ImportAutoEQ {
         data: std::sync::Arc<crate::core::PEQData>,
         default_name: String,
+        warnings: Vec<String>,
     },
     OverwriteProfile {
         name: String,

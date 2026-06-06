@@ -32,7 +32,7 @@ pub enum ProfilesMessage {
         result: Result<(), AppError>,
     },
     ProfileImported {
-        result: Result<Profile, AppError>,
+        result: Result<(Profile, Vec<String>), AppError>,
     },
     ProfileExported {
         result: Result<(), AppError>,

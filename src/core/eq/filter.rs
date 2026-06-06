@@ -114,14 +114,30 @@ use crate::core::device::capabilities::DeviceCapabilities;
 
 impl PEQData {
     /// Clamps the EQ data to fit within the given device capabilities.
-    pub fn clamp_to_capabilities(&mut self, caps: &DeviceCapabilities) {
-        self.global_gain = self
-            .global_gain
-            .clamp(caps.global_gain_range.0, caps.global_gain_range.1);
+    pub fn clamp_to_capabilities(&mut self, caps: &DeviceCapabilities) -> Vec<String> {
+        let mut warnings = Vec::new();
+
+        if self.global_gain < caps.global_gain_range.0
+            || self.global_gain > caps.global_gain_range.1
+        {
+            let old_gain = self.global_gain;
+            self.global_gain = self
+                .global_gain
+                .clamp(caps.global_gain_range.0, caps.global_gain_range.1);
+            warnings.push(format!(
+                "Clamped preamp gain from {} dB to {} dB",
+                old_gain, self.global_gain
+            ));
+        }
 
         // Truncate if there are more filters than supported bands
         if self.filters.len() > caps.num_bands {
+            let excess = self.filters.len() - caps.num_bands;
             self.filters.truncate(caps.num_bands);
+            warnings.push(format!(
+                "Truncated {} band(s) (device supports max {})",
+                excess, caps.num_bands
+            ));
         }
 
         // Pad with disabled filters if there are fewer filters than supported bands
@@ -130,18 +146,66 @@ impl PEQData {
                 .push(Filter::enabled(self.filters.len() as u8, false));
         }
 
-        for filter in &mut self.filters {
-            filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
-            if !caps.supported_filter_types.supports(filter.filter_type) {
-                filter.filter_type = FilterType::Peak; // Fallback
+        for (i, filter) in self.filters.iter_mut().enumerate() {
+            let band_num = i + 1;
+
+            // Only warn on clamping for enabled filters, or if it is disabled but has non-zero gain
+            let should_check_clamp =
+                filter.enabled || filter.freq != 0 || filter.gain.abs() > 0.001;
+
+            if should_check_clamp {
+                let old_freq = filter.freq;
+                let old_gain = filter.gain;
+                let old_q = filter.q;
+
+                filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
+
+                if filter.freq != old_freq {
+                    warnings.push(format!(
+                        "Band {}: Clamped frequency from {} Hz to {} Hz",
+                        band_num, old_freq, filter.freq
+                    ));
+                }
+                if (filter.gain - old_gain).abs() > 0.001 {
+                    warnings.push(format!(
+                        "Band {}: Clamped gain from {:.1} dB to {:.1} dB",
+                        band_num, old_gain, filter.gain
+                    ));
+                }
+                if (filter.q - old_q).abs() > 0.001 {
+                    warnings.push(format!(
+                        "Band {}: Clamped Q from {:.2} to {:.2}",
+                        band_num, old_q, filter.q
+                    ));
+                }
+            } else {
+                filter.clamp(caps.freq_range, caps.band_gain_range, caps.q_range);
             }
+
+            if !caps.supported_filter_types.supports(filter.filter_type) {
+                let old_type = filter.filter_type;
+                filter.filter_type = FilterType::Peak; // Fallback
+                if filter.enabled {
+                    warnings.push(format!(
+                        "Band {}: Converted filter type from {} to Peak (unsupported by device)",
+                        band_num, old_type
+                    ));
+                }
+            }
+
             if !caps.supports_per_band_enable {
                 // If per-band enable is not supported, effectively disable by zeroing gain
-                if !filter.enabled {
+                if !filter.enabled && filter.gain.abs() > 0.001 {
                     filter.gain = 0.0;
+                    warnings.push(format!(
+                        "Band {}: Set disabled band gain to 0 dB (device lacks per-band disable support)",
+                        band_num
+                    ));
                 }
             }
         }
+
+        warnings
     }
     /// Audibly-equivalent comparison with tolerance for float fields.
     /// Disabled bands match regardless of params (no audible effect).

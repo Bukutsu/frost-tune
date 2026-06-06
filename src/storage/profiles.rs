@@ -49,7 +49,7 @@ pub async fn load_all_profiles() -> Result<(Vec<Profile>, Vec<String>)> {
                     }
                 };
                 match autoeq::parse_autoeq_text(&content) {
-                    Ok((data, warnings)) => {
+                    Ok((data, _, warnings)) => {
                         if !warnings.is_empty() {
                             for w in &warnings {
                                 log::warn!("Profile {} warning: {}", name, w);
@@ -158,7 +158,7 @@ pub async fn delete_profile(name: &str) -> Result<()> {
     }
 }
 
-pub async fn import_profile(path: &Path) -> Result<Profile> {
+pub async fn import_profile(path: &Path) -> Result<(Profile, Vec<String>)> {
     let metadata = fs::metadata(path).await.map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
@@ -179,7 +179,7 @@ pub async fn import_profile(path: &Path) -> Result<Profile> {
             format!("Failed to read profile file: {}", e),
         )
     })?;
-    let (data, warnings) = autoeq::parse_autoeq_text(&content).map_err(|e| {
+    let (data, headphone_name, warnings) = autoeq::parse_autoeq_text(&content).map_err(|e| {
         AppError::new(
             ErrorKind::StorageError,
             format!("Failed to parse profile: {}", e),
@@ -188,16 +188,20 @@ pub async fn import_profile(path: &Path) -> Result<Profile> {
     if !warnings.is_empty() {
         log::warn!("Import warnings for profile: {:?}", warnings);
     }
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Imported Profile")
-        .to_string();
-    Ok(Profile {
-        name,
-        data,
-        modified: None,
-    })
+    let name = headphone_name.unwrap_or_else(|| {
+        path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Imported Profile")
+            .to_string()
+    });
+    Ok((
+        Profile {
+            name,
+            data,
+            modified: None,
+        },
+        warnings,
+    ))
 }
 
 pub async fn export_profile(path: &Path, data: &PEQData) -> Result<()> {
@@ -319,7 +323,7 @@ mod tests {
     #[test]
     fn test_import_profile() {
         let content = "Preamp: -3 dB\nFilter 1: ON PK Fc 1000 Hz Gain 5.0 dB Q 1.0";
-        let (data, warnings) = autoeq::parse_autoeq_text(content).unwrap();
+        let (data, _, warnings) = autoeq::parse_autoeq_text(content).unwrap();
 
         assert_eq!(data.global_gain, -3);
         assert!(data.filters[0].enabled);

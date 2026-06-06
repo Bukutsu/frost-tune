@@ -34,14 +34,16 @@ pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
         }
         Message::AutoEq(AutoEqMessage::ImportClipboardReceived(text)) => {
             match autoeq::parse_autoeq_text(&text) {
-                Ok((mut peq, warnings)) => {
-                    if let Some(profile) = window.active_device() {
-                        peq.clamp_to_capabilities(&profile.capabilities());
+                Ok((mut peq, headphone_name, mut warnings)) => {
+                    let mut clamp_warnings = if let Some(profile) = window.active_device() {
+                        peq.clamp_to_capabilities(&profile.capabilities())
                     } else {
                         peq.clamp_to_capabilities(
                             &crate::core::device::capabilities::DESKTOP_DAC_CAPS,
-                        );
-                    }
+                        )
+                    };
+                    warnings.append(&mut clamp_warnings);
+
                     if !warnings.is_empty() {
                         for w in &warnings {
                             window.diagnostics.push(DiagnosticEvent::new(
@@ -53,13 +55,16 @@ pub fn handle_autoeq(window: &mut AppState, message: Message) -> Task<Message> {
                     }
                     window.editor.session.import_temporary = false;
                     window.editor.session.import_name_input.clear();
+
+                    let default_name = headphone_name.unwrap_or_else(|| {
+                        format!("Imported {}", chrono::Local::now().format("%Y-%m-%d %H:%M"))
+                    });
+
                     window.editor.session.pending_confirm =
                         crate::ui::components::editor::ConfirmAction::ImportAutoEQ {
                             data: std::sync::Arc::new(peq),
-                            default_name: format!(
-                                "Imported {}",
-                                chrono::Local::now().format("%Y-%m-%d %H:%M")
-                            ),
+                            default_name,
+                            warnings: warnings.clone(),
                         };
                     if !warnings.is_empty() {
                         window.set_status(

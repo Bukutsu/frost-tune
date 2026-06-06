@@ -26,7 +26,7 @@ pub fn with_modal_overlay<'a>(
             Message::Profiles(ProfilesMessage::ConfirmDeleteProfile),
             true,
         )),
-        ConfirmAction::ImportAutoEQ { ref data, ref default_name } => {
+        ConfirmAction::ImportAutoEQ { ref data, ref default_name, ref warnings } => {
             let count = data.filters.iter().filter(|f| f.enabled).count();
             let message = format!(
                 "This will import {} filters and set global gain to {:.1}dB.\n\nCurrent unsaved settings will be replaced.",
@@ -40,6 +40,8 @@ pub fn with_modal_overlay<'a>(
                 &state.editor.ui.profiles,
                 state.editor.ui.selected_profile_name.as_deref(),
                 state.editor.session.import_temporary,
+                data,
+                warnings,
                 "Import",
                 Message::AutoEq(AutoEqMessage::ConfirmImportWithName),
             ))
