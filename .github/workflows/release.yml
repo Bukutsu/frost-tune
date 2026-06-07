@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
 
 permissions:
   contents: write
@@ -34,8 +34,6 @@ jobs:
           echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
-
-
 
   build-release:
     name: Build Release (${{ matrix.target }})
@@ -80,10 +78,9 @@ jobs:
         run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Test release build
         run: cargo test --release --locked --target ${{ matrix.target }}
-
 
       - name: Install cargo-wix
         if: matrix.os == 'windows-latest'
@@ -154,8 +151,23 @@ jobs:
           ls -la artifacts
           ls -la artifacts/frost-tune-*
 
+      - name: Validate all expected artifacts exist
+        shell: bash
+        run: |
+          expected=()
+          for f in artifacts/frost-tune-*; do
+            [ -f "$f" ] && expected+=("$f") || true
+          done
+          if [ ${#expected[@]} -eq 0 ]; then
+            echo "::error::No artifact files found in artifacts/ — download path may be wrong"
+            exit 1
+          fi
+          echo "Found ${#expected[@]} artifact(s):"
+          for f in "${expected[@]}"; do
+            ls -lh "$f"
+          done
+
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/frost-tune-*
           generate_release_notes: true
-

@@ -130,14 +130,14 @@ MIT. See `LICENSE`.
 - [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
 - [devicePEQ](https://github.com/jeromeof/devicePEQ) for reverse-engineered DAC protocols
 
-[contributors-shield]: https://img.shields.io/github/contributors/bukutsu/frost-tune?style=flat&logo=github&color=blue
+[contributors-shield]: https://img.shields.io/badge/contributors-2-blue?style=flat&logo=github
 [contributors-url]: https://github.com/bukutsu/frost-tune/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/bukutsu/frost-tune?style=flat&logo=github&color=blue
+[forks-shield]: https://img.shields.io/badge/forks-0-blue?style=flat&logo=github
 [forks-url]: https://github.com/bukutsu/frost-tune/network/members
-[stars-shield]: https://img.shields.io/github/stars/bukutsu/frost-tune?style=flat&logo=github&color=brightgreen
+[stars-shield]: https://img.shields.io/badge/stars-2-brightgreen?style=flat&logo=github
 [stars-url]: https://github.com/bukutsu/frost-tune/stargazers
-[issues-shield]: https://img.shields.io/github/issues/bukutsu/frost-tune?style=flat&logo=github&color=important
+[issues-shield]: https://img.shields.io/badge/issues-0%20open-important?style=flat&logo=github
 [issues-url]: https://github.com/bukutsu/frost-tune/issues
-[license-shield]: https://img.shields.io/github/license/bukutsu/frost-tune?style=flat&logo=github&color=brightgreen
+[license-shield]: https://img.shields.io/badge/license-MIT-brightgreen?style=flat&logo=github
 [license-url]: https://github.com/bukutsu/frost-tune/blob/main/LICENSE
 [product-screenshot]: assets/screenshot.png
