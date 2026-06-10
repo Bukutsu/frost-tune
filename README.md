@@ -136,7 +136,7 @@ MIT. See `LICENSE`.
 [forks-url]: https://github.com/bukutsu/frost-tune/network/members
 [stars-shield]: https://img.shields.io/badge/stars-2-brightgreen?style=flat&logo=github
 [stars-url]: https://github.com/bukutsu/frost-tune/stargazers
-[issues-shield]: https://img.shields.io/badge/issues-0%20open-important?style=flat&logo=github
+[issues-shield]: https://img.shields.io/badge/issues-1%20open-important?style=flat&logo=github
 [issues-url]: https://github.com/bukutsu/frost-tune/issues
 [license-shield]: https://img.shields.io/badge/license-MIT-brightgreen?style=flat&logo=github
 [license-url]: https://github.com/bukutsu/frost-tune/blob/main/LICENSE
